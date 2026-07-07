@@ -20,6 +20,12 @@ https://github.com/addyosmani/agent-skills
 4. В чате OpenAI применять подход skills как рабочий процесс по смыслу задачи.
 5. Для Codex CLI, Codex VS Code Plugin, Codex Desktop и других IDE устанавливать skills в профиль пользователя или в локальную копию репозитория, добавленную в `.gitignore`.
 
+Решение и причины зафиксированы в:
+
+```text
+docs/decisions/ADR-0002-use-external-agent-skills.md
+```
+
 ## Рекомендуемые skills
 
 ```text
@@ -75,7 +81,7 @@ Skill `documentation-and-adrs` подходит для ведения докум
 Для этого проекта ADR хранятся в:
 
 ```text
-.agents/adr/
+docs/decisions/
 ```
 
 Документация по настройке и эксплуатации хранится в:
