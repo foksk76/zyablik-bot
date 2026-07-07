@@ -25,8 +25,8 @@ docs/project-acceptance.md
 
 ### Phase 1: Уточнение и базовая проверка
 
-- [ ] Task 1: Сверить параметры webhook с документацией проекта.
-- [ ] Task 2: Проверить MAX Media type на тестовом получателе.
+- [x] Task 1: Сверить параметры webhook с документацией проекта.
+- [x] Task 2: Проверить MAX Media type на тестовом получателе.
 - [ ] Task 3: Проверить Problem и Recovery.
 
 ### Checkpoint: После Phase 1
@@ -49,7 +49,7 @@ docs/project-acceptance.md
 ### Phase 3: Проверки качества
 
 - [ ] Task 6: Принять техническое решение по локальной проверке форматирования.
-- [ ] Task 6.1: Перенести проверку репозитория на Node.js policy tests и GitHub Actions.
+- [x] Task 6.1: Перенести проверку репозитория на Node.js policy tests и GitHub Actions.
 - [ ] Task 7: Реализовать локальную проверку форматирования, если это разрешено ADR.
 - [ ] Task 8: Провести review документации, задач и webhook-логики.
 
