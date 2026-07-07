@@ -20,6 +20,8 @@ required_files=(
   "docs/decisions/ADR-0001-ai-assisted-dev.md"
   "docs/decisions/ADR-0002-use-external-agent-skills.md"
   "docs/zabbix-media-type.md"
+  "tasks/plan.md"
+  "tasks/todo.md"
   "src/zabbix-media-type/max-webhook.js"
 )
 
@@ -31,16 +33,22 @@ done
 
 echo "Required files: OK"
 
-if grep -RInE "Отдел|SOC|NOC" README.md docs .agents 2>/dev/null; then
-  fail "found organization-specific wording in docs or agent context"
+if grep -RInE "Отдел|SOC|NOC" README.md docs .agents tasks 2>/dev/null; then
+  fail "found organization-specific wording in docs, tasks or agent context"
 fi
 
 echo "Audience wording: OK"
 
-if find .agents/adr -type f ! -name 'README.md' 2>/dev/null | grep -q .; then
-  fail "ADR files must be stored in docs/decisions, not .agents/adr"
+if find .agents/adr -type f 2>/dev/null | grep -q .; then
+  fail "ADR files must be stored only in docs/decisions"
 fi
 
 echo "ADR location: OK"
+
+if find .agents/tasks -type f 2>/dev/null | grep -q .; then
+  fail "task files must be stored only in tasks"
+fi
+
+echo "Task location: OK"
 
 echo "Repository check completed"
