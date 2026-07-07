@@ -95,12 +95,14 @@ docs/second-stage-acceptance.md
 Второй этап начинается после принятия первого этапа и не пересматривает текущую интеграцию Zabbix -> МАХ.
 
 - [ ] Task 11: Исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
+- [ ] Task 11.1: Найти и сравнить open source кандидатов для модульной bot-platform.
 
 ### Checkpoint: Перед реализацией второго этапа
 
 - [x] Первый этап принят и не меняется.
 - [x] Старт второго этапа и критерии завершения описаны в `docs/second-stage-acceptance.md`.
 - [x] Исследовательская постановка Task 11 описана в `docs/modular-bot-platform-research.md`.
+- [x] Шаблон поиска и сравнения кандидатов Task 11.1 описан в `docs/modular-bot-platform-candidates.md`.
 - [ ] Выполнен поиск в открытых источниках по open source кандидатам.
 - [ ] Подготовлена сравнительная таблица кандидатов и вариантов.
 - [ ] Выбран подход для MVP: собственный сервис, open source framework, workflow-прототип или отказ от реализации.
@@ -128,7 +130,7 @@ docs/second-stage-acceptance.md
 
 Безопасно выполнять параллельно:
 
-- Поиск open source кандидатов для Task 11.
+- Поиск open source кандидатов для Task 11.1.
 - Подготовка черновика ADR для MVP без изменения текущего webhook.
 
 Последовательно выполнять:
@@ -136,7 +138,7 @@ docs/second-stage-acceptance.md
 - Task 1 -> Task 2 -> Task 3;
 - Task 4 -> Task 5 -> Task 8 -> Task 9 -> Task 10;
 - Task 6 -> Task 7, только если принято решение развивать локальный format harness;
-- Task 11 research -> ADR -> MVP implementation.
+- Task 11 -> Task 11.1 -> ADR -> MVP implementation.
 
 ## Definition of Done для плана
 
