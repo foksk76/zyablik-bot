@@ -89,6 +89,20 @@ docs/zabbix-media-type.md
 AGENTS.md
 .agents/project-context.md
 .agents/tasks/current.md
+docs/agent-skills-integration.md
+```
+
+Внешний набор skills используется ссылкой, без submodule:
+
+```text
+https://github.com/addyosmani/agent-skills
+```
+
+Для документации и ADR используется подход `documentation-and-adrs`. Подробности зафиксированы в:
+
+```text
+docs/agent-skills-integration.md
+.agents/adr/ADR-0002-use-external-agent-skills.md
 ```
 
 Базовая проверка проекта:
