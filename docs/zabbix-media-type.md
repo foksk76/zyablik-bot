@@ -93,6 +93,35 @@ RecipientType: должен соответствовать типу получа
 
 Дополнительный обезличенный пример приведен в `examples/recipient-id.md`.
 
+## Повторное создание или перенос Media type
+
+Для повторного создания Media type `MAX` в другой среде Zabbix использовать тот же набор общих настроек, параметров и скрипт из:
+
+```text
+src/zabbix-media-type/max-webhook.js
+```
+
+Минимальный порядок:
+
+1. Создать Media type `MAX` с типом `Webhook`.
+2. Вставить актуальный скрипт `src/zabbix-media-type/max-webhook.js`.
+3. Заполнить параметры по разделу `Параметры`.
+4. В целевой среде задать значения `Token`, `RecipientType`, `To` и при необходимости `HTTPProxy`.
+5. Проверить тестовое сообщение.
+6. Проверить Problem и Recovery через тестовый Action.
+7. Убедиться, что существующие каналы доставки не изменялись.
+
+Значения, которые задаются только в целевой среде:
+
+```text
+Token: токен бота MAX
+RecipientType: user_id или chat_id
+To: <MAX_USER_ID> или <MAX_CHAT_ID>
+HTTPProxy: только если нужен исходящий HTTP-прокси
+```
+
+Для сверки использовать чек-лист `examples/media-type-recreate-checklist.md`.
+
 ## Тестовое сообщение
 
 ```text
