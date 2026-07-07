@@ -5,7 +5,29 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const scannedRoots = ['README.md', 'docs', '.agents', 'tasks'];
-const blockedPattern = /Отдел|SOC|NOC/;
+const blockedTerms = ['Отдел', 'SOC', 'NOC'];
+const wordChars = /[А-Яа-яЁёA-Za-z0-9_]/u;
+
+function hasStandaloneTerm(line, term) {
+  let index = line.indexOf(term);
+
+  while (index !== -1) {
+    const before = index > 0 ? line[index - 1] : '';
+    const afterIndex = index + term.length;
+    const after = afterIndex < line.length ? line[afterIndex] : '';
+
+    const hasLeftBoundary = before === '' || !wordChars.test(before);
+    const hasRightBoundary = after === '' || !wordChars.test(after);
+
+    if (hasLeftBoundary && hasRightBoundary) {
+      return true;
+    }
+
+    index = line.indexOf(term, index + term.length);
+  }
+
+  return false;
+}
 
 function listMarkdownAndTextFiles(target) {
   const absoluteTarget = path.join(root, target);
@@ -53,8 +75,10 @@ test('documentation does not use old organization-specific wording', () => {
       const lines = content.split('\n');
 
       lines.forEach((line, index) => {
-        if (blockedPattern.test(line)) {
-          matches.push(`${path.relative(root, file)}:${index + 1}: ${line}`);
+        for (const term of blockedTerms) {
+          if (hasStandaloneTerm(line, term)) {
+            matches.push(`${path.relative(root, file)}:${index + 1}: ${term}: ${line}`);
+          }
         }
       });
     }
