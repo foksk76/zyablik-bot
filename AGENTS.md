@@ -13,10 +13,11 @@
 1. Прочитать `README.md`.
 2. Прочитать `.agents/project-context.md`.
 3. Прочитать `docs/project-context.md`.
-4. Проверить актуальную задачу в `.agents/tasks/current.md`.
-5. Проверить прошлые решения в `docs/decisions/README.md`.
-6. Проверить правила внешних skills в `docs/agent-skills-integration.md`.
-7. Не менять границы проекта без отдельного решения в ADR.
+4. Проверить план задач в `tasks/plan.md`.
+5. Проверить исполняемый список задач в `tasks/todo.md`.
+6. Проверить прошлые решения в `docs/decisions/README.md`.
+7. Проверить правила внешних skills в `docs/agent-skills-integration.md`.
+8. Не менять границы проекта без отдельного решения в ADR.
 
 ## Каноничные источники контекста
 
@@ -25,14 +26,16 @@ README.md                         быстрый вход в проект
 docs/project-context.md            рабочий контекст и границы проекта
 docs/documentation-policy.md       правила ведения документации
 docs/decisions/                    каноничное место для ADR
+tasks/plan.md                      план работ по planning-and-task-breakdown
+tasks/todo.md                      исполняемый список задач
 AGENTS.md                          правила для AI-агентов
-.agents/                           рабочая область агента, не хранилище решений
+.agents/                           рабочая область агента, не хранилище решений и задач
 ```
 
 Если между файлами есть противоречие, приоритет такой:
 
 ```text
-docs/decisions/ -> docs/project-context.md -> AGENTS.md -> README.md -> .agents/
+docs/decisions/ -> docs/project-context.md -> tasks/plan.md -> tasks/todo.md -> AGENTS.md -> README.md -> .agents/
 ```
 
 ## Внешний набор skills
@@ -83,6 +86,7 @@ documentation-and-adrs
 
 ```bash
 npx skills add addyosmani/agent-skills --list
+npx skills add addyosmani/agent-skills --skill planning-and-task-breakdown
 npx skills add addyosmani/agent-skills --skill documentation-and-adrs
 ```
 
@@ -104,6 +108,7 @@ git clone https://github.com/addyosmani/agent-skills.git .agents/external-skills
 - Любое изменение поведения webhook фиксировать в `docs/zabbix-media-type.md`.
 - Любое архитектурное решение или существенное изменение документации вести через подход `documentation-and-adrs`.
 - ADR создавать в `docs/decisions/`, а не в `.agents/`.
+- Задачи создавать и обновлять в `tasks/plan.md` и `tasks/todo.md`, а не в `.agents/`.
 
 ## Проверка перед завершением задачи
 
@@ -119,7 +124,8 @@ bash scripts/verify-repo.sh
 - README не противоречит документации;
 - основной webhook-скрипт находится в `src/zabbix-media-type/max-webhook.js`;
 - изменения не расширяют проект за пределы текущего этапа;
-- новые решения зафиксированы в `docs/decisions/`, если они меняют архитектуру, процесс или границы проекта.
+- новые решения зафиксированы в `docs/decisions/`, если они меняют архитектуру, процесс или границы проекта;
+- новые задачи оформлены в `tasks/todo.md` с acceptance criteria, verification, dependencies и estimated scope.
 
 ## Как отвечать на review
 
