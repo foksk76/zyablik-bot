@@ -80,6 +80,8 @@ docs/project-acceptance.md
 
 ## Task 2: Проверить MAX Media type на тестовом получателе
 
+**Status:** Ready for manual run
+
 **Description:** Выполнить ручной тест Zabbix Media type `MAX` на тестового получателя МАХ и зафиксировать обезличенный результат проверки.
 
 **Method:** Integration run
@@ -94,16 +96,21 @@ docs/project-acceptance.md
 
 **Verification:**
 
+- [x] Подготовлен ручной runbook: `docs/test-runs/max-media-type-manual-run.md`.
 - [ ] Проверен результат в тестовом получателе МАХ.
 - [ ] При ошибке зафиксированы HTTP-код, краткий текст ошибки и место диагностики без чувствительных значений.
 - [ ] Документация обновлена только по фактически проверенному поведению.
+
+**Result:** Подготовлен ручной прогон и шаблон фиксации результата. Фактическая отправка Zabbix -> МАХ не выполнялась в браузерном чате, потому что требуется доступ к тестовому Zabbix, тестовому получателю МАХ и рабочим значениям настройки.
 
 **Dependencies:** Task 1, Task 1.1
 
 **Files likely touched:**
 
+- `docs/test-runs/`
 - `docs/zabbix-media-type.md`
 - `examples/media-params.md`
+- `tasks/todo.md`
 
 **Estimated scope:** Small: 1-2 files
 
