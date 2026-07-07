@@ -7,6 +7,7 @@
 - [`project-context.md`](project-context.md) — что делает проект, почему выбран текущий подход и где границы первого этапа.
 - [`project-acceptance.md`](project-acceptance.md) — единый источник критериев завершения первого этапа.
 - [`zabbix-media-type.md`](zabbix-media-type.md) — параметры и проверка Zabbix Media type `MAX`.
+- [`bot-service-evaluation.md`](bot-service-evaluation.md) — оценка необходимости отдельного bot-service после базовой проверки Zabbix -> МАХ.
 - [`test-runs/README.md`](test-runs/README.md) — ручные прогоны и обезличенная фиксация результатов.
 - [`agent-skills-integration.md`](agent-skills-integration.md) — как использовать внешний набор skills.
 - [`documentation-policy.md`](documentation-policy.md) — правила ведения документации и ADR.
