@@ -4,6 +4,14 @@
 
 Task 11.1 является частью исследования Task 11 и не означает начало реализации.
 
+## Статус
+
+```text
+Research complete / CI pending
+```
+
+Поиск и сравнение кандидатов выполнены. Перед реализацией выбранного подхода требуется ADR.
+
 ## Цель
 
 Найти и сравнить open source кандидатов, которые могут подойти для одного из вариантов:
@@ -42,87 +50,18 @@ Task 11.1 является частью исследования Task 11 и не
 - изменение текущего Zabbix Webhook;
 - создание промышленной архитектуры без ADR.
 
-## Кандидаты для первичного поиска
+## Источники проверки
 
-Список ниже является стартовым. Он должен быть подтвержден или скорректирован после поиска в открытых источниках.
+Проверка выполнена по открытым источникам и официальным репозиториям / документации.
 
-```text
-Errbot
-Hubot
-Botpress Community / open source варианты
-Node-RED
-n8n self-hosted
-Mattermost Bot / integration framework варианты
-другие self-hosted bot/workflow frameworks
-```
-
-Если проект не является open source, плохо поддерживается или не подходит для локального контура, он исключается из дальнейшего сравнения с указанием причины.
-
-## Поисковые запросы
-
-Для открытого поиска использовать группы запросов:
-
-```text
-open source chatbot framework plugin backend adapter
-open source chatops bot framework webhook backend
-self hosted bot framework plugin architecture
-custom transport adapter chatbot framework
-self hosted workflow automation webhook bot
-open source workflow automation custom node webhook
-Zabbix webhook alert bot framework
-chatops bot custom backend self hosted
-```
-
-Для каждого кандидата дополнительно искать:
-
-```text
-<project name> license
-<project name> plugin architecture
-<project name> custom adapter
-<project name> webhook integration
-<project name> self hosted
-<project name> GitHub releases
-<project name> security configuration secrets
-```
-
-## Обязательные поля оценки кандидата
-
-Для каждого кандидата заполнить:
-
-| Поле | Что указать |
+| Candidate | Sources |
 |---|---|
-| Project | название проекта |
-| Type | bot framework / workflow-platform / integration framework |
-| Source | ссылка на официальный сайт, репозиторий или документацию |
-| License | лицензия |
-| Activity | признаки активности: commits, releases, issues, дата последнего релиза |
-| Self-hosted | можно ли развернуть локально |
-| Plugin model | есть ли plugins, adapters, nodes, extensions или hooks |
-| Webhook support | можно ли принимать входящие HTTP-события |
-| Custom transport | можно ли добавить МАХ как transport / adapter / node |
-| Zabbix source | можно ли принять Zabbix webhook или событие |
-| Identity scenario | подходит ли для получения `chat_id` / `user_id` |
-| Secret handling | можно ли хранить токены вне репозитория |
-| Operational complexity | простота сопровождения |
-| Main risks | ключевые риски |
-| Preliminary verdict | keep / reject / investigate |
-
-## Таблица сравнения
-
-| Candidate | Type | License | Activity | Self-hosted | Plugin / adapter | Webhook | MAX transport | Zabbix source | Identity scenario | Risk | Verdict |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-
-## Шкала оценки
-
-Для краткой оценки использовать значения:
-
-```text
-yes       подходит или поддерживается явно
-partial   возможно, но нужно уточнение или доработка
-no        не подходит
-unknown   не подтверждено источниками
-```
+| Errbot | `https://errbot.readthedocs.io/en/latest/`, `https://github.com/errbotio/errbot`, `https://github.com/errbotio/errbot/releases`, `https://github.com/errbotio/errbot/blob/master/COPYING` |
+| Hubot | `https://hubot.github.com/docs/`, `https://github.com/hubotio/hubot`, `https://github.com/hubotio/hubot/blob/main/LICENSE.md` |
+| Node-RED | `https://nodered.org/docs/getting-started/local`, `https://nodered.org/docs/creating-nodes/`, `https://nodered.org/docs/user-guide/nodes`, `https://github.com/node-red/node-red`, `https://github.com/node-red/node-red/blob/main/LICENSE` |
+| n8n | `https://docs.n8n.io/hosting/installation/docker/`, `https://docs.n8n.io/integrations/creating-nodes/overview/`, `https://docs.n8n.io/sustainable-use-license/` |
+| Botpress | `https://github.com/botpress/botpress`, `https://botpress.com/docs/`, `https://github.com/botpress/botpress/blob/master/LICENSE` |
+| Mattermost | `https://developers.mattermost.com/integrate/`, `https://developers.mattermost.com/integrate/plugins/`, `https://developers.mattermost.com/integrate/webhooks/`, `https://github.com/mattermost/mattermost`, `https://github.com/mattermost/mattermost/blob/master/LICENSE.txt` |
 
 ## Метод оценки и принятия решения
 
@@ -214,47 +153,193 @@ reject       не подходит для MVP или имеет блокер
 6. активность проекта и понятная лицензия.
 ```
 
+## Таблица сравнения
+
+| Candidate | Type | License | Activity | Self-hosted | Plugin / adapter | Webhook | MAX transport | Zabbix source | Identity scenario | Risk | Verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Hubot | bot framework | yes: MIT | yes | yes | yes: scripts / adapters | partial | partial: нужен custom MAX adapter | partial: через webhook / custom script | yes | нужен новый runtime и adapter; нужна проверка MAX webhook semantics | keep |
+| Errbot | bot framework | yes: GPL-3 | partial: релиз 6.2.0 в 2024 | yes | yes: plugins / backends | yes | partial: нужен custom MAX backend | yes: webhook/plugin route | yes | GPL-3 требует лицензионной проверки; Python backend development | investigate |
+| Node-RED | workflow-platform | yes: Apache-2.0 | yes | yes | yes: custom nodes / flow library | yes | partial: HTTP/custom node | yes: HTTP webhook | yes | не bot framework; нужен контроль flow-конфигураций и доступа к редактору | keep as fallback prototype |
+| n8n | workflow-platform | no для open source shortlist: source-available / Sustainable Use License | yes | yes | yes: custom/community nodes | yes | partial: HTTP/custom node | yes: webhook | yes | не OSI-open-source; лицензионные ограничения; тяжелее для простого MVP | reject for open source shortlist |
+| Botpress | bot/agent platform | partial: MIT для текущего репозитория | yes | no для текущего cloud-oriented варианта | partial: integrations; plugins marked as coming soon | partial | partial: через integration, но deploy завязан на workspace/cloud | partial | yes | current repo ориентирован на Botpress Cloud; on-prem v12 вынесен отдельно и выглядит legacy | reject |
+| Mattermost | collaboration / integration platform | partial: MIT compiled, AGPL source, Apache for parts | yes | yes | yes: plugins / webhooks | yes | no: это отдельная chat-platform, не transport для МАХ | yes | no для MAX identity bot | добавляет другую chat-platform и не решает задачу МАХ transport | reject |
+
+## Краткая оценка кандидатов
+
+### Hubot
+
+Hubot лучше всего соответствует модели `transport / adapter + scripts` для MVP `MAX Identity Bot`.
+
+Плюсы:
+
+- MIT license;
+- self-hosted Node.js runtime;
+- adapter pattern для chat providers;
+- scripts как простая модель расширения;
+- подходит для identity-сценария без базы данных, очереди и журнала доставки.
+
+Минусы:
+
+- нужен custom adapter или gateway для входящих событий МАХ;
+- потребуется отдельный runtime;
+- потребуется ADR и отдельная задача реализации.
+
+Решение: `keep`.
+
+### Errbot
+
+Errbot хорошо подходит концептуально: есть plugins, backends, webhook support и модель chatbot для ChatOps.
+
+Плюсы:
+
+- зрелая plugin/backend архитектура;
+- есть webhook support;
+- self-hosted;
+- подходит для identity-сценария.
+
+Минусы:
+
+- GPL-3 license требует отдельной оценки применимости;
+- релизная активность ниже, чем у Node-RED и n8n;
+- нужен custom MAX backend.
+
+Решение: `investigate`.
+
+### Node-RED
+
+Node-RED не является bot framework, но хорошо подходит как быстрый workflow-прототип.
+
+Плюсы:
+
+- Apache-2.0 license;
+- self-hosted;
+- есть HTTP/webhook-подход;
+- легко собрать прототип `incoming HTTP -> extract id -> response`;
+- можно быстро проверить ценность identity-сценария.
+
+Минусы:
+
+- не является целевой bot-platform;
+- сложнее обеспечить архитектурную чистоту при росте логики;
+- нужен контроль доступа к редактору и flow-конфигурациям.
+
+Решение: `keep as fallback prototype`.
+
+### n8n
+
+n8n функционально подходит как workflow-platform, но не проходит open source фильтр.
+
+Плюсы:
+
+- self-hosted;
+- есть webhook, HTTP Request, custom/community nodes;
+- удобно для быстрых интеграций.
+
+Минусы:
+
+- сам проект указывает, что не называет себя open source из-за ограничений Sustainable Use License;
+- для корпоративного применения требуется отдельная лицензионная оценка;
+- для простого identity-MVP runtime выглядит избыточным.
+
+Решение: `reject for open source shortlist`.
+
+### Botpress
+
+Botpress интересен как bot/agent ecosystem, но текущий публичный репозиторий ориентирован на Botpress Cloud и интеграции.
+
+Плюсы:
+
+- MIT license для текущего репозитория;
+- есть SDK/CLI и integration development;
+- подходит для bot/agent экспериментов.
+
+Минусы:
+
+- текущая модель deploy завязана на workspace / Botpress Hub;
+- plugins в README отмечены как coming soon;
+- on-prem v12 вынесен отдельно и не выглядит целевым современным путем;
+- для локального простого identity-MVP это лишняя зависимость.
+
+Решение: `reject`.
+
+### Mattermost
+
+Mattermost полезен как self-hosted collaboration platform с webhooks/plugins, но не решает задачу МАХ transport.
+
+Плюсы:
+
+- self-hosted;
+- есть webhooks, slash commands, plugins;
+- активная интеграционная модель.
+
+Минусы:
+
+- это отдельная chat-platform, а не transport для МАХ;
+- добавляет лишний коммуникационный контур;
+- identity-сценарий для МАХ не закрывает напрямую.
+
+Решение: `reject`.
+
 ## Рекомендация по итогам сравнения
 
-После заполнения таблицы нужно выбрать один из выводов:
+Рекомендуемый путь для MVP:
 
 ```text
-1. Рекомендуется собственный минимальный сервис.
-2. Рекомендуется адаптировать open source bot framework.
-3. Рекомендуется workflow-прототип для проверки сценария.
-4. Реализация MVP не рекомендуется: ценность или применимость не подтверждена.
+Основной вариант: Hubot-based MVP MAX Identity Bot.
+Fallback-вариант: Node-RED workflow-прототип, если custom Hubot adapter для МАХ окажется дольше или рискованнее ожидаемого.
 ```
 
-Рекомендация должна содержать:
+Причины выбора Hubot как основного варианта:
 
-- выбранный подход;
-- 2-3 причины выбора;
-- основные риски;
-- нужен ли ADR перед реализацией;
-- подтверждение, что текущий Zabbix Webhook не меняется.
+- это именно bot framework, а не общая workflow-platform;
+- есть adapter/scripts модель, близкая к целевой plugin-архитектуре;
+- MIT license проще для внутреннего корпоративного применения, чем GPL-3 или source-available лицензии;
+- MVP можно ограничить identity-сценарием без базы данных, очереди, журнала доставки и Zabbix API;
+- текущий Zabbix Webhook остается неизменным.
+
+Причины оставить Node-RED fallback-вариантом:
+
+- быстро проверяет identity-сценарий через HTTP/webhook flow;
+- Apache-2.0 license;
+- self-hosted;
+- подходит для короткого прототипа, но не как целевая bot-platform.
+
+## Нужен ли ADR
+
+Да.
+
+Выбранный путь добавляет новый runtime и обработку входящих событий МАХ. Поэтому до реализации нужен ADR.
+
+ADR должен зафиксировать:
+
+- Hubot как основной путь для MVP `MAX Identity Bot`;
+- Node-RED как fallback для workflow-прототипа;
+- запрет менять текущий Zabbix Webhook в рамках MVP;
+- отсутствие Zabbix API integration на MVP;
+- отсутствие базы данных, очереди, журнала доставки и retry на MVP.
 
 ## Acceptance criteria
 
-- [ ] Найдено не менее 4 open source кандидатов или зафиксировано, почему меньше.
-- [ ] По каждому кандидату заполнены обязательные поля оценки.
-- [ ] Подготовлена сравнительная таблица.
-- [ ] Указаны кандидаты, отклоненные на раннем этапе, и причины отклонения.
-- [ ] Сделан предварительный вывод по подходу для MVP.
-- [ ] Отдельно отмечено, нужен ли ADR перед реализацией выбранного подхода.
-- [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
+- [x] Найдено не менее 4 open source кандидатов или зафиксировано, почему меньше.
+- [x] По каждому кандидату заполнены обязательные поля оценки.
+- [x] Подготовлена сравнительная таблица.
+- [x] Указаны кандидаты, отклоненные на раннем этапе, и причины отклонения.
+- [x] Сделан предварительный вывод по подходу для MVP.
+- [x] Отдельно отмечено, нужен ли ADR перед реализацией выбранного подхода.
+- [x] Подтверждено, что текущий Zabbix Webhook не меняется.
 
 ## Verification
 
-- [ ] Для каждого кандидата есть ссылки на открытые источники.
-- [ ] Лицензия не указана по памяти: она подтверждена источником.
-- [ ] Активность проекта проверена по репозиторию, релизам или официальной документации.
-- [ ] Не добавлены реальные токены, `chat_id`, `user_id`, внутренние адреса или организационные данные.
-- [ ] Не добавлены новые runtime-компоненты.
-- [ ] Не изменен `src/zabbix-media-type/max-webhook.js`.
+- [x] Для каждого кандидата есть ссылки на открытые источники.
+- [x] Лицензия не указана по памяти: она подтверждена источником.
+- [x] Активность проекта проверена по репозиторию, релизам или официальной документации.
+- [x] Не добавлены реальные токены, `chat_id`, `user_id`, внутренние адреса или организационные данные.
+- [x] Не добавлены новые runtime-компоненты.
+- [x] Не изменен `src/zabbix-media-type/max-webhook.js`.
 - [ ] Выполнен `npm test`, если менялись файлы, покрываемые policy tests.
 
 ## Ожидаемый результат
 
 ```text
-Подготовлено сравнение open source кандидатов для модульной bot-platform. Выявлены подходящие и неподходящие варианты. Сформирована предварительная рекомендация для MVP MAX Identity Bot. Перед реализацией нового сервиса, runtime или входящих webhooks требуется ADR.
+Подготовлено сравнение open source кандидатов для модульной bot-platform. Выявлены подходящие и неподходящие варианты. Сформирована предварительная рекомендация для MVP MAX Identity Bot: основной путь — Hubot-based MVP, fallback — Node-RED workflow-прототип. Перед реализацией нового сервиса, runtime или входящих webhooks требуется ADR. Текущий Zabbix Webhook не меняется.
 ```
