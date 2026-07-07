@@ -39,6 +39,12 @@
 - управление событиями Zabbix из мессенджера;
 - автоматическое реагирование.
 
+Критерии завершения первого этапа хранятся только в:
+
+```text
+docs/project-acceptance.md
+```
+
 ## Ключевые решения
 
 История решений хранится в `docs/decisions/`.
@@ -48,7 +54,8 @@
 - использовать явный AI-assisted каркас разработки;
 - использовать внешний `agent-skills` без git submodule;
 - для документации и ADR применять подход `documentation-and-adrs`;
-- хранить архитектурные решения в `docs/decisions/`.
+- хранить архитектурные решения в `docs/decisions/`;
+- хранить project-level критерии завершения в `docs/project-acceptance.md`.
 
 ## Основной артефакт
 
@@ -70,6 +77,7 @@ docs/decisions/
 
 ```text
 docs/decisions/README.md
+docs/project-acceptance.md
 AGENTS.md
 docs/documentation-policy.md
 ```
