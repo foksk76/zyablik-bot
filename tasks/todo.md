@@ -10,7 +10,7 @@ docs/project-acceptance.md
 
 ## Task 1: Сверить параметры webhook с документацией проекта
 
-**Status:** Done with follow-up
+**Status:** Done
 
 **Description:** Проверить, что текущий `docs/zabbix-media-type.md`, `examples/media-params.md` и `src/zabbix-media-type/max-webhook.js` описывают один и тот же набор параметров без противоречий.
 
@@ -29,7 +29,7 @@ docs/project-acceptance.md
 - [x] Вручную сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
 - [ ] Выполнен `bash scripts/verify-repo.sh`.
 
-**Result:** Документация и пример описывают одинаковый основной набор параметров. Найдено одно расхождение: webhook-скрипт дополнительно поддерживает необязательный параметр `HTTPProxy`. Расхождение вынесено в Task 1.1.
+**Result:** Документация, пример и webhook-скрипт приведены к одному набору параметров. Найденное расхождение по необязательному параметру `HTTPProxy` закрыто в Task 1.1.
 
 **Dependencies:** None
 
@@ -45,7 +45,7 @@ docs/project-acceptance.md
 
 ## Task 1.1: Документировать необязательный параметр HTTPProxy
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Добавить необязательный параметр `HTTPProxy` в `docs/zabbix-media-type.md` и `examples/media-params.md`, потому что webhook-скрипт уже поддерживает его через `request.setProxy()`.
 
@@ -55,14 +55,16 @@ docs/project-acceptance.md
 
 **Acceptance criteria:**
 
-- [ ] `HTTPProxy` добавлен в список параметров Media type.
-- [ ] `HTTPProxy` добавлен в пример параметров.
-- [ ] Описано, что параметр необязательный и используется только при необходимости исходящего прокси в среде Zabbix.
+- [x] `HTTPProxy` добавлен в список параметров Media type.
+- [x] `HTTPProxy` добавлен в пример параметров.
+- [x] Описано, что параметр необязательный и используется только при необходимости исходящего прокси в среде Zabbix.
 
 **Verification:**
 
-- [ ] Сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
+- [x] Сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
 - [ ] Выполнен `bash scripts/verify-repo.sh`.
+
+**Result:** `HTTPProxy` добавлен в документацию и пример параметров. Webhook-код не менялся.
 
 **Dependencies:** Task 1
 
@@ -70,6 +72,7 @@ docs/project-acceptance.md
 
 - `docs/zabbix-media-type.md`
 - `examples/media-params.md`
+- `tasks/todo.md`
 
 **Estimated scope:** Small: 1-2 files
 
