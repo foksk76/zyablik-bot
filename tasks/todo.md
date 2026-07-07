@@ -6,8 +6,11 @@
 
 ```text
 Done: Task 1, Task 1.1, Task 2, Task 3, Task 4, Task 6.1
-Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
+Open: Task 5, Task 8, Task 9, Task 10
+Deferred/Future: Task 6, Task 7
 ```
+
+Task 6 и Task 7 относятся к будущей локальной проверке форматирования вне Zabbix runtime. Они не блокируют завершение первого этапа, потому что ручной сценарий Zabbix -> МАХ уже подтвержден в Task 2 и Task 3.
 
 ---
 
@@ -183,7 +186,7 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 - [ ] Описан ручной способ создания Media type.
 - [ ] Описан порядок проверки параметров после переноса.
-- [ ] Отдельно указано, какие значения задаются только в целевой системе.
+- [ ] Отдельно указано, какие значения задаются только в целевой системе, включая `Token`, `RecipientType` и `To`.
 
 **Verification:**
 
@@ -193,7 +196,7 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 **Dependencies:** Task 1, Task 4
 
-**Files likely touched:** `docs/zabbix-media-type.md`, `examples/`, `tasks/todo.md`
+**Files likely touched:** `docs/zabbix-media-type.md`, `examples/media-params.md`, `examples/recipient-id.md`, `tasks/todo.md`
 
 **Estimated scope:** Medium
 
@@ -201,7 +204,7 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 ## Task 6: Принять техническое решение по локальной проверке форматирования
 
-**Status:** Open
+**Status:** Deferred / Future
 
 **Description:** До написания кода определить, как проверять формирование текста webhook-сообщения вне Zabbix runtime.
 
@@ -223,6 +226,8 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 - [ ] Решение не меняет поведение `max-webhook.js` без отдельной задачи.
 
 **Dependencies:** Task 1
+
+**Blocking status:** Не блокирует завершение первого этапа. Ручные прогоны Media type, Problem и Recovery уже подтверждены через Zabbix в Task 2 и Task 3.
 
 **Files likely touched:** `docs/decisions/`, `tasks/todo.md`
 
@@ -268,7 +273,7 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 ## Task 7: Реализовать локальную проверку форматирования после ADR
 
-**Status:** Open
+**Status:** Deferred / Future
 
 **Description:** Реализовать минимальную локальную проверку формирования текста сообщения только после принятия ADR из Task 6.
 
@@ -291,6 +296,8 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 **Dependencies:** Task 6
 
+**Blocking status:** Заблокирована до Task 6 и не блокирует завершение первого этапа.
+
 **Files likely touched:** `tests/`, `package.json`, `docs/decisions/`
 
 **Estimated scope:** Medium
@@ -301,7 +308,7 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 
 **Status:** Open
 
-**Description:** Проверить согласованность документации, задач, ADR и webhook-логики.
+**Description:** Проверить согласованность документации, задач, ADR и webhook-логики для завершения базовой интеграции Zabbix -> МАХ.
 
 **Method:** Code and documentation review
 
@@ -313,14 +320,17 @@ Open: Task 5, Task 6, Task 7, Task 8, Task 9, Task 10
 - [ ] Проверено, что ADR находятся только в `docs/decisions/`.
 - [ ] Проверено, что задачи находятся только в `tasks/plan.md` и `tasks/todo.md`.
 - [ ] Проверено, что project-level критерии не дублируются вне `docs/project-acceptance.md`.
+- [ ] Проверено, что Task 6 и Task 7 явно отложены и не блокируют первый этап.
 
 **Verification:**
 
 - [ ] Выполнен `npm test`.
-- [ ] Проверены чек-листы `.agents/checklists/`.
+- [ ] Проверены чек-листы `.agents/checklists/`, если они есть в репозитории.
 - [ ] Замечания оформлены отдельными задачами или исправлены минимально.
 
-**Dependencies:** Task 1, Task 4, Task 5, Task 6
+**Dependencies:** Task 1, Task 2, Task 3, Task 4, Task 5, Task 6.1
+
+**Optional future dependency:** Task 6 нужна только если принимается решение о локальном format harness.
 
 **Files likely touched:** `README.md`, `AGENTS.md`, `DEVELOPMENT.md`, `docs/`, `tasks/`
 
