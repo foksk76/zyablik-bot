@@ -84,6 +84,18 @@ docs/project-acceptance.md
 - [x] МАХ дублирует Telegram.
 - [x] GitHub Actions green.
 
+### Phase 5: Исследование будущей bot-platform
+
+- [ ] Task 11: Future research — исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
+
+### Checkpoint: Перед реализацией Task 11
+
+- [x] Первый этап принят и не меняется.
+- [x] Исследовательская постановка описана в `docs/modular-bot-platform-research.md`.
+- [ ] Выполнен поиск в открытых источниках по open source кандидатам.
+- [ ] Выбран подход для MVP: собственный сервис, open source framework или workflow-прототип.
+- [ ] Перед реализацией нового сервиса, runtime или входящих webhooks создан ADR.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
@@ -96,21 +108,23 @@ docs/project-acceptance.md
 
 ## Open Questions
 
-- Какой тестовый получатель МАХ использовать для первичной проверки.
-- Нужен ли отдельный обезличенный документ для фиксации результатов прогонов.
-- Какой минимальный runtime допустим для будущей локальной проверке форматирования webhook-сообщения.
+- Какой test runtime выбрать для MVP MAX Identity Bot.
+- Искать готовый open source bot framework или сразу проектировать минимальный собственный сервис.
+- Достаточно ли identity-only MVP без журнала доставки, retry и маршрутизации.
 
 ## Parallelization Opportunities
 
 Безопасно выполнять параллельно:
 
-- Нет открытых задач текущего этапа.
+- Поиск open source кандидатов для Task 11.
+- Подготовка черновика ADR для MVP без изменения текущего webhook.
 
 Последовательно выполнять:
 
 - Task 1 -> Task 2 -> Task 3;
 - Task 4 -> Task 5 -> Task 8 -> Task 9 -> Task 10;
-- Task 6 -> Task 7, только если принято решение развивать локальный format harness.
+- Task 6 -> Task 7, только если принято решение развивать локальный format harness;
+- Task 11 research -> ADR -> MVP implementation.
 
 ## Definition of Done для плана
 
