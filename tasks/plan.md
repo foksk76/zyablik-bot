@@ -16,6 +16,12 @@ docs/project-acceptance.md
 docs/second-stage-acceptance.md
 ```
 
+Критерии завершения третьего этапа:
+
+```text
+docs/third-stage-acceptance.md
+```
+
 ## Architecture Decisions
 
 - Основной рабочий артефакт первого этапа: `src/zabbix-media-type/max-webhook.js`.
@@ -28,6 +34,7 @@ docs/second-stage-acceptance.md
 - Проверки репозитория выполняются через `npm test` и GitHub Actions согласно ADR-0004.
 - Второй этап начинается с Task 11 и не меняет текущий Zabbix Webhook без отдельного ADR.
 - По ADR-0005 основной путь MVP `MAX Identity Bot` — Hubot-based MVP; Node-RED остается fallback-прототипом.
+- Третий этап реализует MVP bot-platform без изменения текущего Zabbix Webhook.
 
 ## Task List
 
@@ -111,36 +118,60 @@ docs/second-stage-acceptance.md
 - [x] Текущий Zabbix Webhook не меняется без отдельного ADR.
 - [x] `npm test` подтвержден после изменений Task 11 / Task 11.1 на commit `66a76e7f325ab9127d2cda3effa2a42cd4e92511`.
 
+### Third stage: Реализация модульной bot-platform
+
+Третий этап начинается после принятия второго этапа и реализует MVP `MAX Identity Bot` по ADR-0005.
+
+- [ ] Task 12: Подготовить каркас `src/bot-platform`.
+- [ ] Task 12.1: Реализовать MAX event normalizer и обезличенные fixtures.
+- [ ] Task 12.2: Реализовать identity plugin.
+- [ ] Task 12.3: Реализовать MAX inbound/outbound transport.
+- [ ] Task 12.4: Проверить WSL/LXC stand и подготовить runbook.
+- [ ] Task 12.5: Описать и применить Codex agent workflow.
+- [ ] Task 12.6: Выполнить интеграционный прогон MVP или зафиксировать отложенный статус.
+
+### Checkpoint: Перед кодом третьего этапа
+
+- [x] Критерии третьего этапа описаны в `docs/third-stage-acceptance.md`.
+- [x] План реализации описан в `docs/third-stage-implementation-plan.md`.
+- [x] WSL/LXC и agent workflow описаны в `docs/third-stage-stand-and-agent.md`.
+- [ ] Выбрана первичная среда разработки: WSL или LXC.
+- [ ] Подготовлена задача Task 12 с точным scope.
+- [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Формат MAX API или Zabbix runtime понят неправильно | High | Не писать код по предположениям; сначала уточнить документацию или создать ADR |
 | В документацию попадут чувствительные значения | High | Использовать только обезличенные примеры и проверять `npm test` |
-| AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/second-stage-acceptance.md`, `docs/decisions/README.md` и `AGENTS.md` |
+| AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/second-stage-acceptance.md`, `docs/third-stage-acceptance.md`, `docs/decisions/README.md` и `AGENTS.md` |
 | Задачи станут слишком крупными | Medium | Делить задачи до размера S/M и не выполнять L/XL без новой декомпозиции |
 | Поведение webhook изменится без обновления документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
-| Второй этап начнет реализацию без выбора платформы | Medium | Сначала research и ADR, затем код |
+| Третий этап начнет промышленную реализацию вместо MVP | Medium | Ограничить scope identity-сценарием и criteria третьего этапа |
+| WSL окажется неудобен для inbound webhook | Medium | Использовать LXC как integration stand |
 
 ## Open Questions
 
 - Какой минимальный delivery package нужен для Hubot-based MVP.
 - Нужно ли делать короткий Node-RED fallback-прототип до Hubot implementation task.
 - Какой формат входящего события МАХ использовать для локального тестового прогона MVP.
+- Какая среда будет основной для интеграционных прогонов: WSL или LXC.
 
 ## Parallelization Opportunities
 
 Безопасно выполнять параллельно:
 
-- Подготовка черновика задачи реализации MVP без изменения текущего webhook.
 - Подготовка обезличенных примеров входящих событий МАХ.
+- Подготовка WSL/LXC runbook.
+- Подготовка agent workflow для Task 12.x.
 
 Последовательно выполнять:
 
 - Task 1 -> Task 2 -> Task 3;
 - Task 4 -> Task 5 -> Task 8 -> Task 9 -> Task 10;
-- Task 6 -> Task 7, только если принято решение развивать локальный format harness;
-- Task 11 -> Task 11.1 -> ADR -> MVP implementation.
+- Task 11 -> Task 11.1 -> ADR -> Task 12.x;
+- Task 12 -> Task 12.1 -> Task 12.2 -> Task 12.3 -> Task 12.6.
 
 ## Definition of Done для плана
 
