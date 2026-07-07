@@ -128,6 +128,7 @@ docs/task-12-breakdown.md
 
 Третий этап начинается после принятия второго этапа и реализует MVP `MAX Identity Bot` по ADR-0005.
 
+- [x] Task 12.0: Done — baseline перед кодом зафиксирован, `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 - [ ] Task 12: Подготовить каркас `src/bot-platform`; детальная декомпозиция — `docs/task-12-breakdown.md`.
 - [ ] Task 12.1: Реализовать MAX event normalizer и обезличенные fixtures.
 - [ ] Task 12.2: Реализовать identity plugin.
@@ -142,6 +143,8 @@ docs/task-12-breakdown.md
 - [x] План реализации описан в `docs/third-stage-implementation-plan.md`.
 - [x] WSL/LXC и agent workflow описаны в `docs/third-stage-stand-and-agent.md`.
 - [x] Task 12 декомпозирована по `planning-and-task-breakdown` в `docs/task-12-breakdown.md`.
+- [x] Baseline перед кодом зафиксирован в `docs/test-runs/task-12-baseline.md`.
+- [x] `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 - [ ] Выбрана первичная среда разработки: WSL или LXC.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
