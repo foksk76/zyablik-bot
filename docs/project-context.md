@@ -28,33 +28,9 @@ docs/test-runs/final-acceptance-run.md
 - GitHub Actions green;
 - текущая архитектура не расширена за границы первого этапа.
 
-Самый короткий путь для первого этапа — отдельный Zabbix Webhook, потому что:
-
-- в Zabbix уже используется рабочая webhook-схема для Telegram;
-- не требуется отдельный backend;
-- проще проверить Problem/Recovery;
-- меньше эксплуатационных компонентов;
-- можно быстро подтвердить полезность канала МАХ.
-
 ## Второй этап
 
-Второй этап начинается с Task 11 и является исследовательско-проектным.
-
-Стартовая задача:
-
-```text
-Task 11: Исследовать модульную bot-platform для МАХ и MVP получения chat_id / user_id
-```
-
-Цель второго этапа — выбрать технический подход для дальнейшего развития проекта в сторону модульной платформы взаимодействия с ботом МАХ.
-
-Первый прикладной сценарий второго этапа:
-
-```text
-Пользователь или групповой чат отправляет сообщение боту МАХ.
-Бот возвращает chat_id или user_id.
-Полученное значение используется для настройки получателя уведомлений в Zabbix.
-```
+Второй этап принят по `docs/second-stage-acceptance.md`.
 
 По итогам Task 11 и Task 11.1 выбран подход:
 
@@ -64,20 +40,37 @@ Fallback: Node-RED workflow-прототип
 ADR: docs/decisions/ADR-0005-use-hubot-for-max-identity-bot-mvp.md
 ```
 
-Критерии завершения второго этапа хранятся в:
+Второй этап не меняет текущий Zabbix Webhook и не начинает реализацию MVP без отдельной задачи.
+
+## Третий этап
+
+Третий этап начинается после принятого второго этапа.
+
+Цель третьего этапа — реализовать MVP модульной bot-platform для МАХ на основе ADR-0005.
+
+Основной сценарий:
 
 ```text
-docs/second-stage-acceptance.md
+входящее сообщение боту МАХ -> определение типа получателя -> ответ с параметрами для Zabbix
 ```
 
-Рабочие документы исследования:
+Документы третьего этапа:
 
 ```text
-docs/modular-bot-platform-research.md
-docs/modular-bot-platform-candidates.md
+docs/third-stage-acceptance.md
+docs/third-stage-implementation-plan.md
+docs/third-stage-stand-and-agent.md
 ```
 
-Второй этап не меняет текущий Zabbix Webhook. Реализация MVP не начинается без отдельной задачи реализации.
+Ключевые границы:
+
+- основной путь реализации — Hubot-based MVP;
+- Node-RED используется только как fallback-прототип;
+- транспорт МАХ отделяется от identity plugin;
+- WSL используется как developer sandbox;
+- LXC на Proxmox используется как preferred integration stand;
+- Codex agent или аналог работает только в рамках задач и обязательных проверок;
+- текущий Zabbix Webhook остается без изменений.
 
 ## Граница текущей принятой интеграции
 
@@ -98,10 +91,7 @@ docs/modular-bot-platform-candidates.md
 - журнал доставки;
 - автоматическая повторная отправка;
 - маршрутизация уведомлений вне Zabbix;
-- SIEM-интеграция;
-- AI-обработка событий;
-- автоматическая triage-логика;
-- подтверждение инцидентов из МАХ;
+- обработка инцидентов из МАХ;
 - управление событиями Zabbix из мессенджера;
 - автоматическое реагирование.
 
@@ -117,21 +107,9 @@ docs/modular-bot-platform-candidates.md
 - хранить архитектурные решения в `docs/decisions/`;
 - хранить project-level критерии завершения первого этапа в `docs/project-acceptance.md`;
 - хранить критерии завершения второго этапа в `docs/second-stage-acceptance.md`;
+- хранить критерии завершения третьего этапа в `docs/third-stage-acceptance.md`;
 - по ADR-0005 использовать Hubot как основной вариант MVP `MAX Identity Bot`, а Node-RED только как fallback-прототип;
-- не реализовывать отдельный bot-service без подтвержденных требований и отдельного ADR;
 - не реализовывать очередь, базу данных, журнал доставки, автоматическую повторную отправку или маршрутизацию вне Zabbix без отдельного ADR.
-
-Подробная оценка необходимости отдельного bot-service хранится в:
-
-```text
-docs/bot-service-evaluation.md
-```
-
-Будущие варианты повторной отправки, журнала доставки и маршрутизации описаны в:
-
-```text
-docs/delivery-reliability-options.md
-```
 
 ## Основной артефакт первого этапа
 
@@ -155,6 +133,7 @@ docs/decisions/
 docs/decisions/README.md
 docs/project-acceptance.md
 docs/second-stage-acceptance.md
+docs/third-stage-acceptance.md
 AGENTS.md
 docs/documentation-policy.md
 ```
