@@ -27,9 +27,9 @@ docs/project-acceptance.md
 **Verification:**
 
 - [x] Вручную сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
-- [ ] Выполнен `npm test`.
+- [x] Выполнен `npm test` через GitHub Actions.
 
-**Result:** Документация, пример и webhook-скрипт приведены к одному набору параметров. Найденное расхождение по необязательному параметру `HTTPProxy` закрыто в Task 1.1.
+**Result:** Документация, пример и webhook-скрипт приведены к одному набору параметров. Найденное расхождение по необязательному параметру `HTTPProxy` закрыто в Task 1.1. Проверка `npm test` подтверждена успешным GitHub Actions запуском: 14 тестов прошли, ошибок нет.
 
 **Dependencies:** None
 
@@ -62,9 +62,9 @@ docs/project-acceptance.md
 **Verification:**
 
 - [x] Сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
-- [ ] Выполнен `npm test`.
+- [x] Выполнен `npm test` через GitHub Actions.
 
-**Result:** `HTTPProxy` добавлен в документацию и пример параметров. Webhook-код не менялся.
+**Result:** `HTTPProxy` добавлен в документацию и пример параметров. Webhook-код не менялся. Проверка `npm test` подтверждена успешным GitHub Actions запуском: 14 тестов прошли, ошибок нет.
 
 **Dependencies:** Task 1
 
@@ -265,9 +265,9 @@ docs/project-acceptance.md
 - [x] Добавлен `docs/decisions/ADR-0004-use-node-policy-tests-and-github-actions.md`.
 - [x] Добавлен `.github/workflows/verify.yml`.
 - [x] Добавлены `tests/repo-structure.test.js`, `tests/docs-wording.test.js`, `tests/media-params.test.js`, `tests/webhook-static.test.js`.
-- [ ] Выполнен `npm test` локально или дождаться успешного GitHub Actions.
+- [x] Выполнен `npm test` через GitHub Actions: 14 тестов прошли, ошибок нет.
 
-**Result:** Миграция проверки репозитория выполнена. Основная команда проверки теперь `npm test`; GitHub Actions запускает ее автоматически. Старый shell-скрипт удален.
+**Result:** Миграция проверки репозитория выполнена. Основная команда проверки теперь `npm test`; GitHub Actions запускает ее автоматически. Старый shell-скрипт удален. Успешный запуск GitHub Actions подтвержден на commit `722b49eb45b5495ed29f331eb0c2ec7b7e168748`.
 
 **Dependencies:** ADR-0004
 
