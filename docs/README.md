@@ -9,6 +9,7 @@
 - [`zabbix-media-type.md`](zabbix-media-type.md) — параметры и проверка Zabbix Media type `MAX`.
 - [`bot-service-evaluation.md`](bot-service-evaluation.md) — оценка необходимости отдельного bot-service после базовой проверки Zabbix -> МАХ.
 - [`delivery-reliability-options.md`](delivery-reliability-options.md) — будущие варианты повторной отправки, журнала доставки и маршрутизации без немедленной реализации.
+- [`modular-bot-platform-research.md`](modular-bot-platform-research.md) — Task 11: исследование модульной bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
 - [`test-runs/README.md`](test-runs/README.md) — ручные прогоны и обезличенная фиксация результатов.
 - [`agent-skills-integration.md`](agent-skills-integration.md) — как использовать внешний набор skills.
 - [`documentation-policy.md`](documentation-policy.md) — правила ведения документации и ADR.
