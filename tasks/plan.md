@@ -34,7 +34,7 @@ docs/second-stage-acceptance.md
 ### Phase 1: Уточнение и базовая проверка
 
 - [x] Task 1: Сверить параметры webhook с документацией проекта.
-- [x] Task 2: Проверить MAX Media type на тестовом получателе.
+- [x] Task 2: Проверить MAX Media type на тестового получателя.
 - [x] Task 3: Проверить Problem и Recovery.
 
 ### Checkpoint: После Phase 1
@@ -95,8 +95,8 @@ docs/second-stage-acceptance.md
 
 Второй этап начинается после принятия первого этапа и не пересматривает текущую интеграцию Zabbix -> МАХ.
 
-- [x] Task 11: Research complete / CI pending — исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
-- [x] Task 11.1: Research complete / CI pending — найти и сравнить open source кандидатов для модульной bot-platform.
+- [x] Task 11: Done — исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
+- [x] Task 11.1: Done — найти и сравнить open source кандидатов для модульной bot-platform.
 
 ### Checkpoint: Перед реализацией второго этапа
 
@@ -109,7 +109,7 @@ docs/second-stage-acceptance.md
 - [x] Выбран подход для MVP: Hubot-based MVP; Node-RED fallback-прототип.
 - [x] Перед реализацией нового сервиса, runtime или входящих webhooks создан ADR-0005.
 - [x] Текущий Zabbix Webhook не меняется без отдельного ADR.
-- [ ] `npm test` подтвержден после изменений Task 11 / Task 11.1.
+- [x] `npm test` подтвержден после изменений Task 11 / Task 11.1 на commit `66a76e7f325ab9127d2cda3effa2a42cd4e92511`.
 
 ## Risks and Mitigations
 
