@@ -27,7 +27,7 @@ docs/project-acceptance.md
 **Verification:**
 
 - [x] Вручную сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
-- [ ] Выполнен `bash scripts/verify-repo.sh`.
+- [ ] Выполнен `npm test`.
 
 **Result:** Документация, пример и webhook-скрипт приведены к одному набору параметров. Найденное расхождение по необязательному параметру `HTTPProxy` закрыто в Task 1.1.
 
@@ -62,7 +62,7 @@ docs/project-acceptance.md
 **Verification:**
 
 - [x] Сверены `docs/zabbix-media-type.md`, `examples/media-params.md`, `src/zabbix-media-type/max-webhook.js`.
-- [ ] Выполнен `bash scripts/verify-repo.sh`.
+- [ ] Выполнен `npm test`.
 
 **Result:** `HTTPProxy` добавлен в документацию и пример параметров. Webhook-код не менялся.
 
@@ -196,7 +196,7 @@ docs/project-acceptance.md
 
 - [ ] Инструкция сверена с текущим `docs/zabbix-media-type.md`.
 - [ ] README не дублирует критерии завершения проекта.
-- [ ] Выполнен `bash scripts/verify-repo.sh`.
+- [ ] Выполнен `npm test`.
 
 **Dependencies:** Task 1
 
@@ -241,6 +241,53 @@ docs/project-acceptance.md
 
 ---
 
+## Task 6.1: Перенести проверку репозитория на Node.js policy tests и GitHub Actions
+
+**Status:** Done
+
+**Description:** Зафиксировать ADR и перенести базовую проверку репозитория из shell-скрипта в Node.js policy tests с автоматическим запуском через GitHub Actions.
+
+**Method:** Technical decision + repository policy tests
+
+**Skill:** `documentation-and-adrs`, `test-driven-development`, `code-review-and-quality`
+
+**Acceptance criteria:**
+
+- [x] Создан ADR по миграции проверки репозитория.
+- [x] Добавлены Node.js policy tests в `tests/`.
+- [x] Добавлен GitHub Actions workflow для запуска `npm test`.
+- [x] `package.json` использует `node --test` для `test` и `verify`.
+- [x] Старый shell-скрипт проверки удален.
+- [x] Документация больше не ссылается на старую команду проверки.
+
+**Verification:**
+
+- [x] Добавлен `docs/decisions/ADR-0004-use-node-policy-tests-and-github-actions.md`.
+- [x] Добавлен `.github/workflows/verify.yml`.
+- [x] Добавлены `tests/repo-structure.test.js`, `tests/docs-wording.test.js`, `tests/media-params.test.js`, `tests/webhook-static.test.js`.
+- [ ] Выполнен `npm test` локально или дождаться успешного GitHub Actions.
+
+**Result:** Миграция проверки репозитория выполнена. Основная команда проверки теперь `npm test`; GitHub Actions запускает ее автоматически. Старый shell-скрипт удален.
+
+**Dependencies:** ADR-0004
+
+**Files likely touched:**
+
+- `docs/decisions/`
+- `.github/workflows/`
+- `tests/`
+- `package.json`
+- `README.md`
+- `AGENTS.md`
+- `DEVELOPMENT.md`
+- `docs/project-acceptance.md`
+- `tasks/plan.md`
+- `tasks/todo.md`
+
+**Estimated scope:** Medium: 5-10 files
+
+---
+
 ## Task 7: Реализовать локальную проверку форматирования после ADR
 
 **Description:** Реализовать минимальную локальную проверку формирования текста сообщения только после принятия ADR из Task 6.
@@ -259,7 +306,7 @@ docs/project-acceptance.md
 **Verification:**
 
 - [ ] Проверка запускается локальной командой, указанной в документации.
-- [ ] Выполнен `bash scripts/verify-repo.sh`.
+- [ ] Выполнен `npm test`.
 - [ ] Документация обновлена только в части реально добавленной команды.
 
 **Dependencies:** Task 6
@@ -268,7 +315,6 @@ docs/project-acceptance.md
 
 - `tests/`
 - `package.json`
-- `scripts/verify-repo.sh`
 - `docs/decisions/`
 
 **Estimated scope:** Medium: 3-5 files
@@ -292,7 +338,7 @@ docs/project-acceptance.md
 
 **Verification:**
 
-- [ ] Выполнен `bash scripts/verify-repo.sh`.
+- [ ] Выполнен `npm test`.
 - [ ] Проверены чек-листы `.agents/checklists/`.
 - [ ] Найденные замечания оформлены отдельными задачами или исправлены минимально.
 
