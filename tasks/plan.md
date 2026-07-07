@@ -27,6 +27,7 @@ docs/second-stage-acceptance.md
 - Код меняется только на основании документации проекта, внешней документации или ADR.
 - Проверки репозитория выполняются через `npm test` и GitHub Actions согласно ADR-0004.
 - Второй этап начинается с Task 11 и не меняет текущий Zabbix Webhook без отдельного ADR.
+- По ADR-0005 основной путь MVP `MAX Identity Bot` — Hubot-based MVP; Node-RED остается fallback-прототипом.
 
 ## Task List
 
@@ -94,20 +95,21 @@ docs/second-stage-acceptance.md
 
 Второй этап начинается после принятия первого этапа и не пересматривает текущую интеграцию Zabbix -> МАХ.
 
-- [ ] Task 11: Исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
-- [ ] Task 11.1: Найти и сравнить open source кандидатов для модульной bot-platform.
+- [x] Task 11: Research complete / CI pending — исследовать модульную bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
+- [x] Task 11.1: Research complete / CI pending — найти и сравнить open source кандидатов для модульной bot-platform.
 
 ### Checkpoint: Перед реализацией второго этапа
 
 - [x] Первый этап принят и не меняется.
 - [x] Старт второго этапа и критерии завершения описаны в `docs/second-stage-acceptance.md`.
 - [x] Исследовательская постановка Task 11 описана в `docs/modular-bot-platform-research.md`.
-- [x] Шаблон поиска и сравнения кандидатов Task 11.1 описан в `docs/modular-bot-platform-candidates.md`.
-- [ ] Выполнен поиск в открытых источниках по open source кандидатам.
-- [ ] Подготовлена сравнительная таблица кандидатов и вариантов.
-- [ ] Выбран подход для MVP: собственный сервис, open source framework, workflow-прототип или отказ от реализации.
-- [ ] Перед реализацией нового сервиса, runtime или входящих webhooks создан ADR.
-- [ ] Текущий Zabbix Webhook не меняется без отдельного ADR.
+- [x] Поиск и сравнение кандидатов Task 11.1 описаны в `docs/modular-bot-platform-candidates.md`.
+- [x] Выполнен поиск в открытых источниках по open source кандидатам.
+- [x] Подготовлена сравнительная таблица кандидатов и вариантов.
+- [x] Выбран подход для MVP: Hubot-based MVP; Node-RED fallback-прототип.
+- [x] Перед реализацией нового сервиса, runtime или входящих webhooks создан ADR-0005.
+- [x] Текущий Zabbix Webhook не меняется без отдельного ADR.
+- [ ] `npm test` подтвержден после изменений Task 11 / Task 11.1.
 
 ## Risks and Mitigations
 
@@ -122,16 +124,16 @@ docs/second-stage-acceptance.md
 
 ## Open Questions
 
-- Какой test runtime выбрать для MVP MAX Identity Bot.
-- Искать готовый open source bot framework или сразу проектировать минимальный собственный сервис.
-- Достаточно ли identity-only MVP без журнала доставки, retry и маршрутизации.
+- Какой минимальный delivery package нужен для Hubot-based MVP.
+- Нужно ли делать короткий Node-RED fallback-прототип до Hubot implementation task.
+- Какой формат входящего события МАХ использовать для локального тестового прогона MVP.
 
 ## Parallelization Opportunities
 
 Безопасно выполнять параллельно:
 
-- Поиск open source кандидатов для Task 11.1.
-- Подготовка черновика ADR для MVP без изменения текущего webhook.
+- Подготовка черновика задачи реализации MVP без изменения текущего webhook.
+- Подготовка обезличенных примеров входящих событий МАХ.
 
 Последовательно выполнять:
 
