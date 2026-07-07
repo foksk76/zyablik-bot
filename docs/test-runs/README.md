@@ -9,4 +9,5 @@
 - [`max-media-type-manual-run.md`](max-media-type-manual-run.md) — ручная проверка Zabbix Media type `MAX` на тестового получателя.
 - [`max-problem-recovery-run.md`](max-problem-recovery-run.md) — ручная проверка доставки Problem и Recovery уведомлений через Zabbix Action.
 - [`final-acceptance-run.md`](final-acceptance-run.md) — финальный приемочный прогон первого этапа по `docs/project-acceptance.md`.
-- [`task-12-baseline.md`](task-12-baseline.md) — baseline перед кодом Task 12; `npm test` ожидает подтверждения локально или через GitHub Actions.
+- [`task-12-baseline.md`](task-12-baseline.md) — baseline перед кодом Task 12.
+- [`task-12-3-fixtures-run.md`](task-12-3-fixtures-run.md) — CI-прогон Task 12.3 после добавления synthetic MAX fixtures.
