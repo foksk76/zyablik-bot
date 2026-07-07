@@ -5,7 +5,7 @@
 ## Статус
 
 ```text
-Baseline fixed / npm test pending
+Done
 ```
 
 ## Baseline
@@ -14,10 +14,13 @@ Baseline fixed / npm test pending
 Repository: foksk76/zabbix-max-alert-bot
 Branch: main
 Baseline commit before Task 12 code: 82eb1d474beb73a37889bb81736ec6be0bb66df0
+CI-confirmed commit after baseline note: 28cc6d901f7320fc47da317e428334945ef006c8
 Task: 12.0
 ```
 
-Этот commit является точкой отсчета перед началом кода `src/bot-platform`.
+Commit `82eb1d474beb73a37889bb81736ec6be0bb66df0` является точкой отсчета перед созданием baseline note.
+
+Commit `28cc6d901f7320fc47da317e428334945ef006c8` подтвержден GitHub Actions после добавления baseline note и индекса test-runs. Код третьего этапа на момент проверки еще не добавлялся.
 
 ## Что проверено
 
@@ -25,10 +28,11 @@ Task: 12.0
 - Детальная декомпозиция Task 12 создана в `docs/task-12-breakdown.md`.
 - Код третьего этапа еще не добавлялся.
 - Текущий Zabbix Webhook не должен изменяться в Task 12.
+- GitHub Actions выполнил `npm test` на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 
 ## npm test
 
-Требуемая команда:
+Команда:
 
 ```bash
 npm test
@@ -37,19 +41,28 @@ npm test
 Статус:
 
 ```text
-pending
+confirmed
 ```
 
-Причина pending:
+Результат GitHub Actions:
 
 ```text
-В текущей среде нет рабочей копии приватного репозитория и нет сетевого доступа для git clone. Авторитетный прогон должен быть выполнен локально на стенде или через GitHub Actions.
+Commit: 28cc6d901f7320fc47da317e428334945ef006c8
+Node.js: 22.23.1
+npm: 10.9.8
+Tests: 14
+Pass: 14
+Fail: 0
+Duration: 241.786574 ms
 ```
 
 ## Условие перехода к Task 12.1
 
-Переход к Task 12.1 допустим после подтверждения:
+Переход к Task 12.1 допустим.
 
-- `npm test` прошел успешно локально или в GitHub Actions;
-- результат зафиксирован в этом документе или отдельной test-run заметке;
-- текущий `src/zabbix-media-type/max-webhook.js` не изменен.
+Перед началом Task 12.1 необходимо сохранить границы:
+
+- текущий `src/zabbix-media-type/max-webhook.js` не изменять;
+- не добавлять реальный МАХ API;
+- не коммитить реальные секреты и идентификаторы;
+- начать с минимального каркаса `src/bot-platform`.
