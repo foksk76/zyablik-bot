@@ -18,25 +18,6 @@ Zabbix Action
             └─ чат ответственных или заинтересованных получателей
 ```
 
-## Что входит
-
-- создание и настройка бота в МАХ;
-- создание Media type `MAX` в Zabbix;
-- настройка webhook-скрипта;
-- определение формата уведомлений по уровню информативности для получателя;
-- маршрутизация уведомлений по чатам, группам или отдельным получателям;
-- проверка доставки тестовых событий;
-- фиксация минимальной эксплуатационной документации.
-
-## Что не входит в первый этап
-
-- интеграция с SIEM;
-- AI-обработка событий;
-- автоматическая triage-логика;
-- подтверждение инцидентов из МАХ;
-- управление событиями Zabbix из мессенджера;
-- автоматическое реагирование.
-
 ## Repo map
 
 ```text
@@ -71,11 +52,14 @@ src/zabbix-media-type/max-webhook.js
 
 ```text
 docs/project-context.md
+docs/project-acceptance.md
 docs/documentation-policy.md
 docs/decisions/README.md
 docs/agent-skills-integration.md
 docs/zabbix-media-type.md
 ```
+
+Критерии завершения первого этапа хранятся только в `docs/project-acceptance.md`.
 
 Перед изменением архитектуры, границ проекта, процесса разработки или внешних зависимостей сначала проверяются ADR в `docs/decisions/`.
 
@@ -100,6 +84,7 @@ tasks/todo.md
 AGENTS.md
 .agents/project-context.md
 docs/project-context.md
+docs/project-acceptance.md
 docs/decisions/README.md
 docs/agent-skills-integration.md
 tasks/plan.md
@@ -125,12 +110,6 @@ bash scripts/verify-repo.sh
 ```bash
 npm run verify
 ```
-
-## Ожидаемый результат
-
-Ответственные и заинтересованные получатели получают оперативные уведомления из Zabbix в МАХ.
-
-Надежность доставки оповещений системы мониторинга ответственным за сервисы повышается до целевого уровня 100% за счет дублирования уведомлений в двух независимых каналах — Telegram и МАХ.
 
 ## Статус
 
