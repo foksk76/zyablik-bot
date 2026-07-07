@@ -1,0 +1,10 @@
+{
+  "name": "zabbix-max-alert-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zabbix webhook integration for sending alerts to MAX messenger",
+  "scripts": {
+    "verify": "bash scripts/verify-repo.sh",
+    "test": "bash scripts/verify-repo.sh"
+  }
+}
