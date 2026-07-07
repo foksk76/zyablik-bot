@@ -4,8 +4,9 @@
 
 ## Быстрый вход
 
-- [`project-context.md`](project-context.md) — что делает проект, почему выбран текущий подход и где границы первого этапа.
+- [`project-context.md`](project-context.md) — что делает проект, где границы первого этапа и с чего начинается второй этап.
 - [`project-acceptance.md`](project-acceptance.md) — единый источник критериев завершения первого этапа.
+- [`second-stage-acceptance.md`](second-stage-acceptance.md) — граница, стартовая задача и критерии завершения второго этапа.
 - [`zabbix-media-type.md`](zabbix-media-type.md) — параметры и проверка Zabbix Media type `MAX`.
 - [`bot-service-evaluation.md`](bot-service-evaluation.md) — оценка необходимости отдельного bot-service после базовой проверки Zabbix -> МАХ.
 - [`delivery-reliability-options.md`](delivery-reliability-options.md) — будущие варианты повторной отправки, журнала доставки и маршрутизации без немедленной реализации.
