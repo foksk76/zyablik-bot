@@ -13,7 +13,67 @@
 1. Прочитать `README.md`.
 2. Прочитать `.agents/project-context.md`.
 3. Проверить актуальную задачу в `.agents/tasks/current.md`.
-4. Не менять границы проекта без отдельного решения в ADR.
+4. Проверить правила внешних skills в `docs/agent-skills-integration.md`.
+5. Не менять границы проекта без отдельного решения в ADR.
+
+## Внешний набор skills
+
+Основной внешний набор skills:
+
+```text
+https://github.com/addyosmani/agent-skills
+```
+
+Репозиторий `agent-skills` не добавляется как git submodule и не включается в историю этого проекта целиком.
+
+Для разработки используются только ссылки, локальная установка в профиль пользователя или локальная копия в игнорируемом каталоге.
+
+## Рекомендуемые skills
+
+Для этого проекта рекомендуются:
+
+```text
+using-agent-skills
+spec-driven-development
+planning-and-task-breakdown
+incremental-implementation
+test-driven-development
+code-review-and-quality
+security-and-hardening
+debugging-and-error-recovery
+documentation-and-adrs
+```
+
+## Использование в чате OpenAI
+
+При разработке в чате OpenAI применяй skills как рабочие процессы по смыслу задачи.
+
+Правило:
+
+- задача на описание, README, ADR, changelog, архитектурное решение или фиксацию контекста -> использовать `documentation-and-adrs`;
+- новая функциональность -> сначала `spec-driven-development`, затем `planning-and-task-breakdown`;
+- изменение webhook-кода -> `incremental-implementation` и `test-driven-development`;
+- проверка изменений -> `code-review-and-quality` и при необходимости `security-and-hardening`;
+- ошибка или неожиданное поведение -> `debugging-and-error-recovery`.
+
+Если текст конкретного skill не загружен в контекст, использовать внешний репозиторий как источник и загружать только нужный `SKILL.md`, а не весь набор skills.
+
+## Использование в Codex CLI / Codex IDE / других IDE
+
+При переключении из чата OpenAI на локальную разработку установить skills одним из способов:
+
+```bash
+npx skills add addyosmani/agent-skills --list
+npx skills add addyosmani/agent-skills --skill documentation-and-adrs
+```
+
+или локально, в игнорируемую директорию проекта:
+
+```bash
+git clone https://github.com/addyosmani/agent-skills.git .agents/external-skills/agent-skills
+```
+
+Каталоги для локальных skills добавлены в `.gitignore`.
 
 ## Правила изменений
 
@@ -23,6 +83,7 @@
 - Для пользовательской документации писать по-русски, коротко и понятно для инженерного ИТ-состава.
 - Для кода использовать простой стиль, без лишних зависимостей и скрытой магии.
 - Любое изменение поведения webhook фиксировать в `docs/zabbix-media-type.md`.
+- Любое архитектурное решение или существенное изменение документации вести через подход `documentation-and-adrs`.
 
 ## Проверка перед завершением задачи
 
