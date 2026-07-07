@@ -8,3 +8,4 @@
 
 - [`max-media-type-manual-run.md`](max-media-type-manual-run.md) — ручная проверка Zabbix Media type `MAX` на тестового получателя.
 - [`max-problem-recovery-run.md`](max-problem-recovery-run.md) — ручная проверка доставки Problem и Recovery уведомлений через Zabbix Action.
+- [`final-acceptance-run.md`](final-acceptance-run.md) — финальный приемочный прогон первого этапа по `docs/project-acceptance.md`.
