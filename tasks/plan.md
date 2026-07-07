@@ -46,7 +46,7 @@ docs/project-acceptance.md
 - [x] Документация Task 4-5 подготовлена.
 - [x] Документация не содержит чувствительных значений.
 - [x] Project-level статус сверяется только с `docs/project-acceptance.md`.
-- [ ] `npm test` подтвержден после изменений Task 5.
+- [x] `npm test` подтвержден после изменений Task 5.
 
 ### Phase 3: Проверки качества
 
