@@ -129,13 +129,15 @@ docs/task-12-breakdown.md
 Третий этап начинается после принятия второго этапа и реализует MVP `MAX Identity Bot` по ADR-0005.
 
 - [x] Task 12.0: Done — baseline перед кодом зафиксирован, `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
-- [ ] Task 12: Подготовить каркас `src/bot-platform`; детальная декомпозиция — `docs/task-12-breakdown.md`.
-- [ ] Task 12.1: Реализовать MAX event normalizer и обезличенные fixtures.
-- [ ] Task 12.2: Реализовать identity plugin.
-- [ ] Task 12.3: Реализовать MAX inbound/outbound transport.
-- [ ] Task 12.4: Проверить WSL/LXC stand и подготовить runbook.
-- [ ] Task 12.5: Описать и применить Codex agent workflow.
-- [ ] Task 12.6: Выполнить интеграционный прогон MVP или зафиксировать отложенный статус.
+- [x] Task 12.1: Done — подготовить каркас `src/bot-platform`; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
+- [x] Task 12.2: Done — описать внутренний event contract; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
+- [ ] Task 12.3: Добавить обезличенные fixtures входящих событий.
+- [ ] Task 12.4: Реализовать MAX event normalizer без сети.
+- [ ] Task 12.5: Реализовать identity formatter и handler.
+- [ ] Task 12.6: Реализовать event router и dry-run pipeline.
+- [ ] Task 12.7: Проверить WSL/LXC stand и подготовить runbook.
+- [ ] Task 12.8: Описать и применить Codex agent workflow.
+- [ ] Task 12.9: Выполнить интеграционный прогон MVP или зафиксировать отложенный статус.
 
 ### Checkpoint: Перед кодом третьего этапа
 
@@ -145,6 +147,8 @@ docs/task-12-breakdown.md
 - [x] Task 12 декомпозирована по `planning-and-task-breakdown` в `docs/task-12-breakdown.md`.
 - [x] Baseline перед кодом зафиксирован в `docs/test-runs/task-12-baseline.md`.
 - [x] `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
+- [x] Минимальный scaffold `src/bot-platform` реализован и проверен.
+- [x] Internal event contract реализован и проверен.
 - [ ] Выбрана первичная среда разработки: WSL или LXC.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
@@ -180,7 +184,7 @@ docs/task-12-breakdown.md
 - Task 1 -> Task 2 -> Task 3;
 - Task 4 -> Task 5 -> Task 8 -> Task 9 -> Task 10;
 - Task 11 -> Task 11.1 -> ADR -> Task 12.x;
-- Task 12.0 -> Task 12.1 -> Task 12.2 -> Task 12.3 -> Task 12.4 -> Task 12.5 -> Task 12.6 -> Task 12.7 -> Task 12.8 -> Task 12.9 -> Task 12.10 -> Task 12.11 -> Task 12.12 -> Task 12.13.
+- Task 12.0 -> Task 12.1 -> Task 12.2 -> Task 12.3 -> Task 12.4 -> Task 12.5 -> Task 12.6 -> Task 12.7 -> Task 12.8 -> Task 12.9.
 
 ## Definition of Done для плана
 
