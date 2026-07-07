@@ -131,7 +131,7 @@ docs/task-12-breakdown.md
 - [x] Task 12.0: Done — baseline перед кодом зафиксирован, `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 - [x] Task 12.1: Done — подготовить каркас `src/bot-platform`; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
 - [x] Task 12.2: Done — описать внутренний event contract; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
-- [ ] Task 12.3: Добавить обезличенные fixtures входящих событий.
+- [x] Task 12.3: Done — добавить обезличенные fixtures входящих событий; CI подтвержден на commit `3c7c2494a80b5ad4560a65adf9fda295f69207e3`.
 - [ ] Task 12.4: Реализовать MAX event normalizer без сети.
 - [ ] Task 12.5: Реализовать identity formatter и handler.
 - [ ] Task 12.6: Реализовать event router и dry-run pipeline.
@@ -149,6 +149,7 @@ docs/task-12-breakdown.md
 - [x] `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 - [x] Минимальный scaffold `src/bot-platform` реализован и проверен.
 - [x] Internal event contract реализован и проверен.
+- [x] Synthetic MAX fixtures добавлены и проверены.
 - [ ] Выбрана первичная среда разработки: WSL или LXC.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
@@ -160,7 +161,7 @@ docs/task-12-breakdown.md
 | В документацию попадут чувствительные значения | High | Использовать только обезличенные примеры и проверять `npm test` |
 | AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/second-stage-acceptance.md`, `docs/third-stage-acceptance.md`, `docs/task-12-breakdown.md`, `docs/decisions/README.md` и `AGENTS.md` |
 | Задачи станут слишком крупными | Medium | Делить задачи до размера S/M и не выполнять L/XL без новой декомпозиции |
-| Поведение webhook изменится без обновления документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
+| Поведение webhook изменится без обновлением документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
 | Третий этап начнет промышленную реализацию вместо MVP | Medium | Ограничить scope identity-сценарием и criteria третьего этапа |
 | WSL окажется неудобен для inbound webhook | Medium | Использовать LXC как integration stand |
 
