@@ -24,3 +24,4 @@
 - [`task-12-13-dry-run-docs-run.md`](task-12-13-dry-run-docs-run.md) — обновление документации запуска dry-run для Task 12.13.
 - [`task-12-dry-run.md`](task-12-dry-run.md) — security review перед реальным API для Task 12.14.
 - [`task-13-transport-mode-switch-run.md`](task-13-transport-mode-switch-run.md) — добавление `MAX_TRANSPORT_MODE` для bot-platform.
+- [`task-14-safe-test-bot-planned.md`](task-14-safe-test-bot-planned.md) — placeholder для будущего safe test bot run в outbound-only LXC.

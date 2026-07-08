@@ -177,6 +177,22 @@ docs/task-13-breakdown.md
 - [x] `MAX_TRANSPORT_MODE` определен как env-based switch.
 - [x] Long polling подходит для outbound-only LXC.
 - [x] Webhook остается production ingress path.
+
+### Follow-up: Safe test bot in LXC
+
+Подготовлен отдельный follow-up для безопасного тестового бота в current LXC:
+
+```text
+docs/task-14-breakdown.md
+```
+
+- [ ] Task 14: Реализовать safe test bot в outbound-only LXC и зафиксировать prerequisites для webhook ingress.
+
+### Checkpoint: Before Task 14
+
+- [x] ADR-0008 принят.
+- [x] Safe test bot может работать в long polling режиме.
+- [x] Webhook ingress остается production-only.
 - [x] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress; CI подтвержден в `docs/test-runs/task-13-transport-mode-switch-run.md`.
 
 ## Risks and Mitigations
