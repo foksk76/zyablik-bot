@@ -1,5 +1,8 @@
 'use strict';
 
+const { formatIdentityResponse } = require('./formatter');
+const { handleIdentityEvent } = require('./handler');
+
 const moduleName = 'identity-plugin';
 
 function createIdentityPlugin() {
@@ -7,14 +10,16 @@ function createIdentityPlugin() {
     moduleName,
     status: 'scaffold',
     capabilities: {
-      userRecipient: 'pending',
-      chatRecipient: 'pending',
-      responseFormatter: 'pending'
+      userRecipient: 'available',
+      chatRecipient: 'available',
+      responseFormatter: 'available'
     }
   };
 }
 
 module.exports = {
   moduleName,
-  createIdentityPlugin
+  createIdentityPlugin,
+  formatIdentityResponse,
+  handleIdentityEvent
 };
