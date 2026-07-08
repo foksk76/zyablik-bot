@@ -5,9 +5,9 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/zabbix-max-alert-bot
-EnvironmentFile=-/opt/zabbix-max-alert-bot/.env
-ExecStart=/usr/bin/node /opt/zabbix-max-alert-bot/src/bot-platform/app.js
+WorkingDirectory=/root/zabbix-max-alert-bot
+EnvironmentFile=-/root/zabbix-max-alert-bot/.env
+ExecStart=/root/.nvm/versions/node/v24.16.0/bin/node /root/zabbix-max-alert-bot/src/bot-platform/app.js
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

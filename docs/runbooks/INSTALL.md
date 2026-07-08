@@ -106,6 +106,8 @@ journalctl -u max-identity-bot -n 50 --no-pager
 
 ## Примечание
 
-Текущий операторский хост в этом окружении не использует `systemd` как PID 1, поэтому шаги 7-9 здесь не выполняются.
+На текущем operator host unit привязан к checkout в `/root/zabbix-max-alert-bot` и к локальному `node` из `nvm`.
+
+Если вы переносите этот unit в target LXC, замените `ExecStart` на путь к `node`, который реально установлен в том контейнере.
 
 Webhook ingress на этом этапе не поднимается.

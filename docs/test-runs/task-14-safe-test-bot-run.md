@@ -39,12 +39,12 @@ real secrets: none
 callback URL: none
 chat_id/user_id: none
 systemd unit: documented
-current operator host: pass
+current operator host: pass with /root checkout and nvm node path
 target outbound-only LXC manual run: pending
 ```
 
 ## Вывод
 
 ```text
-Safe test bot runtime is implemented and covered by local tests. The current operator host smoke check passed; target outbound-only LXC verification remains pending.
+Safe test bot runtime is implemented and covered by local tests. The current operator host smoke check passed with /root checkout and the service is active; target outbound-only LXC verification remains pending.
 ```
