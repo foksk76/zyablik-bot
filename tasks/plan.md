@@ -135,7 +135,7 @@ docs/task-12-breakdown.md
 - [x] Task 12.4: Done — реализовать MAX event normalizer без сети; CI подтвержден на commit `abf0d734b421ba6687a8143e84adb6e0031928fb`.
 - [x] Task 12.5: Done — реализовать identity formatter и handler; CI подтвержден на commit `24a0d5137af5b08f6b64ea1f5003bc6d7061dc2c`.
 - [x] Task 12.6: Done — реализовать event router и dry-run pipeline; CI подтвержден на commit `61c3ba6220e7cd6dd3877590756c418728b06ab2`.
-- [ ] Task 12.7: Проверить WSL/LXC stand и подготовить runbook.
+- [ ] Task 12.7: Подготовить взаимозаменяемые WSL/LXC stand runbook и проверить выбранный стенд.
 - [ ] Task 12.8: Описать и применить Codex agent workflow.
 - [ ] Task 12.9: Выполнить интеграционный прогон MVP или зафиксировать отложенный статус.
 
@@ -153,7 +153,7 @@ docs/task-12-breakdown.md
 - [x] MAX event normalizer реализован и проверен.
 - [x] Identity formatter и handler реализованы и проверены.
 - [x] Event router и dry-run pipeline реализованы и проверены.
-- [ ] Выбрана первичная среда разработки: WSL или LXC.
+- [ ] Зафиксирована взаимозаменяемость WSL и LXC для продолжения работ.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
 ## Risks and Mitigations
@@ -166,14 +166,14 @@ docs/task-12-breakdown.md
 | Задачи станут слишком крупными | Medium | Делить задачи до размера S/M и не выполнять L/XL без новой декомпозиции |
 | Поведение webhook изменится без обновления документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
 | Третий этап начнет промышленную реализацию вместо MVP | Medium | Ограничить scope identity-сценарием и criteria третьего этапа |
-| WSL окажется неудобен для inbound webhook | Medium | Использовать LXC как integration stand |
+| WSL и LXC дадут разные результаты проверки | Medium | Считать стенды взаимозаменяемыми только при успешном прохождении одинакового verification checklist |
 
 ## Open Questions
 
 - Какой минимальный delivery package нужен для Hubot-based MVP.
 - Нужно ли делать короткий Node-RED fallback-прототип до Hubot implementation task.
 - Какой формат входящего события МАХ использовать для локального тестового прогона MVP.
-- Какая среда будет основной для интеграционных прогонов: WSL или LXC.
+- Какой из взаимозаменяемых стендов будет доступен для ближайшего фактического прогона: WSL или LXC.
 
 ## Parallelization Opportunities
 
