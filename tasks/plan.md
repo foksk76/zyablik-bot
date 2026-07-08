@@ -133,7 +133,7 @@ docs/task-12-breakdown.md
 - [x] Task 12.2: Done — описать внутренний event contract; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
 - [x] Task 12.3: Done — добавить обезличенные fixtures входящих событий; CI подтвержден на commit `3c7c2494a80b5ad4560a65adf9fda295f69207e3`.
 - [x] Task 12.4: Done — реализовать MAX event normalizer без сети; CI подтвержден на commit `abf0d734b421ba6687a8143e84adb6e0031928fb`.
-- [ ] Task 12.5: Реализовать identity formatter и handler.
+- [x] Task 12.5: Done — реализовать identity formatter и handler; CI подтвержден на commit `24a0d5137af5b08f6b64ea1f5003bc6d7061dc2c`.
 - [ ] Task 12.6: Реализовать event router и dry-run pipeline.
 - [ ] Task 12.7: Проверить WSL/LXC stand и подготовить runbook.
 - [ ] Task 12.8: Описать и применить Codex agent workflow.
@@ -151,6 +151,7 @@ docs/task-12-breakdown.md
 - [x] Internal event contract реализован и проверен.
 - [x] Synthetic MAX fixtures добавлены и проверены.
 - [x] MAX event normalizer реализован и проверен.
+- [x] Identity formatter и handler реализованы и проверены.
 - [ ] Выбрана первичная среда разработки: WSL или LXC.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
@@ -162,7 +163,7 @@ docs/task-12-breakdown.md
 | В документацию попадут чувствительные значения | High | Использовать только обезличенные примеры и проверять `npm test` |
 | AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/second-stage-acceptance.md`, `docs/third-stage-acceptance.md`, `docs/task-12-breakdown.md`, `docs/decisions/README.md` и `AGENTS.md` |
 | Задачи станут слишком крупными | Medium | Делить задачи до размера S/M и не выполнять L/XL без новой декомпозиции |
-| Поведение webhook изменится без обновлением документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
+| Поведение webhook изменится без обновления документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
 | Третий этап начнет промышленную реализацию вместо MVP | Medium | Ограничить scope identity-сценарием и criteria третьего этапа |
 | WSL окажется неудобен для inbound webhook | Medium | Использовать LXC как integration stand |
 
