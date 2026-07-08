@@ -31,6 +31,7 @@ LXC on Proxmox
 - Не добавлять реальные `chat_id` / `user_id`.
 - Не добавлять внутренние IP-адреса или доменные имена.
 - Не менять `src/zabbix-media-type/max-webhook.js`.
+- Для safe test bot использовать `MAX_TRANSPORT_MODE=long_polling` и локальный `.env`.
 
 ## Общие требования
 
@@ -383,9 +384,30 @@ NODE
 
 - Требуется доступ к Proxmox/серверному контуру.
 - Для будущего inbound webhook потребуется отдельное решение по сетевой публикации endpoint.
-- Reverse proxy, TLS и systemd unit не входят в Task 12.7.
+- Reverse proxy и TLS не входят в Task 12.7.
 - LXC не должен использоваться для хранения секретов в репозитории.
 - Наличие успешного LXC-прогона достаточно для продолжения работ, если WSL временно недоступен.
+
+### Safe test bot service
+
+Для outbound-only LXC safe test bot запускается как `systemd` service:
+
+```text
+systemd/max-identity-bot.service
+```
+
+Сервис использует:
+
+- локальный `.env`;
+- `MAX_TRANSPORT_MODE=long_polling`;
+- `src/bot-platform/app.js` как runtime entrypoint;
+- synthetic MAX updates без inbound endpoint.
+
+Ожидаемый результат запуска:
+
+```text
+MAX bot-platform safe test service started in long_polling mode
+```
 
 ## Взаимозаменяемость стендов
 
@@ -396,6 +418,7 @@ WSL и LXC считаются взаимозаменяемыми для прод
 - `npm test` завершается без ошибок;
 - dry-run pipeline успешно отрабатывает на user fixture;
 - dry-run pipeline успешно отрабатывает на chat fixture;
+- safe test bot service starts in long_polling mode;
 - dry-run result содержит `networkEnabled: false`;
 - response не содержит raw event payload;
 - `src/zabbix-media-type/max-webhook.js` не изменялся.

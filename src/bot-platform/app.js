@@ -7,6 +7,11 @@ const path = require('node:path');
 const { createCore, runMaxIdentityDryRun } = require('./core');
 const { createMaxTransport } = require('./transports/max');
 const { createIdentityPlugin } = require('./plugins/identity');
+const {
+  createSyntheticLongPollingSource,
+  createLongPollingService,
+  runLongPollingCycle
+} = require('./runtime');
 
 function createBotPlatformApp(environment = process.env) {
   const core = createCore(environment);
@@ -29,6 +34,20 @@ function createBotPlatformApp(environment = process.env) {
   };
 }
 
+function startBotPlatformService(environment = process.env, options = {}) {
+  const app = createBotPlatformApp(environment);
+
+  if (app.core.config.maxTransportMode !== 'long_polling') {
+    throw new Error('Safe test bot service requires MAX_TRANSPORT_MODE=long_polling');
+  }
+
+  return createLongPollingService({
+    pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
+    ...options,
+    logger: options.logger || options.coreLogger || console
+  });
+}
+
 function runBotPlatformDryRun(fixturePath) {
   if (typeof fixturePath !== 'string' || fixturePath.length === 0) {
     throw new Error('Fixture path is required');
@@ -40,7 +59,35 @@ function runBotPlatformDryRun(fixturePath) {
   return runMaxIdentityDryRun(payload);
 }
 
+function runBotPlatformLongPollingOnce(environment = process.env, options = {}) {
+  const app = createBotPlatformApp(environment);
+
+  if (app.core.config.maxTransportMode !== 'long_polling') {
+    throw new Error('Safe test bot service requires MAX_TRANSPORT_MODE=long_polling');
+  }
+
+  return runLongPollingCycle({
+    ...options,
+    pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
+    logger: options.logger || options.coreLogger || console
+  });
+}
+
 function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }) {
+  const environment = process.env;
+  const app = createBotPlatformApp(environment);
+
+  if (argv.length === 0) {
+    if (app.core.config.maxTransportMode === 'long_polling') {
+      startBotPlatformService(environment);
+      io.stdout.write('MAX bot-platform safe test service started in long_polling mode with synthetic updates\n');
+      return 0;
+    }
+
+    io.stderr.write('Webhook runtime is not implemented in this repository\n');
+    return 1;
+  }
+
   if (argv.length !== 1) {
     io.stderr.write('Usage: node src/bot-platform/app.js <fixture-path>\n');
     return 1;
@@ -62,6 +109,8 @@ if (require.main === module) {
 
 module.exports = {
   createBotPlatformApp,
+  runBotPlatformLongPollingOnce,
+  startBotPlatformService,
   runMaxIdentityDryRun,
   runBotPlatformDryRun,
   main

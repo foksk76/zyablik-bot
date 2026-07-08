@@ -6,6 +6,7 @@
 
 ```text
 Done: Task 1, Task 1.1, Task 2, Task 3, Task 4, Task 5, Task 6.1, Task 8, Task 9, Task 10
+In progress: Task 14
 Deferred/Future: Task 6, Task 7
 ```
 
@@ -403,3 +404,43 @@ Task 6 и Task 7 относятся к будущей локальной про�
 **Files likely touched:** `docs/delivery-reliability-options.md`, `docs/project-context.md`, `docs/README.md`, `tasks/plan.md`, `tasks/todo.md`
 
 **Estimated scope:** Small
+
+---
+
+## Task 14: Реализовать safe test bot в outbound-only LXC и зафиксировать prerequisites для webhook ingress
+
+**Status:** In Progress
+
+**Description:** Реализовать safe test bot для outbound-only LXC в `long_polling` режиме, добавить `systemd` unit и зафиксировать prerequisites для перехода к webhook ingress.
+
+**Method:** Incremental implementation + documentation update
+
+**Skill:** `incremental-implementation`, `test-driven-development`, `documentation-and-adrs`
+
+**Acceptance criteria:**
+
+- [x] safe test bot runtime запускается в `long_polling` mode;
+- [x] safe test bot использует local `.env`;
+- [x] service lifecycle описан через `systemd`;
+- [x] webhook ingress prerequisites задокументированы;
+- [x] `npm test` проходит;
+- [ ] safe test bot manually verified in the target outbound-only LXC;
+- [ ] task status updated to Done after target LXC verification.
+
+**Verification:**
+
+- [x] unit-test for long polling mode;
+- [x] local service-start check via `timeout 1s node src/bot-platform/app.js`;
+- [x] verification that `src/zabbix-media-type/max-webhook.js` is unchanged;
+- [x] `npm test`.
+- [ ] manual run in target outbound-only LXC.
+
+**Blocking status:** Not blocked. Local implementation and tests are complete; target LXC manual verification is pending.
+
+**Result:** Safe test bot long polling runtime, `systemd` unit, and webhook ingress prerequisite docs are added. Local verification passes. The final manual LXC run remains a follow-up step.
+
+**Dependencies:** ADR-0007, ADR-0008, ADR-0009, Task 13
+
+**Files likely touched:** `src/bot-platform/runtime/`, `src/bot-platform/app.js`, `tests/bot-platform/`, `systemd/`, `examples/bot-platform/`, `docs/runbooks/`, `docs/third-stage-stand-and-agent.md`, `docs/test-runs/`, `tasks/todo.md`
+
+**Estimated scope:** M

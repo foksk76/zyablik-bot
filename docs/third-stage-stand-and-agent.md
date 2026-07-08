@@ -110,6 +110,7 @@ outbound-only LXC => suitable for long_polling dev/test, not suitable for webhoo
 - systemd service для длительного запуска, если требуется.
 - Сетевой доступ к тестовому endpoint.
 - Отдельная локальная конфигурация секретов вне репозитория.
+- Для safe test bot в outbound-only LXC используется `systemd/max-identity-bot.service` и локальный `.env`.
 
 ## Режим работы Codex agent или аналога
 
