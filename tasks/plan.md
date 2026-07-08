@@ -177,6 +177,7 @@ docs/task-13-breakdown.md
 - [x] `MAX_TRANSPORT_MODE` определен как env-based switch.
 - [x] Long polling подходит для outbound-only LXC.
 - [x] Webhook остается production ingress path.
+- [x] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress; CI подтвержден в `docs/test-runs/task-13-transport-mode-switch-run.md`.
 
 ## Risks and Mitigations
 
