@@ -1,5 +1,8 @@
 'use strict';
 
+const { createEventRouter } = require('./event-router');
+const { runMaxIdentityDryRun } = require('./dry-run-pipeline');
+
 const moduleName = 'core';
 
 function createCore() {
@@ -9,13 +12,16 @@ function createCore() {
     components: {
       config: 'pending',
       logger: 'pending',
-      eventRouter: 'pending',
-      pluginLoader: 'pending'
+      eventRouter: 'available',
+      pluginLoader: 'pending',
+      dryRunPipeline: 'available'
     }
   };
 }
 
 module.exports = {
   moduleName,
-  createCore
+  createCore,
+  createEventRouter,
+  runMaxIdentityDryRun
 };
