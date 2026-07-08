@@ -158,8 +158,25 @@ docs/task-12-breakdown.md
 - [x] MAX event normalizer реализован и проверен.
 - [x] Identity formatter и handler реализованы и проверены.
 - [x] Event router и dry-run pipeline реализованы и проверены.
-- [ ] Зафиксирована взаимозаменяемость WSL и LXC для продолжения работ.
-- [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
+- [x] Зафиксирована взаимозаменяемость WSL и LXC для продолжения работ.
+- [x] Подтверждено, что текущий Zabbix Webhook не меняется.
+
+### Follow-up: Режим транспорта bot-platform
+
+Подготовлен отдельный follow-up для режима транспорта разработки и продакшена:
+
+```text
+docs/task-13-breakdown.md
+```
+
+- [ ] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress.
+
+### Checkpoint: Before Task 13
+
+- [x] ADR-0007 принят.
+- [x] `MAX_TRANSPORT_MODE` определен как env-based switch.
+- [x] Long polling подходит для outbound-only LXC.
+- [x] Webhook остается production ingress path.
 
 ## Risks and Mitigations
 
@@ -197,11 +214,11 @@ docs/task-12-breakdown.md
 
 ## Definition of Done для плана
 
-- [ ] Каждая задача имеет acceptance criteria.
-- [ ] Каждая задача имеет verification.
-- [ ] Указаны dependencies.
-- [ ] Указаны files likely touched.
-- [ ] Указан estimated scope.
-- [ ] Указаны method и skill.
-- [ ] После фаз есть checkpoints.
-- [ ] Project-level критерии не дублируются вне `docs/project-acceptance.md`.
+- [x] Каждая задача имеет acceptance criteria.
+- [x] Каждая задача имеет verification.
+- [x] Указаны dependencies.
+- [x] Указаны files likely touched.
+- [x] Указан estimated scope.
+- [x] Указаны method и skill.
+- [x] После фаз есть checkpoints.
+- [x] Project-level критерии не дублируются вне `docs/project-acceptance.md`.

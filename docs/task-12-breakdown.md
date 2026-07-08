@@ -77,14 +77,14 @@ Files likely touched:
 
 Acceptance criteria:
 
-- [ ] baseline commit известен;
-- [ ] `npm test` выполнен;
-- [ ] статус baseline зафиксирован в рабочей заметке или в сообщении задачи.
+- [x] baseline commit известен;
+- [x] `npm test` выполнен;
+- [x] статус baseline зафиксирован в рабочей заметке или в сообщении задачи.
 
 Verification:
 
-- [ ] есть вывод `npm test`;
-- [ ] нет изменений в рабочем дереве после проверки.
+- [x] есть вывод `npm test`;
+- [x] нет изменений в рабочем дереве после проверки.
 
 Estimated size: S
 
@@ -129,15 +129,15 @@ src/bot-platform/plugins/identity/index.js
 
 Acceptance criteria:
 
-- [ ] структура каталогов создана;
-- [ ] модули импортируются без ошибок;
-- [ ] `npm test` проходит;
-- [ ] текущий Zabbix Webhook не изменен.
+- [x] структура каталогов создана;
+- [x] модули импортируются без ошибок;
+- [x] `npm test` проходит;
+- [x] текущий Zabbix Webhook не изменен.
 
 Verification:
 
-- [ ] `node --test` или `npm test`;
-- [ ] `git diff -- src/zabbix-media-type/max-webhook.js` пустой.
+- [x] `node --test` или `npm test`;
+- [x] `git diff -- src/zabbix-media-type/max-webhook.js` пустой.
 
 Estimated size: S
 
@@ -177,15 +177,15 @@ src/bot-platform/core/README.md
 
 Acceptance criteria:
 
-- [ ] event contract описан;
-- [ ] contract не содержит реальных идентификаторов;
-- [ ] contract достаточен для identity plugin;
-- [ ] `npm test` проходит.
+- [x] event contract описан;
+- [x] contract не содержит реальных идентификаторов;
+- [x] contract достаточен для identity plugin;
+- [x] `npm test` проходит.
 
 Verification:
 
-- [ ] review contract fields;
-- [ ] `npm test`.
+- [x] review contract fields;
+- [x] `npm test`.
 
 Estimated size: S
 
@@ -226,15 +226,15 @@ examples/bot-platform/README.md
 
 Acceptance criteria:
 
-- [ ] есть user fixture;
-- [ ] есть chat fixture;
-- [ ] fixtures не содержат реальных данных;
-- [ ] fixtures описаны в README.
+- [x] есть user fixture;
+- [x] есть chat fixture;
+- [x] fixtures не содержат реальных данных;
+- [x] fixtures описаны в README.
 
 Verification:
 
-- [ ] grep по запрещенным значениям и секретам;
-- [ ] review fixtures.
+- [x] grep по запрещенным значениям и секретам;
+- [x] review fixtures.
 
 Estimated size: S
 
@@ -276,17 +276,17 @@ tests/bot-platform/max-event-normalizer.test.js
 
 Acceptance criteria:
 
-- [ ] normalizer возвращает корректный internal event для user fixture;
-- [ ] normalizer возвращает корректный internal event для chat fixture;
-- [ ] unknown payload не приводит к утечке данных в ошибку;
-- [ ] `npm test` проходит.
+- [x] normalizer возвращает корректный internal event для user fixture;
+- [x] normalizer возвращает корректный internal event для chat fixture;
+- [x] unknown payload не приводит к утечке данных в ошибку;
+- [x] `npm test` проходит.
 
 Verification:
 
-- [ ] unit-тест user fixture;
-- [ ] unit-тест chat fixture;
-- [ ] unit-тест invalid fixture;
-- [ ] `npm test`.
+- [x] unit-тест user fixture;
+- [x] unit-тест chat fixture;
+- [x] unit-тест invalid fixture;
+- [x] `npm test`.
 
 Estimated size: M
 
@@ -326,17 +326,17 @@ tests/bot-platform/identity-formatter.test.js
 
 Acceptance criteria:
 
-- [ ] formatter формирует ответ для user event;
-- [ ] formatter формирует ответ для chat event;
-- [ ] formatter не добавляет raw payload в ответ;
-- [ ] `npm test` проходит.
+- [x] formatter формирует ответ для user event;
+- [x] formatter формирует ответ для chat event;
+- [x] formatter не добавляет raw payload в ответ;
+- [x] `npm test` проходит.
 
 Verification:
 
-- [ ] unit-тест user response;
-- [ ] unit-тест chat response;
-- [ ] unit-тест unsupported recipient kind;
-- [ ] `npm test`.
+- [x] unit-тест user response;
+- [x] unit-тест chat response;
+- [x] unit-тест unsupported recipient kind;
+- [x] `npm test`.
 
 Estimated size: S
 
@@ -378,18 +378,18 @@ tests/bot-platform/identity-handler.test.js
 
 Acceptance criteria:
 
-- [ ] handler принимает normalized user event;
-- [ ] handler принимает normalized chat event;
-- [ ] handler возвращает response object;
-- [ ] invalid event возвращает контролируемую ошибку;
-- [ ] `npm test` проходит.
+- [x] handler принимает normalized user event;
+- [x] handler принимает normalized chat event;
+- [x] handler возвращает response object;
+- [x] invalid event возвращает контролируемую ошибку;
+- [x] `npm test` проходит.
 
 Verification:
 
-- [ ] unit-тест user event;
-- [ ] unit-тест chat event;
-- [ ] unit-тест invalid event;
-- [ ] `npm test`.
+- [x] unit-тест user event;
+- [x] unit-тест chat event;
+- [x] unit-тест invalid event;
+- [x] `npm test`.
 
 Estimated size: M
 
@@ -430,15 +430,15 @@ tests/bot-platform/event-router.test.js
 
 Acceptance criteria:
 
-- [ ] router направляет событие в identity plugin;
-- [ ] неизвестный plugin route обрабатывается безопасно;
-- [ ] `npm test` проходит.
+- [x] router направляет событие в identity plugin;
+- [x] неизвестный plugin route обрабатывается безопасно;
+- [x] `npm test` проходит.
 
 Verification:
 
-- [ ] unit-тест route to identity;
-- [ ] unit-тест no plugin;
-- [ ] `npm test`.
+- [x] unit-тест route to identity;
+- [x] unit-тест no plugin;
+- [x] `npm test`.
 
 Estimated size: M
 
@@ -482,16 +482,16 @@ tasks/plan.md
 
 Acceptance criteria:
 
-- [ ] workflow описан в каноничном документе;
-- [ ] workflow ссылается на обязательные проверки;
-- [ ] workflow запрещает менять текущий Zabbix Webhook без отдельного решения;
-- [ ] `npm test` проходит после документационных изменений.
+- [x] workflow описан в каноничном документе;
+- [x] workflow ссылается на обязательные проверки;
+- [x] workflow запрещает менять текущий Zabbix Webhook без отдельного решения;
+- [x] `npm test` проходит после документационных изменений.
 
 Verification:
 
-- [ ] review workflow text;
-- [ ] `npm test`;
-- [ ] git diff по webhook пустой.
+- [x] review workflow text;
+- [x] `npm test`;
+- [x] git diff по webhook пустой.
 
 Estimated size: S
 
@@ -910,19 +910,19 @@ Task 12.14 security review: pass
 
 ## Definition of Done для Task 12
 
-- [ ] Каркас `src/bot-platform` создан.
-- [ ] Есть internal event contract.
-- [ ] Есть обезличенные fixtures.
-- [ ] Есть normalizer.
-- [ ] Есть identity formatter и handler.
-- [ ] Есть event router.
-- [ ] Есть Codex agent workflow.
-- [ ] Есть config/logger.
-- [ ] Есть outbound client dry-run contract.
-- [ ] Есть inbound handler для локального вызова.
-- [ ] Есть app dry-run.
-- [ ] Есть тесты.
-- [ ] Есть документация запуска.
-- [ ] Есть security review note.
-- [ ] `npm test` проходит.
-- [ ] Текущий Zabbix Webhook не изменен.
+- [x] Каркас `src/bot-platform` создан.
+- [x] Есть internal event contract.
+- [x] Есть обезличенные fixtures.
+- [x] Есть normalizer.
+- [x] Есть identity formatter и handler.
+- [x] Есть event router.
+- [x] Есть Codex agent workflow.
+- [x] Есть config/logger.
+- [x] Есть outbound client dry-run contract.
+- [x] Есть inbound handler для локального вызова.
+- [x] Есть app dry-run.
+- [x] Есть тесты.
+- [x] Есть документация запуска.
+- [x] Есть security review note.
+- [x] `npm test` проходит.
+- [x] Текущий Zabbix Webhook не изменен.

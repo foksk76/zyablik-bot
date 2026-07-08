@@ -62,6 +62,14 @@
 - нужно заранее определить сетевой сегмент, DNS/порт и правила доступа;
 - если понадобится Docker-in-LXC, нужны дополнительные настройки или отдельная VM;
 - для MVP предпочтительнее запускать Node.js напрямую без Docker, чтобы не усложнять LXC.
+- в режиме `webhook` этот LXC не подходит без отдельного ingress path;
+- в режиме `long_polling` этот LXC подходит для разработки и тестирования, потому что входящие подключения не требуются.
+
+Итого:
+
+```text
+outbound-only LXC => suitable for long_polling dev/test, not suitable for webhook ingress
+```
 
 Рекомендация:
 
@@ -76,8 +84,9 @@
 | Разработка кода | WSL |
 | Unit-тесты | WSL или LXC |
 | Проверка fixtures | WSL или LXC |
+| Long polling dev/test | LXC |
 | Длительный запуск сервиса | LXC |
-| Проверка входящего webhook endpoint | LXC |
+| Проверка входящего webhook endpoint | LXC с ingress path |
 | Работа Codex agent / аналога | WSL или LXC, в зависимости от доступа |
 
 ## Минимальные требования к WSL-стенду

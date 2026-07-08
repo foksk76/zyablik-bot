@@ -8,19 +8,23 @@ const { createCore, runMaxIdentityDryRun } = require('./core');
 const { createMaxTransport } = require('./transports/max');
 const { createIdentityPlugin } = require('./plugins/identity');
 
-function createBotPlatformApp() {
+function createBotPlatformApp(environment = process.env) {
+  const core = createCore(environment);
+  const transportMode = core.config.maxTransportMode;
+
   return {
     name: 'max-identity-bot-platform',
     status: 'scaffold',
-    core: createCore(),
+    core,
     transports: {
-      max: createMaxTransport()
+      max: createMaxTransport({ transportMode })
     },
     plugins: {
       identity: createIdentityPlugin()
     },
     pipeline: {
-      dryRun: 'available'
+      dryRun: 'available',
+      transportMode
     }
   };
 }

@@ -7,10 +7,11 @@ const { createSafeLogger } = require('./logger');
 
 const moduleName = 'core';
 
-function createCore() {
+function createCore(environment = process.env) {
   return {
     moduleName,
     status: 'scaffold',
+    config: createBotPlatformConfig(environment),
     components: {
       config: 'available',
       logger: 'available',

@@ -71,6 +71,9 @@ createInternalEvent(input)
 createBotPlatformConfig(environment)
 ```
 
+Конфиг читает `MAX_TRANSPORT_MODE` из environment и по умолчанию использует `long_polling`.
+Допустимые значения: `long_polling`, `webhook`.
+
 ### `logger.js`
 
 ```text

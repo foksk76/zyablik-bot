@@ -37,3 +37,12 @@ node src/bot-platform/app.js examples/bot-platform/max-inbound-chat.fixture.json
 ```
 
 The output is synthetic and safe for repository storage. Do not add real tokens, callback URLs, recipient identifiers or internal addresses.
+
+## Transport mode
+
+The bot-platform uses `MAX_TRANSPORT_MODE` to choose the runtime transport mode:
+
+- `long_polling` — default for development and testing in the current LXC;
+- `webhook` — production ingress mode when the endpoint is reachable from MAX.
+
+Keep the value in the local `.env` file and out of version control.
