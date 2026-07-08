@@ -132,7 +132,7 @@ docs/task-12-breakdown.md
 - [x] Task 12.1: Done — подготовить каркас `src/bot-platform`; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
 - [x] Task 12.2: Done — описать внутренний event contract; CI подтвержден на commit `89f63c11ddda36da48ae773f682470710f4638d7`.
 - [x] Task 12.3: Done — добавить обезличенные fixtures входящих событий; CI подтвержден на commit `3c7c2494a80b5ad4560a65adf9fda295f69207e3`.
-- [ ] Task 12.4: Реализовать MAX event normalizer без сети.
+- [x] Task 12.4: Done — реализовать MAX event normalizer без сети; CI подтвержден на commit `abf0d734b421ba6687a8143e84adb6e0031928fb`.
 - [ ] Task 12.5: Реализовать identity formatter и handler.
 - [ ] Task 12.6: Реализовать event router и dry-run pipeline.
 - [ ] Task 12.7: Проверить WSL/LXC stand и подготовить runbook.
@@ -150,6 +150,7 @@ docs/task-12-breakdown.md
 - [x] Минимальный scaffold `src/bot-platform` реализован и проверен.
 - [x] Internal event contract реализован и проверен.
 - [x] Synthetic MAX fixtures добавлены и проверены.
+- [x] MAX event normalizer реализован и проверен.
 - [ ] Выбрана первичная среда разработки: WSL или LXC.
 - [ ] Подтверждено, что текущий Zabbix Webhook не меняется.
 
