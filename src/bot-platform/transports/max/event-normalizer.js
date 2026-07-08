@@ -18,6 +18,10 @@ function normalizeMaxEvent(payload) {
 
   const recipient = getRecipientFromChat(chat, sender);
 
+  if (!recipient.value) {
+    throw new Error('Missing MAX recipient value');
+  }
+
   return createInternalEvent({
     source: SOURCE_MAX,
     recipient,
