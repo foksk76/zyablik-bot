@@ -1,19 +1,20 @@
-# Финальный приемочный прогон первого этапа
+# Финальный приемочный прогон проекта
 
-Документ фиксирует обезличенный результат финальной сверки первого этапа с `docs/project-acceptance.md`.
+Документ фиксирует обезличенный результат финальной сверки проекта с `docs/project-acceptance.md`.
 
 ## Дата
 
 ```text
-2026-07-07
+2026-07-09
 ```
 
 ## Граница приемки
 
-Первый этап принимается как базовая интеграция:
+Проект считается завершенным при выполнении двух пользовательских сценариев:
 
 ```text
 Zabbix -> МАХ через Zabbix Media type Webhook
+MAX bot -> user_id / chat_id for Zabbix recipient setup
 ```
 
 Новые компоненты в рамках финальной приемки не добавлялись.
@@ -21,18 +22,19 @@ Zabbix -> МАХ через Zabbix Media type Webhook
 ## Проверка критериев
 
 ```text
-Media type MAX создан и включен: yes
+Media type MAX created and enabled: yes
 Media type type: Webhook
 Script source: src/zabbix-media-type/max-webhook.js
 Parameters source: docs/zabbix-media-type.md
 Test message delivered to MAX: yes
 Problem delivered to MAX: yes
 Recovery delivered to MAX: yes
+MAX bot returns user_id/chat_id: yes
 Existing Telegram channel works: yes
 MAX duplicates Telegram notifications: yes
 Documentation allows repeated setup: yes
 Sensitive values in repository: no
-First-stage tasks closed: yes
+Project tasks closed: Task 1-5, Task 6.1, Task 8-10, Task 14, Task 15, Task 16
 npm test: success
 GitHub Actions: green
 Project boundary expanded: no
@@ -51,8 +53,8 @@ GitHub Actions завершился успешно.
 ```text
 Status: green
 npm test: success
-Tests: 14
-Passed: 14
+Tests: 18
+Passed: 18
 Failed: 0
 ```
 
@@ -75,8 +77,8 @@ AI-обработка событий
 ## Итог
 
 ```text
-First-stage acceptance: passed
+Project acceptance: passed
 Status: accepted
 ```
 
-Первый этап проекта принят по критериям `docs/project-acceptance.md`.
+Проект принят по критериям `docs/project-acceptance.md`.

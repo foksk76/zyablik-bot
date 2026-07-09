@@ -107,15 +107,15 @@ docs/task-12-breakdown.md
 ### Phase 5: Финальная приемка и закрытие
 
 - [x] Task 15: Reconcile the project-acceptance checklist with existing evidence.
-- [ ] Task 16: Refresh and freeze the final acceptance run record.
+- [x] Task 16: Refresh and freeze the final acceptance run record.
 - [ ] Task 17: Separate post-acceptance follow-up from the accepted project scope.
 
 ### Checkpoint: После Phase 5
 
-- [ ] Every criterion in `docs/project-acceptance.md` has matching evidence or a documented status note.
-- [ ] `docs/test-runs/final-acceptance-run.md` matches the accepted project state.
+- [x] Every criterion in `docs/project-acceptance.md` has matching evidence or a documented status note.
+- [x] `docs/test-runs/final-acceptance-run.md` matches the accepted project state.
 - [ ] Project status documents clearly separate accepted scope from post-acceptance follow-up.
-- [ ] `npm test` is confirmed after closeout edits.
+- [x] `npm test` is confirmed after closeout edits.
 
 ### Second stage: Исследование и выбор платформы
 
