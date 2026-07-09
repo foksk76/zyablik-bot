@@ -10,7 +10,7 @@
 
 ## Граница приемки
 
-Проект считается завершенным при выполнении двух пользовательских сценариев:
+Исторически этот прогон фиксировал два пользовательских сценария:
 
 ```text
 Zabbix -> МАХ через Zabbix Media type Webhook
@@ -18,6 +18,8 @@ MAX bot -> user_id / chat_id for Zabbix recipient setup
 ```
 
 Новые компоненты в рамках финальной приемки не добавлялись.
+
+После ADR-0010 этот документ считается доказательством Zabbix -> МАХ доставки и dry-run/safe-test готовности bot-platform, но не доказательством live-сценария MAX Identity Bot. Для live-приемки нужен отдельный обезличенный test-run с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API.
 
 ## Проверка критериев
 
@@ -29,7 +31,8 @@ Parameters source: docs/zabbix-media-type.md
 Test message delivered to MAX: yes
 Problem delivered to MAX: yes
 Recovery delivered to MAX: yes
-MAX bot returns user_id/chat_id: yes
+MAX bot dry-run/safe-test response format returns user_id/chat_id: yes
+MAX bot live response through MAX Bot API: not verified in this run
 Existing Telegram channel works: yes
 MAX duplicates Telegram notifications: yes
 Documentation allows repeated setup: yes
@@ -77,8 +80,9 @@ AI-обработка событий
 ## Итог
 
 ```text
-Project acceptance: passed
-Status: accepted
+Zabbix delivery acceptance: passed
+MAX Identity Bot live acceptance: not verified in this run
+Status: historical run updated after ADR-0010
 ```
 
-Проект принят по критериям `docs/project-acceptance.md`.
+Zabbix -> МАХ доставка принята. Live-сценарий MAX Identity Bot проверяется отдельно по ADR-0010 и актуальной версии `docs/project-acceptance.md`.

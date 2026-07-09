@@ -4,11 +4,26 @@
 
 Автоматический механизм тестирования здесь не определяется. Если потребуется локальный test harness, Zabbix container или другой runtime, сначала создается ADR в `docs/decisions/`.
 
-## Текущие прогоны
+## Приемка Zabbix -> МАХ
 
 - [`max-media-type-manual-run.md`](max-media-type-manual-run.md) — ручная проверка Zabbix Media type `MAX` на тестового получателя.
 - [`max-problem-recovery-run.md`](max-problem-recovery-run.md) — ручная проверка доставки Problem и Recovery уведомлений через Zabbix Action.
-- [`final-acceptance-run.md`](final-acceptance-run.md) — финальный приемочный прогон проекта по `docs/project-acceptance.md`.
+- [`final-acceptance-run.md`](final-acceptance-run.md) — исторический финальный прогон доставки Zabbix -> МАХ и dry-run/safe-test статуса bot-platform; не является live-приемкой MAX Identity Bot после ADR-0010.
+
+## Live MAX Identity Bot
+
+Live test-run для Task 18 пока отсутствует.
+
+Для приемки нужен отдельный обезличенный документ, который подтвердит:
+
+- реальное входящее сообщение МАХ;
+- реальный ответ через MAX Bot API;
+- ответ `RecipientType: user_id` в личном диалоге;
+- ответ `RecipientType: chat_id` в chat-сценарии;
+- отсутствие реальных токенов и идентификаторов в репозитории.
+
+## Bot-platform Dry-run И Safe-test
+
 - [`task-12-baseline.md`](task-12-baseline.md) — baseline перед кодом Task 12.
 - [`task-12-3-fixtures-run.md`](task-12-3-fixtures-run.md) — CI-прогон Task 12.3 после добавления synthetic MAX fixtures.
 - [`task-12-4-normalizer-run.md`](task-12-4-normalizer-run.md) — CI-прогон Task 12.4 после реализации MAX event normalizer без сети.
@@ -24,5 +39,5 @@
 - [`task-12-13-dry-run-docs-run.md`](task-12-13-dry-run-docs-run.md) — обновление документации запуска dry-run для Task 12.13.
 - [`task-12-dry-run.md`](task-12-dry-run.md) — security review перед реальным API для Task 12.14.
 - [`task-13-transport-mode-switch-run.md`](task-13-transport-mode-switch-run.md) — добавление `MAX_TRANSPORT_MODE` для bot-platform.
-- [`task-14-safe-test-bot-planned.md`](task-14-safe-test-bot-planned.md) — placeholder для будущего safe test bot run в outbound-only LXC.
+- [`task-14-safe-test-bot-planned.md`](task-14-safe-test-bot-planned.md) — исторический placeholder, superseded by фактическим run.
 - [`task-14-safe-test-bot-run.md`](task-14-safe-test-bot-run.md) — локальная реализация safe test bot и текущий статус LXC manual run.

@@ -52,6 +52,7 @@ src/zabbix-media-type/max-webhook.js
 ```text
 docs/project-context.md
 docs/project-acceptance.md
+docs/live-identity-bot.md
 docs/documentation-policy.md
 docs/decisions/README.md
 docs/agent-skills-integration.md
@@ -59,6 +60,8 @@ docs/zabbix-media-type.md
 ```
 
 Критерии завершения проекта хранятся только в `docs/project-acceptance.md`.
+
+Текущий статус live-сценария бота МАХ для `user_id` / `chat_id` описан в `docs/live-identity-bot.md`.
 
 Для локальной проверки bot-platform без реального MAX API см. `docs/third-stage-implementation-plan.md` и `examples/bot-platform/README.md`.
 
@@ -112,9 +115,12 @@ npm run verify
 
 ## Статус
 
-Проект принят по `docs/project-acceptance.md`: Zabbix -> МАХ доставка подтверждена, бот МАХ возвращает `user_id` / `chat_id`, существующий Telegram-канал продолжает работать, МАХ дублирует Telegram, GitHub Actions green.
+Zabbix -> МАХ доставка подтверждена: Media type `MAX` работает, существующий Telegram-канал продолжает работать, МАХ дублирует Telegram, GitHub Actions green.
+
+По ADR-0010 live-сценарий MAX Identity Bot считается принятым только после отдельного обезличенного live test-run: бот должен получить реальное сообщение в МАХ и отправить реальный ответ с `user_id` / `chat_id` через MAX Bot API. Dry-run и safe test bot не считаются достаточным доказательством live-приемки.
 
 Post-acceptance follow-up:
 
-- Task 13 остается открытым и не входит в project acceptance gate.
+- Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
 - Task 6 и Task 7 остаются future/deferred и не блокируют завершение проекта.
+- Task 18.1-18.10 остаются открытыми для live MAX Identity Bot.

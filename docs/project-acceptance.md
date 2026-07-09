@@ -13,6 +13,12 @@
 
 Критерии ниже не требуют очереди сообщений, базы данных, автоматического реагирования или хранения чувствительных данных в репозитории.
 
+Уточнение по ADR-0010:
+
+- dry-run, synthetic fixtures и safe test bot подтверждают готовность кода и формата ответа, но не подтверждают live-сценарий;
+- критерий `бот МАХ возвращает user_id / chat_id` считается выполненным только после проверки с реальным MAX Bot API;
+- признак "сообщение помечено прочитанным" не является обязательным критерием, пока официальный MAX Bot API для read/ack не подтвержден отдельной задачей или ADR.
+
 ## Критерии завершения проекта
 
 - [ ] В Zabbix создан и включен Media type `MAX` с типом `Webhook`.
@@ -21,7 +27,11 @@
 - [ ] Тестовое сообщение из Zabbix успешно доставляется в МАХ.
 - [ ] Problem-событие успешно доставляется в МАХ.
 - [ ] Recovery-событие успешно доставляется в МАХ.
-- [ ] Бот МАХ принимает входящее сообщение и возвращает `user_id` или `chat_id` для настройки получателя в Zabbix.
+- [ ] Бот МАХ принимает реальное входящее сообщение через поддержанный MAX transport: `long_polling` или `webhook`.
+- [ ] Бот МАХ отправляет реальный ответ через MAX Bot API, а не только формирует dry-run payload.
+- [ ] В личном диалоге бот возвращает `RecipientType: user_id` и `To: <обезличенный user_id>` для настройки получателя в Zabbix.
+- [ ] В групповом чате или другом поддержанном chat-сценарии бот возвращает `RecipientType: chat_id` и `To: <обезличенный chat_id>` для настройки получателя в Zabbix.
+- [ ] Runtime-секреты MAX Bot API хранятся только во внешней конфигурации или переменных окружения.
 - [ ] Существующий Telegram-канал не нарушен и продолжает работать.
 - [ ] Документация позволяет повторить настройку без неформальных пояснений.
 - [ ] В документации и примерах нет реальных авторизационных значений, боевых идентификаторов, внутренних адресов и организационных названий.
@@ -42,7 +52,12 @@
 | Test message доставляется в МАХ | [`docs/test-runs/max-media-type-manual-run.md`](test-runs/max-media-type-manual-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Problem доставляется в МАХ | [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Recovery доставляется в МАХ | [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
-| Бот МАХ возвращает `user_id` / `chat_id` | [`docs/test-runs/task-12-5-identity-run.md`](test-runs/task-12-5-identity-run.md), [`docs/test-runs/task-12-12-dry-run-cli-run.md`](test-runs/task-12-12-dry-run-cli-run.md), [`docs/test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) |
+| Bot-platform формирует ответ с `user_id` / `chat_id` в dry-run | [`docs/test-runs/task-12-5-identity-run.md`](test-runs/task-12-5-identity-run.md), [`docs/test-runs/task-12-12-dry-run-cli-run.md`](test-runs/task-12-12-dry-run-cli-run.md), [`docs/test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) |
+| Бот МАХ получает реальное входящее сообщение | Обезличенный live test-run для MAX Identity Bot |
+| Бот МАХ отправляет реальный ответ через MAX Bot API | Обезличенный live test-run для MAX Identity Bot |
+| Бот МАХ возвращает `user_id` в личном диалоге | Обезличенный live test-run для MAX Identity Bot |
+| Бот МАХ возвращает `chat_id` в групповом чате или поддержанном chat-сценарии | Обезличенный live test-run для MAX Identity Bot |
+| Runtime-секреты MAX Bot API хранятся вне репозитория | Обезличенный live test-run для MAX Identity Bot, `.gitignore`, локальная конфигурация стенда |
 | Telegram-канал продолжает работать | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Документация позволяет повторить настройку | [`docs/zabbix-media-type.md`](zabbix-media-type.md), [`examples/media-params.md`](../examples/media-params.md), [`examples/media-type-recreate-checklist.md`](../examples/media-type-recreate-checklist.md) |
 | Нет реальных авторизационных значений и боевых идентификаторов | [`docs/test-runs/max-media-type-manual-run.md`](test-runs/max-media-type-manual-run.md), [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/task-12-9-config-logger-run.md`](test-runs/task-12-9-config-logger-run.md), [`docs/test-runs/task-12-10-outbound-client-run.md`](test-runs/task-12-10-outbound-client-run.md), [`docs/test-runs/task-12-11-inbound-webhook-run.md`](test-runs/task-12-11-inbound-webhook-run.md), [`docs/test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) |
@@ -61,7 +76,8 @@
 - SIEM-интеграция;
 - AI-обработка событий;
 - автоматическое реагирование;
-- управление событиями Zabbix из МАХ.
+- управление событиями Zabbix из МАХ;
+- read/ack входящих сообщений МАХ без подтвержденного метода MAX Bot API.
 
 ## Финальный приемочный прогон
 
@@ -74,9 +90,13 @@
 3. Отправить тестовое сообщение из Zabbix.
 4. Проверить доставку Problem-события.
 5. Проверить доставку Recovery-события.
-6. Проверить, что существующий Telegram-канал продолжает работать.
-7. Проверить, что документация и примеры не содержат чувствительных значений.
-8. Зафиксировать результат приемки в `docs/zabbix-media-type.md` или отдельной обезличенной заметке, если она будет создана в рамках задачи.
+6. Отправить реальное сообщение боту МАХ в личном диалоге.
+7. Проверить, что бот ответил с `RecipientType: user_id` и обезличенным `To`.
+8. Отправить реальное сообщение боту МАХ в групповом чате или другом поддержанном chat-сценарии.
+9. Проверить, что бот ответил с `RecipientType: chat_id` и обезличенным `To`.
+10. Проверить, что существующий Telegram-канал продолжает работать.
+11. Проверить, что документация и примеры не содержат чувствительных значений.
+12. Зафиксировать результат приемки в отдельной обезличенной заметке `docs/test-runs/`.
 
 ## Правило изменения критериев
 

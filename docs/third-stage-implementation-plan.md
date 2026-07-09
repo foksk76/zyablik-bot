@@ -2,6 +2,8 @@
 
 Документ описывает план реализации третьего этапа: модульной bot-platform для МАХ на основе решений второго этапа.
 
+Статус после ADR-0010: третий этап довел bot-platform до dry-run/safe-test состояния. Реальный inbound/outbound MAX Bot API для live-приемки вынесен в Task 18.
+
 ## Базовое решение
 
 ```text
@@ -15,7 +17,7 @@ Fallback: Node-RED workflow-прототип
 
 ```text
 1. Пользователь или групповой чат отправляет сообщение боту МАХ.
-2. MAX transport принимает входящее событие.
+2. MAX transport принимает входящее событие или synthetic fixture.
 3. Event normalizer приводит событие к внутреннему формату.
 4. Identity plugin определяет тип получателя.
 5. Outbound transport отправляет безопасную подсказку для настройки Zabbix.
@@ -30,8 +32,8 @@ Fallback: Node-RED workflow-прототип
 | `core/config` | чтение конфигурации и переменных окружения |
 | `core/logger` | обезличенное логирование |
 | `core/event-router` | маршрутизация нормализованных событий к плагинам |
-| `transports/max/inbound-webhook` | прием входящих событий МАХ |
-| `transports/max/outbound-client` | отправка ответа в МАХ |
+| `transports/max/inbound-webhook` | contract для приема входящих событий МАХ без публикации live endpoint |
+| `transports/max/outbound-client` | contract для отправки ответа без live сетевого вызова |
 | `transports/max/event-normalizer` | преобразование события МАХ во внутренний формат |
 | `plugins/identity` | определение типа получателя и формирование ответа |
 
@@ -127,11 +129,11 @@ Verification:
 - тест группового чата;
 - тест пустого или неполного события.
 
-### Task 12.3: Реализовать MAX outbound transport
+### Task 12.3: Реализовать MAX outbound transport contract
 
 Scope:
 
-- отправка ответа через API МАХ;
+- подготовка outbound request для будущего API МАХ;
 - учетные данные только из внешней конфигурации;
 - обезличенное логирование;
 - обработка ошибок отправки.
@@ -140,7 +142,8 @@ Verification:
 
 - unit-тест без реального API;
 - проверка, что учетные данные не логируются;
-- интеграционный прогон с тестовым ботом фиксируется отдельно.
+- dry-run показывает `networkEnabled: false`;
+- live-интеграционный прогон с тестовым ботом фиксируется отдельно в Task 18.
 
 ### Task 12.7: Подготовить stand runbook
 

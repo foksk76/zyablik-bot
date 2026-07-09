@@ -10,7 +10,7 @@
 
 ## Принятый scope
 
-Проект принят по `docs/project-acceptance.md`. Финальная фиксация приемки хранится в:
+Zabbix -> МАХ доставка принята по `docs/project-acceptance.md`. Финальная фиксация доставки хранится в:
 
 ```text
 docs/test-runs/final-acceptance-run.md
@@ -19,21 +19,26 @@ docs/test-runs/final-acceptance-run.md
 Подтверждено:
 
 - Zabbix отправляет уведомления в МАХ через Zabbix Media type `Webhook`;
-- бот МАХ возвращает `user_id` / `chat_id` для настройки получателя в Zabbix;
 - существующий Telegram-канал продолжает работать;
 - МАХ дублирует Telegram;
 - GitHub Actions green;
 - проект не выходит за согласованные границы.
 
+По ADR-0010 live-сценарий MAX Identity Bot требует отдельного обезличенного live test-run: реальное входящее сообщение в МАХ и реальный ответ бота через MAX Bot API с `user_id` / `chat_id`. Dry-run, synthetic fixtures и safe test bot подтверждают только готовность кода и формата ответа.
+
 ## Post-acceptance follow-up
 
-Task 13 остается открытым и не входит в project acceptance gate:
+Открытые follow-up:
 
 ```text
-Task 13: MAX_TRANSPORT_MODE switch for bot-platform
+Task 18: live MAX Identity Bot for user_id / chat_id
 ```
 
-Task 14 уже выполнен и относится к поддерживающим работам bot-platform, а не к project acceptance gate.
+Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
+
+Task 14 уже выполнен и относится к поддерживающим работам bot-platform.
+
+Task 18 входит в актуальную live-приемку MAX Identity Bot по ADR-0010 и требует отдельного обезличенного live test-run.
 
 ## Второй этап
 
@@ -51,15 +56,17 @@ ADR: docs/decisions/ADR-0005-use-hubot-for-max-identity-bot-mvp.md
 
 ## Третий этап
 
-Третий этап начинается после принятого второго этапа.
+Третий этап начался после принятого второго этапа.
 
-Цель третьего этапа — реализовать MVP модульной bot-platform для МАХ на основе ADR-0005.
+Итог третьего этапа — dry-run/safe-test MVP модульной bot-platform для МАХ на основе ADR-0005.
 
-Основной сценарий:
+Проверенный сценарий:
 
 ```text
-входящее сообщение боту МАХ -> определение типа получателя -> ответ с параметрами для Zabbix
+synthetic update -> определение типа получателя -> dry-run response с параметрами для Zabbix
 ```
+
+Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в Task 18.
 
 Документы третьего этапа:
 
@@ -116,6 +123,7 @@ docs/third-stage-stand-and-agent.md
 - хранить критерии завершения второго этапа в `docs/second-stage-acceptance.md`;
 - хранить критерии завершения третьего этапа в `docs/third-stage-acceptance.md`;
 - по ADR-0005 использовать Hubot как основной вариант MVP `MAX Identity Bot`, а Node-RED только как fallback-прототип;
+- по ADR-0010 требовать live evidence для приемки MAX Identity Bot;
 - не реализовывать очередь, базу данных, журнал доставки, автоматическую повторную отправку или маршрутизацию вне Zabbix без отдельного ADR.
 
 ## Основной артефакт первого этапа

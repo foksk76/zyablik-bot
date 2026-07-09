@@ -98,8 +98,9 @@ docs/task-12-breakdown.md
 
 ### Project acceptance
 
-- [x] Финальный приемочный прогон зафиксирован в `docs/test-runs/final-acceptance-run.md`.
-- [x] Проект принят по `docs/project-acceptance.md`.
+- [x] Исторический финальный прогон доставки зафиксирован в `docs/test-runs/final-acceptance-run.md`.
+- [x] Zabbix -> МАХ доставка принята по историческому финальному прогону.
+- [ ] Live-сценарий MAX Identity Bot требует отдельного обезличенного live test-run по ADR-0010.
 - [x] Telegram-канал продолжает работать.
 - [x] МАХ дублирует Telegram.
 - [x] GitHub Actions green.
@@ -113,7 +114,7 @@ docs/task-12-breakdown.md
 ### Checkpoint: После Phase 5
 
 - [x] Every criterion in `docs/project-acceptance.md` has matching evidence or a documented status note.
-- [x] `docs/test-runs/final-acceptance-run.md` matches the accepted project state.
+- [x] `docs/test-runs/final-acceptance-run.md` marked as historical after ADR-0010.
 - [x] Project status documents clearly separate accepted scope from post-acceptance follow-up.
 - [x] `npm test` is confirmed after closeout edits.
 
@@ -126,7 +127,7 @@ docs/task-12-breakdown.md
 
 ### Checkpoint: Перед реализацией второго этапа
 
-- [x] Проект принят и критерии не меняются без отдельного решения.
+- [x] Критерии меняются только через отдельное решение; live evidence для MAX Identity Bot уточнен в ADR-0010.
 - [x] Старт второго этапа и критерии завершения описаны в `docs/second-stage-acceptance.md`.
 - [x] Исследовательская постановка Task 11 описана в `docs/modular-bot-platform-research.md`.
 - [x] Поиск и сравнение кандидатов Task 11.1 описаны в `docs/modular-bot-platform-candidates.md`.
@@ -176,15 +177,15 @@ docs/task-12-breakdown.md
 
 ### Follow-up: Режим транспорта bot-platform
 
-Подготовлен отдельный follow-up для режима транспорта разработки и продакшена:
+Follow-up для режима транспорта разработки и продакшена выполнен:
 
 ```text
 docs/task-13-breakdown.md
 ```
 
-- [ ] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress.
+- [x] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress.
 
-Этот follow-up находится вне gate приемки проекта и не требуется для выполнения `docs/project-acceptance.md`.
+Этот follow-up находится вне gate исторической приемки Zabbix -> МАХ и используется как dependency для Task 18.
 
 ### Checkpoint: Before Task 13
 
@@ -211,6 +212,91 @@ docs/task-14-breakdown.md
 - [x] Safe test bot может работать в long polling режиме.
 - [x] Webhook ingress остается production-only.
 - [x] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress; CI подтвержден в `docs/test-runs/task-13-transport-mode-switch-run.md`.
+
+### Phase 6: Live MAX Identity Bot
+
+Фаза нужна для выполнения актуального project-level критерия по ADR-0010: dry-run и safe test bot не доказывают live-сценарий.
+
+Детальная декомпозиция:
+
+```text
+docs/task-18-breakdown.md
+```
+
+#### Sprint 0: API Source And Contract
+
+- [ ] Task 18.1: Confirm MAX Bot API live transport contract.
+- [ ] Task 18.2: Write live transport spec and test plan.
+
+Checkpoint:
+
+- [ ] Official or approved local MAX Bot API source is documented.
+- [ ] Selected live transport mode is documented: `long_polling` or `webhook`.
+- [ ] No code performs live network calls yet.
+
+#### Sprint 1: Live Boundaries
+
+- [ ] Task 18.3: Add live runtime config and secret validation.
+- [ ] Task 18.4: Implement live outbound MAX client behind an injectable HTTP boundary.
+
+Checkpoint:
+
+- [ ] `npm test` passes.
+- [ ] Tests prove secrets are not logged.
+- [ ] Outbound client tests use fake HTTP only.
+
+#### Sprint 2: Live Inbound
+
+- [ ] Task 18.5: Implement live inbound MAX updates client for the selected transport.
+- [ ] Task 18.6: Connect live inbound updates to the identity pipeline.
+
+Checkpoint:
+
+- [ ] `npm test` passes.
+- [ ] Existing synthetic dry-run still works.
+- [ ] Live runtime can be exercised with fake MAX API responses.
+
+#### Sprint 3: Runtime And Operations
+
+- [ ] Task 18.7: Add live service entrypoint and operational runbook.
+- [ ] Task 18.8: Add security review and failure-mode tests for live runtime.
+
+Checkpoint:
+
+- [ ] `npm test` passes.
+- [ ] Runbook explains start, stop, logs and rollback.
+- [ ] `.env` and service docs do not contain real secrets.
+
+#### Sprint 4: Live Acceptance
+
+- [ ] Task 18.9: Run live personal-dialog `user_id` verification.
+- [ ] Task 18.10: Run live chat `chat_id` verification and update acceptance evidence.
+
+Checkpoint:
+
+- [ ] Bot replies visibly in personal dialog.
+- [ ] Bot replies visibly in chat scenario.
+- [ ] Sanitized live test-run is committed.
+- [ ] `docs/project-acceptance.md` evidence map references the live run.
+- [ ] `npm test` passes.
+
+### Checkpoint: Перед Task 18
+
+- [x] ADR-0010 принят.
+- [x] Task 18 decomposed into sprints in `docs/task-18-breakdown.md`.
+- [ ] Официальный MAX Bot API для inbound events подтвержден в Task 18.1.
+- [ ] Официальный MAX Bot API для outbound response подтвержден в Task 18.1.
+- [ ] Выбран live transport mode в Task 18.2: `long_polling` или `webhook`.
+- [ ] Определен stand, в котором допустимо хранить runtime-секреты вне репозитория.
+
+### Checkpoint: После Task 18
+
+- [ ] Бот получил реальное входящее сообщение МАХ.
+- [ ] Бот отправил реальный ответ через MAX Bot API.
+- [ ] Ответ в личном диалоге содержит `RecipientType: user_id`.
+- [ ] Ответ в chat-сценарии содержит `RecipientType: chat_id`.
+- [ ] Обезличенный live test-run добавлен в `docs/test-runs/`.
+- [ ] `npm test` подтвержден.
 
 ## Risks and Mitigations
 

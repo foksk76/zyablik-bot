@@ -1,28 +1,46 @@
 # Documentation
 
-Документация проекта разделена по назначению.
+Документация проекта разделена по назначению. Перед изменением поведения или границ сначала проверяются ADR.
 
-## Быстрый вход
+## Быстрый Вход
 
-- [`project-context.md`](project-context.md) — что делает проект, где принят scope и где находятся post-acceptance follow-up задачи.
-- [`project-acceptance.md`](project-acceptance.md) — единый источник критериев завершения проекта.
-- [`second-stage-acceptance.md`](second-stage-acceptance.md) — граница, стартовая задача и критерии завершения второго этапа.
-- [`third-stage-acceptance.md`](third-stage-acceptance.md) — граница и критерии завершения третьего этапа.
-- [`third-stage-implementation-plan.md`](third-stage-implementation-plan.md) — план реализации модульной bot-platform и задач Task 12.x.
-- [`task-12-breakdown.md`](task-12-breakdown.md) — детальная декомпозиция Task 12 по `planning-and-task-breakdown`.
+- [`project-context.md`](project-context.md) — текущий scope, принятые части и открытые follow-up.
+- [`project-acceptance.md`](project-acceptance.md) — единый источник project-level критериев завершения.
+- [`live-identity-bot.md`](live-identity-bot.md) — текущий статус live MAX Identity Bot и Task 18.
+- [`zabbix-media-type.md`](zabbix-media-type.md) — настройка Zabbix Media type `MAX`.
+- [`test-runs/README.md`](test-runs/README.md) — карта обезличенных прогонов.
+- [`decisions/README.md`](decisions/README.md) — индекс ADR.
+
+## Эксплуатация
+
+- [`runbooks/INSTALL.md`](runbooks/INSTALL.md) — установка safe test bot для текущего operator host и outbound-only LXC.
+- [`runbooks/bot-platform-stand.md`](runbooks/bot-platform-stand.md) — WSL/LXC стенд, dry-run pipeline и ограничения ingress.
+
+## Этапы И Планы
+
+- [`second-stage-acceptance.md`](second-stage-acceptance.md) — граница и критерии завершения исследовательского второго этапа.
+- [`third-stage-acceptance.md`](third-stage-acceptance.md) — исторические критерии dry-run/safe-test MVP bot-platform.
+- [`third-stage-implementation-plan.md`](third-stage-implementation-plan.md) — план третьего этапа и Task 12.x.
 - [`third-stage-stand-and-agent.md`](third-stage-stand-and-agent.md) — WSL/LXC стенд и правила применения Codex agent или аналога.
-- [`runbooks/INSTALL.md`](runbooks/INSTALL.md) — пошаговая установка safe test bot для текущего operator host и outbound-only LXC.
-- [`zabbix-media-type.md`](zabbix-media-type.md) — параметры и проверка Zabbix Media type `MAX`.
-- [`bot-service-evaluation.md`](bot-service-evaluation.md) — оценка необходимости отдельного bot-service после базовой проверки Zabbix -> МАХ.
-- [`delivery-reliability-options.md`](delivery-reliability-options.md) — будущие варианты повторной отправки, журнала доставки и маршрутизации без немедленной реализации.
-- [`modular-bot-platform-research.md`](modular-bot-platform-research.md) — Task 11: исследование модульной bot-platform для МАХ и MVP получения `chat_id` / `user_id`.
-- [`modular-bot-platform-candidates.md`](modular-bot-platform-candidates.md) — Task 11.1: поиск и сравнение open source кандидатов для модульной bot-platform.
-- [`test-runs/README.md`](test-runs/README.md) — ручные прогоны и обезличенная фиксация результатов.
+- [`task-12-breakdown.md`](task-12-breakdown.md) — декомпозиция Task 12.
+- [`task-13-breakdown.md`](task-13-breakdown.md) — `MAX_TRANSPORT_MODE`.
+- [`task-14-breakdown.md`](task-14-breakdown.md) — safe test bot в outbound-only LXC.
+- [`task-18-breakdown.md`](task-18-breakdown.md) — sprint breakdown для live MAX Identity Bot.
+
+## Исследования И Опции
+
+- [`bot-service-evaluation.md`](bot-service-evaluation.md) — оценка отдельного bot-service для доставки и входящих сообщений.
+- [`delivery-reliability-options.md`](delivery-reliability-options.md) — будущие варианты повторной отправки, журнала доставки и маршрутизации.
+- [`modular-bot-platform-research.md`](modular-bot-platform-research.md) — Task 11: исследование bot-platform для получения `chat_id` / `user_id`.
+- [`modular-bot-platform-candidates.md`](modular-bot-platform-candidates.md) — Task 11.1: сравнение open source кандидатов.
+
+## Правила
+
 - [`agent-skills-integration.md`](agent-skills-integration.md) — как использовать внешний набор skills.
 - [`documentation-policy.md`](documentation-policy.md) — правила ведения документации и ADR.
 
-## Решения
+## Важное Разделение
 
-- [`decisions/README.md`](decisions/README.md) — индекс архитектурных решений.
+Zabbix -> МАХ доставка подтверждена отдельными прогонами.
 
-Перед предложением нового подхода сначала проверить ADR. Это помогает не возвращаться к уже отклоненным вариантам и не расширять проект за пределы текущего этапа.
+Live MAX Identity Bot не считается принятым, пока не появится обезличенный live test-run по ADR-0010. Dry-run, synthetic fixtures и safe test bot подтверждают только готовность кода и формата ответа.
