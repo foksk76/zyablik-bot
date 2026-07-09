@@ -7,7 +7,8 @@
 ```text
 Done: Task 1, Task 1.1, Task 2, Task 3, Task 4, Task 5, Task 6.1, Task 8, Task 9, Task 10, Task 14
 Deferred/Future: Task 6, Task 7
-Open: Task 18.1-18.10
+Done: Task 18.1, Task 18.2
+Open: Task 18.3-18.10
 ```
 
 Task 6 и Task 7 относятся к будущей локальной проверке форматирования вне Zabbix runtime. Они не блокируют завершение проекта, потому что ручной сценарий Zabbix -> МАХ уже проверен в Task 2 и Task 3.
@@ -573,7 +574,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 ## Task 18.1: Confirm MAX Bot API live transport contract
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Найти и зафиксировать официальный или утвержденный локальный источник MAX Bot API для входящих событий, отправки сообщений и read/ack semantics. Эта задача блокирует live-код: реализация сетевых вызовов не начинается по догадкам.
 
@@ -583,19 +584,22 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Acceptance criteria:**
 
-- [ ] Подтвержден источник API для получения входящих событий.
-- [ ] Подтвержден источник API для отправки сообщения пользователю или в чат.
-- [ ] Зафиксирован статус read/ack: supported, unsupported или unknown.
+- [x] Подтвержден источник API для получения входящих событий.
+- [x] Подтвержден источник API для отправки сообщения пользователю или в чат.
+- [x] Зафиксирован статус read/ack: supported, unsupported или unknown.
 
 **Verification:**
 
-- [ ] Создан или обновлен spec в `docs/specs/`.
-- [ ] В spec есть ссылки или указание approved local source.
-- [ ] В spec нет токенов, реальных IDs, внутренних URL.
+- [x] Обновлен `docs/specs/task-18-1-max-api-source.md`.
+- [x] Spec status changed from `Blocked` to `Ready for Task 18.2`.
+- [x] В spec есть ссылки или указание approved local source.
+- [x] В spec нет токенов, реальных IDs, внутренних URL.
+
+**Result:** Официальный источник MAX Bot API подтвержден через `dev.max.ru`. Зафиксированы contracts для `POST /messages`, `GET /updates`, `POST /subscriptions`, объектов `Update`, `Message`, `NewMessageBody`, auth header, HTTP error codes, 30 rps guidance, Long Polling marker ack и Webhook HTTP 200 ack. Dedicated API для пользовательского статуса "прочитано" в официальном API index не найден; это не блокирует live identity acceptance.
 
 **Dependencies:** ADR-0010
 
-**Files likely touched:** `docs/specs/`, `docs/live-identity-bot.md`, `tasks/todo.md`
+**Files likely touched:** `docs/specs/task-18-1-max-api-source.md`, `docs/live-identity-bot.md`, `tasks/todo.md`
 
 **Estimated scope:** Small
 
@@ -603,7 +607,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 ## Task 18.2: Write live transport spec and test plan
 
-**Status:** Open
+**Status:** Done
 
 **Description:** На основании Task 18.1 выбрать live transport mode для первой реализации и описать test plan: fake API tests, local service run, live personal-dialog run, live chat run.
 
@@ -613,19 +617,21 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Acceptance criteria:**
 
-- [ ] Выбран первый live transport mode: `long_polling` или `webhook`.
-- [ ] Описаны inbound/outbound contracts без секретов.
-- [ ] Описан test plan для fake API и live run.
+- [x] Выбран первый live transport mode: `long_polling` или `webhook`.
+- [x] Описаны inbound/outbound contracts без секретов.
+- [x] Описан test plan для fake API и live run.
 
 **Verification:**
 
-- [ ] Spec review confirms no API behavior is guessed.
-- [ ] `tasks/plan.md` checkpoints match selected mode.
-- [ ] `npm test` проходит после документационных изменений.
+- [x] Spec review confirms no API behavior is guessed.
+- [x] `tasks/plan.md` checkpoints match selected mode.
+- [x] `npm test` проходит после документационных изменений.
+
+**Result:** Создан `docs/specs/task-18-2-live-transport-spec.md`. Первым live transport mode выбран `long_polling`; `webhook` зафиксирован как явная заглушка `Не реализовано: transport mode webhook` без fallback и live network calls. Решение оформлено в ADR-0011.
 
 **Dependencies:** Task 18.1
 
-**Files likely touched:** `docs/specs/`, `docs/task-18-breakdown.md`, `tasks/plan.md`, `tasks/todo.md`
+**Files likely touched:** `docs/specs/task-18-2-live-transport-spec.md`, `docs/decisions/ADR-0011-use-long-polling-for-first-live-max-identity-bot.md`, `docs/task-18-breakdown.md`, `tasks/plan.md`, `tasks/todo.md`
 
 **Estimated scope:** Small
 
@@ -635,7 +641,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Status:** Open
 
-**Description:** Добавить конфигурационные границы для live runtime: обязательные переменные, mode-specific validation, безопасные defaults и запрет запуска live mode без токена и API URL.
+**Description:** Добавить конфигурационные границы для live runtime по Task 18.2: `long_polling` как первый supported live mode, `webhook` как явная заглушка `Не реализовано: transport mode webhook`, обязательные переменные, mode-specific validation, безопасные defaults и запрет запуска live mode без токена и API URL.
 
 **Method:** Incremental implementation
 
@@ -644,6 +650,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 **Acceptance criteria:**
 
 - [ ] Live runtime валидирует обязательные переменные окружения.
+- [ ] `MAX_TRANSPORT_MODE=webhook` завершает runtime ошибкой `Не реализовано: transport mode webhook` без сетевых вызовов.
 - [ ] Ошибки конфигурации не раскрывают секреты.
 - [ ] Existing dry-run/safe-test behavior не ломается.
 
@@ -653,7 +660,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 - [ ] Unit tests for missing/invalid live config.
 - [ ] `npm test`.
 
-**Dependencies:** Task 18.2
+**Dependencies:** Task 18.2, ADR-0011
 
 **Files likely touched:** `src/bot-platform/core/config.js`, `tests/bot-platform/config.test.js`, `examples/bot-platform/env.example`, `docs/runbooks/`
 
@@ -665,7 +672,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Status:** Open
 
-**Description:** Реализовать отправку ответа через MAX Bot API за injectable HTTP boundary, чтобы тесты не использовали реальную сеть и реальные секреты.
+**Description:** Реализовать отправку ответа через MAX Bot API за injectable HTTP boundary по outbound contract Task 18.2, чтобы тесты не использовали реальную сеть и реальные секреты.
 
 **Method:** Test-driven implementation
 
@@ -684,7 +691,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 - [ ] Secret redaction tests.
 - [ ] `npm test`.
 
-**Dependencies:** Task 18.3
+**Dependencies:** Task 18.2, Task 18.3
 
 **Files likely touched:** `src/bot-platform/transports/max/outbound-client.js`, `tests/bot-platform/max-outbound-client.test.js`, `src/bot-platform/core/logger.js`
 
@@ -696,7 +703,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Status:** Open
 
-**Description:** Реализовать получение live updates для выбранного transport mode из Task 18.2. Для outbound-only LXC предпочтителен `long_polling`, если он подтвержден API.
+**Description:** Реализовать получение live updates через `GET /updates` для выбранного в Task 18.2 режима `long_polling`. `webhook` в рамках этой задачи не реализуется и остается заглушкой из Task 18.3.
 
 **Method:** Test-driven implementation
 
@@ -704,7 +711,8 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Acceptance criteria:**
 
-- [ ] Inbound client получает updates через выбранный API contract.
+- [ ] Inbound client получает updates через `GET /updates` по spec Task 18.2.
+- [ ] Inbound client передает `marker` в следующий poll для ack предыдущих событий.
 - [ ] HTTP transport injectable and fakeable in tests.
 - [ ] Invalid API responses fail safely without leaking payload secrets.
 

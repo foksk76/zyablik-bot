@@ -225,14 +225,15 @@ docs/task-18-breakdown.md
 
 #### Sprint 0: API Source And Contract
 
-- [ ] Task 18.1: Confirm MAX Bot API live transport contract.
-- [ ] Task 18.2: Write live transport spec and test plan.
+- [x] Task 18.1: Confirm MAX Bot API live transport contract.
+- [x] Task 18.2: Write live transport spec and test plan.
 
 Checkpoint:
 
-- [ ] Official or approved local MAX Bot API source is documented.
-- [ ] Selected live transport mode is documented: `long_polling` or `webhook`.
-- [ ] No code performs live network calls yet.
+- [x] `docs/specs/task-18-1-max-api-source.md` marked `Ready for Task 18.2`.
+- [x] Official or approved local MAX Bot API source is documented.
+- [x] Selected live transport mode is documented: `long_polling`.
+- [x] No code performs live network calls yet.
 
 #### Sprint 1: Live Boundaries
 
@@ -284,9 +285,9 @@ Checkpoint:
 
 - [x] ADR-0010 принят.
 - [x] Task 18 decomposed into sprints in `docs/task-18-breakdown.md`.
-- [ ] Официальный MAX Bot API для inbound events подтвержден в Task 18.1.
-- [ ] Официальный MAX Bot API для outbound response подтвержден в Task 18.1.
-- [ ] Выбран live transport mode в Task 18.2: `long_polling` или `webhook`.
+- [x] Официальный MAX Bot API для inbound events подтвержден в Task 18.1.
+- [x] Официальный MAX Bot API для outbound response подтвержден в Task 18.1.
+- [x] Выбран live transport mode в Task 18.2: `long_polling`.
 - [ ] Определен stand, в котором допустимо хранить runtime-секреты вне репозитория.
 
 ### Checkpoint: После Task 18

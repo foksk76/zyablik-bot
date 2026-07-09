@@ -32,13 +32,29 @@ docs/project-acceptance.md
 
 Dry-run, synthetic fixtures и safe test bot не считаются достаточным доказательством live-приемки.
 
+## Граница live identity bot
+
+Live MAX Identity Bot делает только identity-сценарий:
+
+```text
+сообщение пользователя или чата в МАХ -> ответ с RecipientType и To
+```
+
+Доставка Zabbix alert-сообщений остается в существующем канале:
+
+```text
+Zabbix Media type Webhook -> src/zabbix-media-type/max-webhook.js -> MAX Bot API
+```
+
+Live identity bot не принимает события Zabbix, не маршрутизирует уведомления, не ведет журнал доставки и не заменяет `src/zabbix-media-type/max-webhook.js`. Если нужен отдельный сервис, который получает события Zabbix и сам отправляет alert-сообщения в МАХ, это новая архитектурная граница и отдельный ADR.
+
 ## Рабочая задача
 
 Live-реализация ведется отдельной задачей:
 
 ```text
 docs/task-18-breakdown.md -> sprint breakdown
-tasks/todo.md -> Task 18.1-18.10
+tasks/todo.md -> Task 18.3-18.10
 tasks/plan.md -> Phase 6: Live MAX Identity Bot
 ```
 
@@ -47,6 +63,24 @@ tasks/plan.md -> Phase 6: Live MAX Identity Bot
 - получения входящих событий;
 - отправки ответа;
 - read/ack, если этот признак должен поддерживаться.
+
+Pre-code source gate закрыт в Task 18.1:
+
+```text
+docs/specs/task-18-1-max-api-source.md
+```
+
+Документ подтверждает официальный источник MAX Bot API. Task 18.2 выбрал первый live transport mode:
+
+```text
+MAX_TRANSPORT_MODE=long_polling
+```
+
+`webhook` остается явной заглушкой до отдельной реализации:
+
+```text
+Не реализовано: transport mode webhook
+```
 
 Если read/ack не подтвержден официальной документацией, отсутствие отметки "прочитано" не блокирует приемку. Блокирует отсутствие видимого ответа бота.
 

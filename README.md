@@ -123,4 +123,6 @@ Post-acceptance follow-up:
 
 - Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
 - Task 6 и Task 7 остаются future/deferred и не блокируют завершение проекта.
-- Task 18.1-18.10 остаются открытыми для live MAX Identity Bot.
+- Task 18.1 закрыта: официальный MAX Bot API source подтвержден.
+- Task 18.2 закрыта: первым live transport mode выбран `long_polling`, `webhook` оставлен как `Не реализовано`.
+- Task 18.3-18.10 остаются открытыми для live MAX Identity Bot.

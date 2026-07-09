@@ -24,6 +24,14 @@ Status: docs/live-identity-bot.md
 
 Проект остается identity-only. Он не добавляет очередь, базу данных, журнал доставки, retry, маршрутизацию уведомлений вне Zabbix или управление событиями Zabbix из МАХ.
 
+Zabbix alert delivery не переносится в bot-platform. Уведомления Zabbix продолжает отправлять существующий Media type:
+
+```text
+src/zabbix-media-type/max-webhook.js
+```
+
+Если потребуется live bot-service, который принимает события Zabbix и отправляет alert-сообщения в МАХ, это отдельная архитектура вне Task 18.
+
 ## Dependency Graph
 
 ```text
@@ -47,14 +55,15 @@ Webhook ingress remains optional for Task 18. It can be selected only if network
 
 Outcome: implementation is allowed only after MAX Bot API behavior is confirmed.
 
-- Task 18.1: Confirm MAX Bot API live transport contract.
-- Task 18.2: Write live transport spec and test plan.
+- Task 18.1: Confirm MAX Bot API live transport contract. Done: official `dev.max.ru` source is documented in `docs/specs/task-18-1-max-api-source.md`.
+- Task 18.2: Write live transport spec and test plan. Done: `long_polling` is selected in `docs/specs/task-18-2-live-transport-spec.md`; `webhook` remains `Не реализовано`.
 
 Checkpoint:
 
-- [ ] Official or approved local MAX Bot API source is documented.
-- [ ] Selected live transport mode is documented: `long_polling` or `webhook`.
-- [ ] No code performs live network calls yet.
+- [x] `docs/specs/task-18-1-max-api-source.md` is marked `Ready for Task 18.2`.
+- [x] Official or approved local MAX Bot API source is documented.
+- [x] Selected live transport mode is documented: `long_polling`.
+- [x] No code performs live network calls yet.
 
 ### Sprint 1: Live Boundaries
 
@@ -73,7 +82,7 @@ Checkpoint:
 
 Outcome: bot can fetch or receive real MAX updates through the selected live transport boundary.
 
-- Task 18.5: Implement live inbound MAX updates client for the selected transport.
+- Task 18.5: Implement live inbound MAX updates client for `long_polling`.
 - Task 18.6: Connect live inbound updates to the identity pipeline.
 
 Checkpoint:
