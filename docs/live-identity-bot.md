@@ -107,8 +107,7 @@ docs/runbooks/live-identity-bot.md
 
 ## Документы по теме
 
-- [`third-stage-acceptance.md`](third-stage-acceptance.md) — исторические критерии dry-run/safe-test MVP bot-platform.
-- [`third-stage-implementation-plan.md`](third-stage-implementation-plan.md) — план третьего этапа и dry-run pipeline.
-- [`runbooks/INSTALL.md`](runbooks/INSTALL.md) — установка safe test bot в outbound-only LXC.
+- [`task-18-breakdown.md`](task-18-breakdown.md) — текущая декомпозиция live MAX Identity Bot.
+- [`runbooks/live-identity-bot.md`](runbooks/live-identity-bot.md) — запуск live MAX Identity Bot.
 - [`test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) — проверка safe test bot.
 - [`test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) — историческая приемка доставки Zabbix -> МАХ, не live-приемка identity bot.

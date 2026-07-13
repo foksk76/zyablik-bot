@@ -377,7 +377,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Dependencies:** Task 8
 
-**Files likely touched:** `docs/bot-service-evaluation.md`, `docs/project-context.md`, `docs/README.md`, `tasks/plan.md`, `tasks/todo.md`
+**Files likely touched:** `docs/project-context.md`, `docs/README.md`, `tasks/plan.md`, `tasks/todo.md`
 
 **Estimated scope:** Small
 
@@ -406,11 +406,11 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 - [x] Формулировки соответствуют `docs/documentation-policy.md`.
 - [x] Выполнен `npm test` после изменений Task 10: 14 тестов прошли, ошибок нет.
 
-**Result:** В `docs/delivery-reliability-options.md` описаны будущие варианты доставки: оставить прямой webhook без усложнения, использовать регламентную повторную отправку без нового сервиса, рассмотреть журнал доставки, автоматическую повторную отправку и маршрутизацию по группам получателей. Входящие сообщения для `chat_id` / `user_id` отделены от надежности доставки и ведутся через ADR-0010 / Task 18. CI подтвержден на commit `14933cdca4b43694a4e3bd4b33816b9443c8657b`.
+**Result:** Описаны будущие варианты доставки: оставить прямой webhook без усложнения, использовать регламентную повторную отправку без нового сервиса, рассмотреть журнал доставки, автоматическую повторную отправку и маршрутизацию по группам получателей. Входящие сообщения для `chat_id` / `user_id` отделены от надежности доставки и ведутся через ADR-0010 / Task 18. CI подтвержден на commit `14933cdca4b43694a4e3bd4b33816b9443c8657b`.
 
 **Dependencies:** Task 9
 
-**Files likely touched:** `docs/delivery-reliability-options.md`, `docs/project-context.md`, `docs/README.md`, `tasks/plan.md`, `tasks/todo.md`
+**Files likely touched:** `docs/project-context.md`, `docs/README.md`, `tasks/plan.md`, `tasks/todo.md`
 
 **Estimated scope:** Small
 
@@ -450,7 +450,7 @@ Task 13 выполнена и подтверждена в `docs/test-runs/task-1
 
 **Dependencies:** ADR-0007, ADR-0008, ADR-0009, Task 13
 
-**Files likely touched:** `src/bot-platform/runtime/`, `src/bot-platform/app.js`, `tests/bot-platform/`, `systemd/`, `examples/bot-platform/`, `docs/runbooks/`, `docs/third-stage-stand-and-agent.md`, `docs/test-runs/`, `tasks/todo.md`
+**Files likely touched:** `src/bot-platform/runtime/`, `src/bot-platform/app.js`, `tests/bot-platform/`, `systemd/`, `examples/bot-platform/`, `docs/runbooks/`, `docs/test-runs/`, `tasks/todo.md`
 
 **Estimated scope:** M
 

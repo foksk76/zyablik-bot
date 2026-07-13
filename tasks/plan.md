@@ -10,24 +10,6 @@ Project-level критерии завершения проекта не дубл
 docs/project-acceptance.md
 ```
 
-Критерии завершения второго этапа:
-
-```text
-docs/second-stage-acceptance.md
-```
-
-Критерии завершения третьего этапа:
-
-```text
-docs/third-stage-acceptance.md
-```
-
-Детальная декомпозиция Task 12:
-
-```text
-docs/task-12-breakdown.md
-```
-
 ## Architecture Decisions
 
 - Основной рабочий артефакт первого этапа: `src/zabbix-media-type/max-webhook.js`.
@@ -128,9 +110,8 @@ docs/task-12-breakdown.md
 ### Checkpoint: Перед реализацией второго этапа
 
 - [x] Критерии меняются только через отдельное решение; live evidence для MAX Identity Bot уточнен в ADR-0010.
-- [x] Старт второго этапа и критерии завершения описаны в `docs/second-stage-acceptance.md`.
-- [x] Исследовательская постановка Task 11 описана в `docs/modular-bot-platform-research.md`.
-- [x] Поиск и сравнение кандидатов Task 11.1 описаны в `docs/modular-bot-platform-candidates.md`.
+- [x] Исследовательская постановка Task 11 выполнена.
+- [x] Поиск и сравнение кандидатов Task 11.1 выполнены.
 - [x] Выполнен поиск в открытых источниках по open source кандидатам.
 - [x] Подготовлена сравнительная таблица кандидатов и вариантов.
 - [x] Выбран подход для MVP: Hubot-based MVP; Node-RED fallback-прототип.
@@ -155,16 +136,13 @@ docs/task-12-breakdown.md
 - [x] Task 12.10: Реализовать outbound client contract без реального API; CI подтвержден в `docs/test-runs/task-12-10-outbound-client-run.md`.
 - [x] Task 12.11: Реализовать inbound webhook handler без публикации endpoint; CI подтвержден в `docs/test-runs/task-12-11-inbound-webhook-run.md`.
 - [x] Task 12.12: Собрать app entrypoint для локального dry-run; CI подтвержден в `docs/test-runs/task-12-12-dry-run-cli-run.md`.
-- [x] Task 12.13: Обновить документацию запуска dry-run; CI подтвержден в `docs/test-runs/task-12-13-dry-run-docs-run.md`.
+- [x] Task 12.13: Обновить документацию запуска dry-run.
 - [x] Task 12.14: Security review перед реальным API; CI подтвержден в `docs/test-runs/task-12-dry-run.md`.
 
 ### Checkpoint: Перед кодом третьего этапа
 
-- [x] Критерии третьего этапа описаны в `docs/third-stage-acceptance.md`.
-- [x] План реализации описан в `docs/third-stage-implementation-plan.md`.
-- [x] WSL/LXC и agent workflow описаны в `docs/third-stage-stand-and-agent.md`.
-- [x] Task 12 декомпозирована по `planning-and-task-breakdown` в `docs/task-12-breakdown.md`.
-- [x] Baseline перед кодом зафиксирован в `docs/test-runs/task-12-baseline.md`.
+- [x] Task 12 выполнена как dry-run/safe-test MVP bot-platform.
+- [x] Baseline перед кодом был зафиксирован в рамках исторической работы.
 - [x] `npm test` подтвержден на commit `28cc6d901f7320fc47da317e428334945ef006c8`.
 - [x] Минимальный scaffold `src/bot-platform` реализован и проверен.
 - [x] Internal event contract реализован и проверен.
@@ -177,11 +155,7 @@ docs/task-12-breakdown.md
 
 ### Follow-up: Режим транспорта bot-platform
 
-Follow-up для режима транспорта разработки и продакшена выполнен:
-
-```text
-docs/task-13-breakdown.md
-```
+Follow-up для режима транспорта разработки и продакшена выполнен.
 
 - [x] Task 13: Добавить `MAX_TRANSPORT_MODE` с default `long_polling` для LXC dev/test и `webhook` для production ingress.
 
@@ -196,11 +170,7 @@ docs/task-13-breakdown.md
 
 ### Follow-up: Safe test bot in LXC
 
-Подготовлен отдельный follow-up для безопасного тестового бота в current LXC:
-
-```text
-docs/task-14-breakdown.md
-```
+Подготовлен отдельный follow-up для безопасного тестового бота в current LXC.
 
 - [ ] Task 14: Реализовать safe test bot в outbound-only LXC и зафиксировать prerequisites для webhook ingress.
 
@@ -305,7 +275,7 @@ Checkpoint:
 |---|---|---|
 | Формат MAX API или Zabbix runtime понят неправильно | High | Не писать код по предположениям; сначала уточнить документацию или создать ADR |
 | В документацию попадут чувствительные значения | High | Использовать только обезличенные примеры и проверять `npm test` |
-| AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/second-stage-acceptance.md`, `docs/third-stage-acceptance.md`, `docs/task-12-breakdown.md`, `docs/decisions/README.md` и `AGENTS.md` |
+| AI-агент расширит проект за пределы этапа | High | Перед задачей проверять `docs/project-acceptance.md`, `docs/project-context.md`, `docs/decisions/README.md` и `AGENTS.md` |
 | Задачи станут слишком крупными | Medium | Делить задачи до размера S/M и не выполнять L/XL без новой декомпозиции |
 | Поведение webhook изменится без обновления документации | Medium | Любое изменение `max-webhook.js` сверять с `docs/zabbix-media-type.md` и ADR |
 | Третий этап начнет промышленную реализацию вместо MVP | Medium | Ограничить scope identity-сценарием и criteria третьего этапа |

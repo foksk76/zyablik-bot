@@ -403,7 +403,7 @@ systemd/max-identity-bot.service
 - `MAX_TRANSPORT_MODE=long_polling`;
 - `src/bot-platform/app.js` как runtime entrypoint;
 - synthetic MAX updates без inbound endpoint.
-- Пошаговая установка для текущего operator host и outbound-only LXC описана в `docs/runbooks/INSTALL.md`.
+- Краткая установка описана в корневом `INSTALL.md`.
 
 Ожидаемый результат запуска:
 
