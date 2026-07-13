@@ -1,14 +1,8 @@
-# Task 18 breakdown: live MAX Identity Bot
+# Identity Plugin: Live Sprint Plan
+
+## Overview
 
 Документ декомпозирует реализацию live MAX Identity Bot для получения `user_id` / `chat_id`.
-
-Основание:
-
-```text
-ADR-0010: docs/decisions/ADR-0010-require-live-evidence-for-max-identity-bot-acceptance.md
-Project acceptance: docs/project-acceptance.md
-Status: docs/live-identity-bot.md
-```
 
 ## Цель
 
@@ -30,8 +24,6 @@ Zabbix alert delivery не переносится в bot-platform. Уведом�
 src/zabbix-media-type/max-webhook.js
 ```
 
-Если потребуется live bot-service, который принимает события Zabbix и отправляет alert-сообщения в МАХ, это отдельная архитектура вне Task 18.
-
 ## Dependency Graph
 
 ```text
@@ -47,20 +39,18 @@ MAX Bot API source confirmation
               -> final acceptance evidence
 ```
 
-Webhook ingress remains optional for Task 18. It can be selected only if network, DNS, port exposure and official MAX webhook semantics are confirmed before implementation.
-
 ## Sprints
 
 ### Sprint 0: API Source And Contract
 
 Outcome: implementation is allowed only after MAX Bot API behavior is confirmed.
 
-- Task 18.1: Confirm MAX Bot API live transport contract. Done: official `dev.max.ru` source is documented in `docs/specs/task-18-1-max-api-source.md`.
-- Task 18.2: Write live transport spec and test plan. Done: `long_polling` is selected in `docs/specs/task-18-2-live-transport-spec.md`; `webhook` remains `Не реализовано`.
+- Confirm MAX Bot API live transport contract. Done: official `dev.max.ru` source documented in `max-api-source.md`.
+- Write live transport spec and test plan. Done: `long_polling` is selected in `live-transport-spec.md`; `webhook` remains `Не реализовано`.
 
 Checkpoint:
 
-- [x] `docs/specs/task-18-1-max-api-source.md` is marked `Ready for Task 18.2`.
+- [x] `max-api-source.md` marked ready.
 - [x] Official or approved local MAX Bot API source is documented.
 - [x] Selected live transport mode is documented: `long_polling`.
 - [x] No code performs live network calls yet.
@@ -69,8 +59,8 @@ Checkpoint:
 
 Outcome: code has safe live config boundaries and a tested outbound client interface.
 
-- Task 18.3: Add live runtime config and secret validation. Done: config boundary rejects invalid long polling live env and returns webhook not-implemented stub.
-- Task 18.4: Implement live outbound MAX client behind an injectable HTTP boundary. Done: live request builder uses injectable HTTP transport and safe error normalization.
+- Add live runtime config and secret validation. Done: config boundary rejects invalid long polling live env and returns webhook not-implemented stub.
+- Implement live outbound MAX client behind an injectable HTTP boundary. Done: live request builder uses injectable HTTP transport and safe error normalization.
 
 Checkpoint:
 
@@ -82,8 +72,8 @@ Checkpoint:
 
 Outcome: bot can fetch or receive real MAX updates through the selected live transport boundary.
 
-- Task 18.5: Implement live inbound MAX updates client for `long_polling`. Done: stateful polling client stores `marker` and validates API responses.
-- Task 18.6: Connect live inbound updates to the identity pipeline. Done: live inbound update processor routes normalized MAX events to identity handler and outbound client boundary.
+- Implement live inbound MAX updates client for `long_polling`. Done: stateful polling client stores `marker` and validates API responses.
+- Connect live inbound updates to the identity pipeline. Done: live inbound update processor routes normalized MAX events to identity handler and outbound client boundary.
 
 Checkpoint:
 
@@ -95,8 +85,8 @@ Checkpoint:
 
 Outcome: operator can run the live bot safely with local secrets.
 
-- Task 18.7: Add live service entrypoint and operational runbook. Done: `node src/bot-platform/app.js --live` starts live long polling, and `docs/runbooks/live-identity-bot.md` documents start/stop/logs/rollback.
-- Task 18.8: Add security review and failure-mode tests for live runtime. Done: malformed inbound and outbound 503 failure modes are covered, and live runtime uses redacting logger boundary by default.
+- Add live service entrypoint and operational runbook. Done: `node src/bot-platform/app.js --live` starts live long polling, and `docs/runbooks/live-identity-bot.md` documents start/stop/logs/rollback.
+- Add security review and failure-mode tests for live runtime. Done: malformed inbound and outbound 503 failure modes are covered, and live runtime uses redacting logger boundary by default.
 
 Checkpoint:
 
@@ -108,36 +98,33 @@ Checkpoint:
 
 Outcome: live `user_id` and `chat_id` scenarios are proven with sanitized evidence.
 
-- Task 18.9: Run live personal-dialog `user_id` verification.
-- Task 18.10: Run live chat `chat_id` verification and update acceptance evidence.
+- Run live personal-dialog `user_id` verification.
+- Run live chat `chat_id` verification and update acceptance evidence.
 
 Checkpoint:
 
 - [ ] Bot replies visibly in personal dialog.
 - [ ] Bot replies visibly in chat scenario.
 - [ ] Sanitized live test-run is committed.
-- [ ] `docs/project-acceptance.md` evidence map references the live run.
+- [ ] `docs/live-identity-bot.md` references the live run.
 - [ ] `npm test` passes.
 
 ## Parallelization
 
 Safe to parallelize after Sprint 0:
 
-- Task 18.4 outbound client tests and Task 18.7 runbook draft.
-- Task 18.8 security review checklist and Task 18.5 fake inbound fixtures.
+- Outbound client tests and runbook draft.
+- Security review checklist and fake inbound fixtures.
 
 Must be sequential:
 
-- Task 18.1 -> Task 18.2.
-- Task 18.3 before any code reads live secrets.
-- Task 18.5 before Task 18.6.
-- Task 18.9 before Task 18.10 final acceptance update.
+- Sprint 0 -> Sprint 1 -> Sprint 2 -> Sprint 3 -> Sprint 4.
 
 ## Risks And Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| MAX Bot API behavior is guessed | High | Task 18.1 blocks implementation until source is documented |
+| MAX Bot API behavior is guessed | High | Sprint 0 blocks implementation until source is documented |
 | Live token or IDs enter git | High | Use local `.env`, sanitized test-runs and secret-focused tests |
 | Current LXC cannot receive webhook traffic | High | Prefer `long_polling` unless webhook ingress prerequisites are confirmed |
 | Live runtime breaks dry-run tests | Medium | Keep synthetic dry-run path and run `npm test` after each sprint |
@@ -145,8 +132,8 @@ Must be sequential:
 
 ## Definition Of Done
 
-- [ ] Tasks 18.1-18.10 are complete.
+- [ ] All sprints complete.
 - [ ] Live user and chat scenarios have sanitized evidence.
 - [ ] No real tokens, IDs, internal URLs or organization names are committed.
 - [ ] `npm test` passes.
-- [ ] `docs/project-acceptance.md`, `docs/live-identity-bot.md`, `tasks/plan.md` and `tasks/todo.md` are synchronized.
+- [ ] `docs/live-identity-bot.md` is synchronized.

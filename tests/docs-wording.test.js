@@ -87,9 +87,9 @@ test('documentation does not use old organization-specific wording', () => {
   assert.deepEqual(matches, [], `found old organization-specific wording:\n${matches.join('\n')}`);
 });
 
-test('README references project acceptance document without duplicating acceptance checklist', () => {
+test('README references live identity bot status document without duplicating acceptance checklist', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
-  assert.match(readme, /docs\/project-acceptance\.md/);
+  assert.match(readme, /docs\/live-identity-bot\.md/);
   assert.doesNotMatch(readme, /Критерии завершения первого этапа\n\n- \[ \]/);
 });

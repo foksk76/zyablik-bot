@@ -1,139 +1,85 @@
 # AGENTS.md
 
-Инструкции для Codex и других AI-агентов, работающих с этим репозиторием.
+Короткая инструкция для Codex и других AI-агентов, работающих с этим репозиторием.
 
 ## Назначение проекта
 
-Проект решает узкую прикладную задачу: доставка уведомлений из Zabbix в МАХ через отдельный Zabbix Media type с типом `Webhook`.
+Проект доставляет уведомления из Zabbix в МАХ через отдельный Zabbix Media type с типом `Webhook`.
 
-Текущая граница: транспорт уведомлений Zabbix -> МАХ. Без SIEM-интеграции, без AI-аналитики, без автоматического реагирования и без управления событиями Zabbix из мессенджера.
-
-## Перед началом работы
-
-1. Прочитать `README.md`.
-2. Прочитать `.agents/project-context.md`.
-3. Прочитать `docs/project-context.md`.
-4. Проверить критерии завершения проекта в `docs/project-acceptance.md`.
-5. Проверить план задач в `tasks/plan.md`.
-6. Проверить исполняемый список задач в `tasks/todo.md`.
-7. Проверить прошлые решения в `docs/decisions/README.md`.
-8. Проверить правила внешних skills в `docs/agent-skills-integration.md`.
-9. Не менять границы проекта без отдельного решения в ADR.
-
-## Каноничные источники контекста
+Текущая граница:
 
 ```text
-README.md                         быстрый вход в проект
-docs/project-context.md            рабочий контекст и границы проекта
-docs/project-acceptance.md         критерии завершения первого этапа
-docs/documentation-policy.md       правила ведения документации
-docs/decisions/                    каноничное место для ADR
-tasks/plan.md                      план работ по planning-and-task-breakdown
-tasks/todo.md                      исполняемый список задач
-AGENTS.md                          правила для AI-агентов
-.agents/                           рабочая область агента, не хранилище решений и задач
+Zabbix -> MAX Bot API -> пользователь или чат в МАХ
 ```
 
-Если между файлами есть противоречие, приоритет такой:
+Не расширять проект до SIEM, AI-аналитики, автоматического реагирования, очереди сообщений, журнала доставки или управления событиями Zabbix из мессенджера без отдельного ADR.
+
+## Быстрый вход
+
+Перед изменениями прочитать:
+
+1. `README.md`
+2. `INSTALL.md`
+3. `docs/project-context.md`
+4. `docs/decisions/README.md`
+5. `tasks/plan.md`
+6. `tasks/todo.md`
+
+Если меняется Zabbix Media type, дополнительно прочитать:
 
 ```text
-docs/decisions/ -> docs/project-acceptance.md -> docs/project-context.md -> tasks/plan.md -> tasks/todo.md -> AGENTS.md -> README.md -> .agents/
+docs/zabbix-media-type.md
+src/zabbix-media-type/max-webhook.js
+examples/media-params.md
 ```
 
-## Внешний набор skills
-
-Основной внешний набор skills:
+Если меняется live identity bot, дополнительно прочитать:
 
 ```text
-https://github.com/addyosmani/agent-skills
+docs/live-identity-bot.md
+docs/runbooks/live-identity-bot.md
+docs/task-18-breakdown.md
 ```
 
-Репозиторий `agent-skills` не добавляется как git submodule и не включается в историю этого проекта целиком.
-
-Для разработки используются только ссылки, локальная установка в профиль пользователя или локальная копия в игнорируемом каталоге.
-
-## Рекомендуемые skills
-
-Для этого проекта рекомендуются:
+## Каноничные источники
 
 ```text
-using-agent-skills
-spec-driven-development
-planning-and-task-breakdown
-incremental-implementation
-test-driven-development
-code-review-and-quality
-security-and-hardening
-debugging-and-error-recovery
-documentation-and-adrs
+docs/decisions/                 архитектурные и процессные решения
+docs/project-context.md          текущий контекст и границы
+docs/project-acceptance.md       project-level критерии
+docs/documentation-policy.md     правила документации
+tasks/plan.md                    план работ
+tasks/todo.md                    исполняемый список задач
+README.md                        быстрый вход для человека
+INSTALL.md                       краткая установка
+AGENTS.md                        быстрый вход для AI-агента
 ```
 
-## Использование в чате OpenAI
+Если файлы противоречат друг другу, приоритет выше у ADR и профильных документов в `docs/`.
 
-При разработке в чате OpenAI применяй skills как рабочие процессы по смыслу задачи.
+## Правила работы
 
-Правило:
+- Делать маленькие проверяемые изменения.
+- Не менять границы проекта без ADR.
+- Не добавлять реальные секреты, внутренние адреса, боевые `user_id` / `chat_id` и организационные названия.
+- Не ломать существующий Telegram-канал.
+- Пользовательскую документацию писать по-русски, коротко и понятно для инженерного ИТ-состава.
+- Код менять только на основании документации проекта, внешней документации или ADR.
+- Любое изменение поведения `src/zabbix-media-type/max-webhook.js` отражать в `docs/zabbix-media-type.md`.
+- ADR создавать только в `docs/decisions/`.
+- Задачи вести только в `tasks/plan.md` и `tasks/todo.md`.
 
-- задача на описание, README, ADR, changelog, архитектурное решение или фиксацию контекста -> использовать `documentation-and-adrs`;
-- новая функциональность -> сначала `spec-driven-development`, затем `planning-and-task-breakdown`;
-- изменение webhook-кода -> `incremental-implementation` и `test-driven-development`;
-- проверка изменений -> `code-review-and-quality` и при необходимости `security-and-hardening`;
-- ошибка или неожиданное поведение -> `debugging-and-error-recovery`.
+## Проверка
 
-Если текст конкретного skill не загружен в контекст, использовать внешний репозиторий как источник и загружать только нужный `SKILL.md`, а не весь набор skills.
-
-## Использование в Codex CLI / Codex IDE / других IDE
-
-При переключении из чата OpenAI на локальную разработку установить skills одним из способов:
-
-```bash
-npx skills add addyosmani/agent-skills --list
-npx skills add addyosmani/agent-skills --skill planning-and-task-breakdown
-npx skills add addyosmani/agent-skills --skill documentation-and-adrs
-```
-
-или локально, в игнорируемую директорию проекта:
-
-```bash
-git clone https://github.com/addyosmani/agent-skills.git .agents/external-skills/agent-skills
-```
-
-Каталоги для локальных skills добавлены в `.gitignore`.
-
-## Правила изменений
-
-- Делать маленькие, проверяемые изменения.
-- Не добавлять реальные секреты, внутренние адреса, боевые идентификаторы чатов и организационные названия.
-- Не ломать существующий Telegram-канал. МАХ рассматривается как дополнительный канал доставки.
-- Для пользовательской документации писать по-русски, коротко и понятно для инженерного ИТ-состава.
-- Для кода использовать простой стиль, без лишних зависимостей и скрытой магии.
-- Код менять только на основании документации проекта, внешней документации или отдельного ADR. Не додумывать поведение API и Zabbix runtime.
-- Любое изменение поведения webhook фиксировать в `docs/zabbix-media-type.md`.
-- Критерии завершения проекта целиком изменять только в `docs/project-acceptance.md` и только после ADR.
-- Любое архитектурное решение или существенное изменение документации вести через подход `documentation-and-adrs`.
-- ADR создавать в `docs/decisions/`, а не в `.agents/`.
-- Задачи создавать и обновлять в `tasks/plan.md` и `tasks/todo.md`, а не в `.agents/`.
-
-## Проверка перед завершением задачи
-
-Запустить локальную проверку репозитория:
+Перед завершением задачи запустить:
 
 ```bash
 npm test
 ```
 
-Если локальная среда недоступна, проверить по содержанию файлов:
+Если тесты недоступны, минимум проверить по содержанию файлов:
 
-- нет реальных секретов и внутренних адресов;
-- README не противоречит документации;
-- основной webhook-скрипт находится в `src/zabbix-media-type/max-webhook.js`;
-- изменения не расширяют проект за пределы текущего этапа;
-- новые решения зафиксированы в `docs/decisions/`, если они меняют архитектуру, процесс или границы проекта;
-- новые задачи оформлены в `tasks/todo.md` с acceptance criteria, verification, dependencies и estimated scope.
-
-## Как отвечать на review
-
-- Сначала признать найденную проблему, если она подтверждается.
-- Предлагать минимальное исправление.
-- Не добавлять новые функции вместо исправления замечания.
-- Если замечание меняет архитектуру, оформить ADR в `docs/decisions/`.
+- нет секретов и реальных идентификаторов;
+- README, INSTALL и docs не противоречат друг другу;
+- основной webhook остается в `src/zabbix-media-type/max-webhook.js`;
+- новые решения зафиксированы ADR, если они меняют архитектуру, процесс или границы.

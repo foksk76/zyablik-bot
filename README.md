@@ -2,130 +2,127 @@
 
 Небольшой проект для доставки уведомлений из Zabbix в корпоративный мессенджер МАХ.
 
-Смысл простой: события мониторинга должны быстро доходить до тех, кто за них отвечает или заинтересован в их получении. Рабочий канал Telegram остается без изменений. МАХ добавляется как второй канал доставки.
+Смысл простой: события мониторинга должны быстро доходить до тех, кто за них отвечает. Рабочий канал Telegram не заменяется. МАХ добавляется как дополнительный канал доставки.
 
-На первом этапе проект не пытается быть большой платформой, SIEM-интеграцией или AI-помощником. Это прикладная интеграция Zabbix -> МАХ для отправки уведомлений о проблемах, сбоях и восстановлении сервисов.
+Проект не пытается быть большой платформой, SIEM-интеграцией или AI-помощником. Его основная задача — отправить уведомление из Zabbix в МАХ через отдельный Media type с типом `Webhook`.
 
-## Задача первого этапа
-
-Реализовать отдельный Media type в Zabbix с типом `Webhook`, который отправляет сообщения в MAX Bot API.
+## Что внутри
 
 ```text
 Zabbix Action
   ├─ Telegram Webhook
   └─ MAX Webhook
        └─ MAX Bot API
-            └─ чат ответственных или заинтересованных получателей
+            └─ чат или пользователь в МАХ
 ```
 
-## Repo map
-
-```text
-.github/          шаблоны issue, pull request и GitHub Actions workflow
-.agents/          рабочий контекст, prompts и чек-листы для AI/Codex
-AGENTS.md         инструкции для Codex и AI-агентов
-CHANGELOG.md      журнал заметных изменений
-DEVELOPMENT.md    процесс разработки
-SECURITY.md       правила безопасного ведения проекта
-docs/             проектная и эксплуатационная документация
-docs/decisions/   каноничное место для ADR
-tasks/            план работ и исполняемый список задач
-examples/         параметры Zabbix Media type и примеры сообщений
-src/              исходники webhook-скрипта для Zabbix
-tests/            Node.js policy tests и статические проверки
-```
-
-## Основной файл
+Основной webhook-скрипт:
 
 ```text
 src/zabbix-media-type/max-webhook.js
 ```
 
-Это JavaScript-скрипт для Zabbix Media type `Webhook`. Его можно вставить в поле `Скрипт` при создании нового способа оповещения в Zabbix.
+Его можно вставить в поле `Скрипт` при создании Media type `MAX` в Zabbix.
 
-## Документация и решения
+## Быстрый старт
 
-Документация ведется по подходу `documentation-and-adrs`: фиксируем не только что сделано, но и почему выбран именно такой вариант.
+1. Открыть [INSTALL.md](INSTALL.md).
+2. Создать в Zabbix Media type `MAX` с типом `Webhook`.
+3. Вставить скрипт из `src/zabbix-media-type/max-webhook.js`.
+4. Заполнить параметры по [docs/zabbix-media-type.md](docs/zabbix-media-type.md).
+5. Проверить тестовую доставку, Problem и Recovery.
+
+## Repo map
+
+```text
+.github/          GitHub Actions и шаблоны GitHub
+.agents/          рабочий контекст AI-агентов
+docs/             проектная и эксплуатационная документация
+docs/decisions/   ADR и принятые решения
+docs/identity-plugin/  Identity Plugin документация
+examples/         обезличенные примеры параметров и чек-листы
+src/              исходники webhook и bot-platform
+systemd/          unit-файлы для bot-platform
+tasks/            sprint plans
+tests/            Node.js policy tests и unit tests
+```
+
+## Документация
 
 Основные документы:
 
 ```text
-docs/project-context.md
-docs/project-acceptance.md
+INSTALL.md
 docs/live-identity-bot.md
-docs/documentation-policy.md
-docs/decisions/README.md
-docs/agent-skills-integration.md
+docs/identity-plugin/
 docs/zabbix-media-type.md
-```
-
-Критерии завершения проекта хранятся только в `docs/project-acceptance.md`.
-
-Текущий статус live-сценария бота МАХ для `user_id` / `chat_id` описан в `docs/live-identity-bot.md`.
-
-Для локальной проверки bot-platform без реального MAX API см. `docs/third-stage-implementation-plan.md` и `examples/bot-platform/README.md`.
-
-Перед изменением архитектуры, границ проекта, процесса разработки или внешних зависимостей сначала проверяются ADR в `docs/decisions/`.
-
-## Задачи
-
-Задачи ведутся по подходу `planning-and-task-breakdown`.
-
-Каноничные файлы задач:
-
-```text
-tasks/plan.md
-tasks/todo.md
-```
-
-Каждая задача должна иметь описание, acceptance criteria, verification, dependencies, files likely touched и estimated scope.
-
-## Разработка с AI / Codex
-
-Перед началом работы агент должен прочитать:
-
-```text
-AGENTS.md
-.agents/project-context.md
-docs/project-context.md
-docs/project-acceptance.md
+docs/runbooks/live-identity-bot.md
 docs/decisions/README.md
-docs/agent-skills-integration.md
-tasks/plan.md
-tasks/todo.md
+tasks/sprints/
+CHANGELOG.md
 ```
 
-Внешний набор skills используется ссылкой, без submodule. Детали описаны в `docs/agent-skills-integration.md`.
+Если нужно менять архитектуру, границы проекта, процесс разработки или внешние зависимости, сначала проверьте ADR в `docs/decisions/`.
 
-Для документации и ADR используется `documentation-and-adrs`. Для задач используется `planning-and-task-breakdown`.
-
-Базовая проверка проекта:
+## Команды
 
 ```bash
 npm test
-```
-
-Алиас команды:
-
-```bash
 npm run verify
 ```
 
-Проверка автоматически запускается в GitHub Actions через `.github/workflows/verify.yml`.
+Обе команды запускают проверку репозитория через `node --test`.
 
-## Статус
+## Безопасность
 
-Zabbix -> МАХ доставка подтверждена: Media type `MAX` работает, существующий Telegram-канал продолжает работать, МАХ дублирует Telegram, GitHub Actions green.
+В репозиторий нельзя добавлять реальные токены, идентификаторы пользователей и чатов, внутренние URL, скриншоты с чувствительными данными и организационные названия.
 
-По ADR-0010 live-сценарий MAX Identity Bot считается принятым только после отдельного обезличенного live test-run: бот должен получить реальное сообщение в МАХ и отправить реальный ответ с `user_id` / `chat_id` через MAX Bot API. Dry-run и safe test bot не считаются достаточным доказательством live-приемки.
+Runtime-секреты хранятся только в Zabbix, локальном `.env` или защищенной конфигурации стенда.
 
-Post-acceptance follow-up:
+## AI-ассистированная разработка
 
-- Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
-- Task 6 и Task 7 остаются future/deferred и не блокируют завершение проекта.
-- Task 18.1 закрыта: официальный MAX Bot API source подтвержден.
-- Task 18.2 закрыта: первым live transport mode выбран `long_polling`, `webhook` оставлен как `Не реализовано`.
-- Task 18.3-18.4 закрыты.
-- Task 18.5 закрыта.
-- Task 18.6 закрыта.
-- Task 18.9-18.10 остаются открытыми для live MAX Identity Bot.
+Проект использует внешний набор skills для AI-агентов:
+
+```text
+https://github.com/addyosmani/agent-skills
+```
+
+Skills применяются как рабочий процесс, а не как runtime-зависимость. Репозиторий не добавляется как submodule (ADR-0002).
+
+Рекомендуемые skills:
+
+```text
+documentation-and-adrs — ADR, документация, фиксация контекста
+spec-driven-development — спецификация перед кодом
+planning-and-task-breakdown — декомпозиция задач
+incremental-implementation — вертикальные слои
+test-driven-development — тесты первой
+code-review-and-quality — обзор перед слиянием
+security-and-hardening — безопасность
+```
+
+ADR хранятся в `docs/decisions/`. Проектная документация — в `docs/`.
+
+## Политика документации
+
+Документация ведётся по принципу `documentation-and-adrs`: фиксируем не только что сделано, но и почему выбран именно такой вариант.
+
+Когда создавать ADR:
+
+- выбирается один из нескольких вариантов реализации
+- решение будет трудно менять позже
+- меняется архитектура или границы проекта
+- новый внешний инструмент или зависимость
+
+Каноничные места:
+
+```text
+README.md              краткое описание и быстрый вход
+INSTALL.md             установка
+AGENTS.md              правила для AI-агентов
+docs/                  эксплуатационная документация
+docs/identity-plugin/  Identity Plugin документация
+docs/decisions/        ADR и история решений
+CHANGELOG.md           заметные изменения
+tasks/sprints/          sprint plans
+```
