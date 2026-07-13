@@ -4,7 +4,8 @@
 
 ## Быстрый Вход
 
-- [`live-identity-bot.md`](live-identity-bot.md) — текущий статус проекта и Task 18.
+- [`live-identity-bot.md`](live-identity-bot.md) — текущий статус проекта.
+- [`identity-plugin/`](identity-plugin/) — Identity Plugin документация и sprint plan.
 - [`project-context.md`](project-context.md) — текущий scope, принятые части и открытые follow-up.
 - [`zabbix-media-type.md`](zabbix-media-type.md) — настройка Zabbix Media type `MAX`.
 - [`test-runs/README.md`](test-runs/README.md) — карта обезличенных прогонов.
@@ -17,12 +18,7 @@
 
 ## Планы
 
-- [`task-18-breakdown.md`](task-18-breakdown.md) — sprint breakdown для live MAX Identity Bot.
-
-## Правила
-
-- [`agent-skills-integration.md`](agent-skills-integration.md) — как использовать внешний набор skills.
-- [`documentation-policy.md`](documentation-policy.md) — правила ведения документации и ADR.
+- [`../tasks/sprints/`](../tasks/sprints/) — sprint plans для Identity Plugin live реализации.
 
 ## Важное Разделение
 

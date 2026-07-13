@@ -1,4 +1,4 @@
-# Task 18.8 live runtime security review
+# Identity Plugin: live runtime security review
 
 Дата: 2026-07-09
 
@@ -23,4 +23,4 @@
 
 ## Result
 
-Task 18.8 closed for the current codebase state. Live runtime continues to recover from failure modes without exposing secrets in logs.
+Live runtime recovers from failure modes without exposing secrets in logs.

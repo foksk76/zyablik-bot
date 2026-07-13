@@ -47,14 +47,21 @@ test('required project files exist', () => {
     'docs/README.md',
     'docs/project-context.md',
     'docs/live-identity-bot.md',
+    'docs/identity-plugin/README.md',
+    'docs/identity-plugin/live-sprint-plan.md',
+    'docs/identity-plugin/max-api-source.md',
+    'docs/identity-plugin/live-transport-spec.md',
     'docs/decisions/README.md',
     'docs/decisions/ADR-0001-ai-assisted-dev.md',
     'docs/decisions/ADR-0002-use-external-agent-skills.md',
-    'docs/decisions/ADR-0003-project-acceptance-and-run-methods.md',
     'docs/decisions/ADR-0004-use-node-policy-tests-and-github-actions.md',
     'docs/zabbix-media-type.md',
-    'tasks/plan.md',
-    'tasks/todo.md',
+    'tasks/sprints/README.md',
+    'tasks/sprints/sprint-00.md',
+    'tasks/sprints/sprint-01.md',
+    'tasks/sprints/sprint-02.md',
+    'tasks/sprints/sprint-03.md',
+    'tasks/sprints/sprint-04.md',
     'src/zabbix-media-type/max-webhook.js',
     'package.json',
     '.github/workflows/verify.yml'
@@ -77,4 +84,20 @@ test('task files are stored only in tasks', () => {
 
 test('legacy bash repository check is removed', () => {
   assert.equal(exists('scripts/verify-repo.sh'), false, 'scripts/verify-repo.sh must be removed after Node policy tests migration');
+});
+
+test('old task-18 files are removed', () => {
+  assert.equal(exists('docs/task-18-breakdown.md'), false, 'docs/task-18-breakdown.md must be removed after reorganization');
+  assert.equal(exists('docs/specs/task-18-1-max-api-source.md'), false, 'old specs must be removed');
+  assert.equal(exists('docs/specs/task-18-2-live-transport-spec.md'), false, 'old specs must be removed');
+});
+
+test('old tasks files are removed', () => {
+  assert.equal(exists('tasks/plan.md'), false, 'tasks/plan.md must be removed after sprint reorganization');
+  assert.equal(exists('tasks/todo.md'), false, 'tasks/todo.md must be removed after sprint reorganization');
+});
+
+test('legacy docs/specs and docs/test-runs task-18 files are removed', () => {
+  assert.equal(exists('docs/specs'), false, 'docs/specs must be removed after reorganization to identity-plugin');
+  assert.equal(exists('docs/test-runs/task-18-8-live-runtime-security-review.md'), false, 'old test-run must be moved to identity-plugin');
 });
