@@ -16,7 +16,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 
 ```text
 Sprint 0-3: Complete
-Sprint 4: Open
+Sprint 4: Partial done; chat_id live acceptance open
 ```
 
 Детальная информация в `docs/identity-plugin/live-sprint-plan.md`.

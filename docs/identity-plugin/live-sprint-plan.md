@@ -96,14 +96,16 @@ Checkpoint:
 
 ### Sprint 4: Live Acceptance
 
-Outcome: live `user_id` and `chat_id` scenarios are proven with sanitized evidence.
+Outcome: live `user_id` scenario is proven; live `chat_id` scenario remains open.
 
-- Run live personal-dialog `user_id` verification.
-- Run live chat `chat_id` verification and update acceptance evidence.
+- Run live personal-dialog `user_id` verification. Done.
+- Run live chat `chat_id` verification and update acceptance evidence. Open.
 
 Checkpoint:
 
-- [ ] Bot replies visibly in personal dialog.
+- [x] Bot receives a real MAX inbound message.
+- [x] Bot sends a real response through MAX Bot API.
+- [x] Bot replies visibly in personal dialog with `RecipientType: user_id`.
 - [ ] Bot replies visibly in chat scenario.
 - [ ] Sanitized live test-run is committed.
 - [ ] `docs/live-identity-bot.md` references the live run.

@@ -24,21 +24,21 @@ docs/test-runs/final-acceptance-run.md
 - GitHub Actions green;
 - проект не выходит за согласованные границы.
 
-По ADR-0010 live-сценарий MAX Identity Bot требует отдельного обезличенного live test-run: реальное входящее сообщение в МАХ и реальный ответ бота через MAX Bot API с `user_id` / `chat_id`. Dry-run, synthetic fixtures и safe test bot подтверждают только готовность кода и формата ответа.
+По ADR-0010 live-сценарий MAX Identity Bot требует отдельного обезличенного live test-run: реальное входящее сообщение в МАХ и реальный ответ бота через MAX Bot API с `user_id` / `chat_id`. Реальное входящее сообщение, реальный ответ через MAX Bot API и личный ответ `RecipientType: user_id` подтверждены. Chat-сценарий с `RecipientType: chat_id` остается открытым. Dry-run, synthetic fixtures и safe test bot подтверждают только готовность кода и формата ответа.
 
 ## Post-acceptance follow-up
 
 Открытые follow-up:
 
 ```text
-Task 18: live MAX Identity Bot for user_id / chat_id
+Sprint 4: live MAX Identity Bot chat_id acceptance
 ```
 
 Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
 
 Task 14 уже выполнен и относится к поддерживающим работам bot-platform.
 
-Task 18 входит в актуальную live-приемку MAX Identity Bot по ADR-0010 и требует отдельного обезличенного live test-run.
+Sprint 4 входит в актуальную live-приемку MAX Identity Bot по ADR-0010 и требует финального обезличенного live test-run.
 
 ## Bot-platform
 
@@ -50,7 +50,7 @@ Bot-platform отделена от Zabbix Webhook и используется д
 synthetic update -> определение типа получателя -> dry-run response с параметрами для Zabbix
 ```
 
-Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в Task 18.
+Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API ведется в Sprint 4.
 
 Ключевые границы:
 
@@ -121,5 +121,5 @@ docs/decisions/
 docs/decisions/README.md
 docs/project-acceptance.md
 AGENTS.md
-docs/documentation-policy.md
+docs/README.md
 ```

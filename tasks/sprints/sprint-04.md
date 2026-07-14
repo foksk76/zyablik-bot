@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Live `user_id` and `chat_id` scenarios are proven with sanitized evidence.
+Live `user_id` scenario is proven. Live `chat_id` scenario remains open.
 
 ## Tasks
 
@@ -30,7 +30,7 @@ Live `user_id` and `chat_id` scenarios are proven with sanitized evidence.
 
 ### Task 4.2: Run live chat chat_id verification and update acceptance
 
-**Status:** Done
+**Status:** Open
 
 **Description:** Выполнить live chat-сценарий и закрыть acceptance evidence.
 
@@ -38,22 +38,24 @@ Live `user_id` and `chat_id` scenarios are proven with sanitized evidence.
 
 **Acceptance criteria:**
 
-- [x] Бот получил реальное chat-сообщение.
-- [x] Бот отправил видимый ответ through MAX Bot API.
-- [x] `docs/live-identity-bot.md` references sanitized live run.
+- [ ] Бот получил реальное chat-сообщение.
+- [ ] Бот отправил видимый ответ through MAX Bot API.
+- [ ] `docs/live-identity-bot.md` references sanitized live run.
 
 **Verification:**
 
-- [x] Обезличенный live test-run добавлен.
-- [x] `docs/live-identity-bot.md` marks live scenario accepted.
-- [x] `npm test` passes.
+- [ ] Обезличенный live test-run добавлен.
+- [ ] `docs/live-identity-bot.md` marks chat scenario accepted.
+- [ ] `npm test` passes.
 
 **Dependencies:** Task 4.1
 
 ## Checkpoint
 
-- [x] Bot replies visibly in personal dialog.
-- [x] Bot replies visibly in chat scenario.
-- [x] Sanitized live test-run is committed.
-- [x] `docs/live-identity-bot.md` references the live run.
-- [x] `npm test` passes.
+- [x] Bot receives a real MAX inbound message.
+- [x] Bot sends a real response through MAX Bot API.
+- [x] Bot replies visibly in personal dialog with `RecipientType: user_id`.
+- [ ] Bot replies visibly in chat scenario with `RecipientType: chat_id`.
+- [ ] Sanitized live test-run is committed.
+- [ ] `docs/live-identity-bot.md` references the final live run.
+- [ ] `npm test` passes after final live acceptance update.

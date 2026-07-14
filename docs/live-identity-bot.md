@@ -4,7 +4,7 @@
 
 ## Текущий статус
 
-Live-сценарий пока не принят.
+Live-сценарий принят частично.
 
 Принято и проверено:
 
@@ -12,13 +12,13 @@ Live-сценарий пока не принят.
 - bot-platform умеет обрабатывать synthetic fixtures;
 - identity plugin формирует текст ответа с `RecipientType` и `To`;
 - safe test bot запускается в `long_polling` режиме с synthetic updates;
+- live bot получает реальное входящее сообщение от МАХ;
+- live bot отправляет реальный ответ через MAX Bot API;
+- в личном диалоге бот возвращает `RecipientType: user_id` и обезличенный `To`;
 - секреты и реальные идентификаторы не хранятся в репозитории.
 
 Не подтверждено для live-приемки:
 
-- получение реального входящего сообщения от МАХ;
-- отправка реального ответа через MAX Bot API;
-- видимый ответ пользователю с `RecipientType: user_id`;
 - видимый ответ в chat-сценарии с `RecipientType: chat_id`.
 
 ## Критерий приемки
@@ -53,9 +53,8 @@ Live identity bot не принимает события Zabbix, не маршр
 Live-реализация ведется отдельной задачей:
 
 ```text
-docs/task-18-breakdown.md -> sprint breakdown
-tasks/todo.md -> Task 18.9-18.10
-tasks/plan.md -> Phase 6: Live MAX Identity Bot
+docs/identity-plugin/live-sprint-plan.md -> sprint breakdown
+tasks/sprints/sprint-04.md -> live acceptance tasks
 docs/runbooks/live-identity-bot.md -> operational runbook
 ```
 
@@ -68,7 +67,7 @@ docs/runbooks/live-identity-bot.md -> operational runbook
 Pre-code source gate закрыт в Task 18.1:
 
 ```text
-docs/specs/task-18-1-max-api-source.md
+docs/identity-plugin/max-api-source.md
 ```
 
 Документ подтверждает официальный источник MAX Bot API. Task 18.2 выбрал первый live transport mode:
@@ -107,7 +106,8 @@ docs/runbooks/live-identity-bot.md
 
 ## Документы по теме
 
-- [`task-18-breakdown.md`](task-18-breakdown.md) — текущая декомпозиция live MAX Identity Bot.
+- [`identity-plugin/live-sprint-plan.md`](identity-plugin/live-sprint-plan.md) — текущая декомпозиция live MAX Identity Bot.
+- [`../tasks/sprints/sprint-04.md`](../tasks/sprints/sprint-04.md) — текущие задачи live acceptance.
 - [`runbooks/live-identity-bot.md`](runbooks/live-identity-bot.md) — запуск live MAX Identity Bot.
 - [`test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) — проверка safe test bot.
 - [`test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) — историческая приемка доставки Zabbix -> МАХ, не live-приемка identity bot.

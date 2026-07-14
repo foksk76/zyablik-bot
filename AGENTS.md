@@ -22,8 +22,8 @@ Zabbix -> MAX Bot API -> пользователь или чат в МАХ
 2. `INSTALL.md`
 3. `docs/project-context.md`
 4. `docs/decisions/README.md`
-5. `tasks/plan.md`
-6. `tasks/todo.md`
+5. `tasks/sprints/README.md`
+6. `docs/identity-plugin/live-sprint-plan.md`
 
 Если меняется Zabbix Media type, дополнительно прочитать:
 
@@ -38,7 +38,8 @@ examples/media-params.md
 ```text
 docs/live-identity-bot.md
 docs/runbooks/live-identity-bot.md
-docs/task-18-breakdown.md
+docs/identity-plugin/live-sprint-plan.md
+tasks/sprints/sprint-04.md
 ```
 
 ## Каноничные источники
@@ -47,9 +48,8 @@ docs/task-18-breakdown.md
 docs/decisions/                 архитектурные и процессные решения
 docs/project-context.md          текущий контекст и границы
 docs/project-acceptance.md       project-level критерии
-docs/documentation-policy.md     правила документации
-tasks/plan.md                    план работ
-tasks/todo.md                    исполняемый список задач
+docs/README.md                   карта документации
+tasks/sprints/                   sprint plans и исполняемые задачи
 README.md                        быстрый вход для человека
 INSTALL.md                       краткая установка
 AGENTS.md                        быстрый вход для AI-агента
@@ -67,7 +67,7 @@ AGENTS.md                        быстрый вход для AI-агента
 - Код менять только на основании документации проекта, внешней документации или ADR.
 - Любое изменение поведения `src/zabbix-media-type/max-webhook.js` отражать в `docs/zabbix-media-type.md`.
 - ADR создавать только в `docs/decisions/`.
-- Задачи вести только в `tasks/plan.md` и `tasks/todo.md`.
+- Задачи вести только в `tasks/sprints/`.
 
 ## Проверка
 

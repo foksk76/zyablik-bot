@@ -12,17 +12,17 @@
 
 ## Live MAX Identity Bot
 
-Live test-run для Task 18 пока отсутствует.
+Финальный обезличенный live test-run пока отсутствует.
 
-- [`task-18-8-live-runtime-security-review.md`](task-18-8-live-runtime-security-review.md) — security review и failure-mode coverage для live runtime до live acceptance.
+- [`../identity-plugin/security-review.md`](../identity-plugin/security-review.md) — security review и failure-mode coverage для live runtime до live acceptance.
 
-Для приемки нужен отдельный обезличенный документ, который подтвердит:
+Текущий частичный статус:
 
-- реальное входящее сообщение МАХ;
-- реальный ответ через MAX Bot API;
-- ответ `RecipientType: user_id` в личном диалоге;
-- ответ `RecipientType: chat_id` в chat-сценарии;
-- отсутствие реальных токенов и идентификаторов в репозитории.
+- [x] реальное входящее сообщение МАХ;
+- [x] реальный ответ через MAX Bot API;
+- [x] ответ `RecipientType: user_id` в личном диалоге;
+- [ ] ответ `RecipientType: chat_id` в chat-сценарии;
+- [ ] финальный обезличенный live test-run без реальных токенов и идентификаторов.
 
 ## Bot-platform Dry-run И Safe-test
 
