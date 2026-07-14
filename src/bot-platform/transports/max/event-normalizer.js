@@ -189,5 +189,6 @@ function normalizeId(value) {
 }
 
 module.exports = {
-  normalizeMaxEvent
+  normalizeMaxEvent,
+  getUpdateType
 };
