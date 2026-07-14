@@ -1,9 +1,11 @@
 'use strict';
 
-const { normalizeMaxEvent } = require('../transports/max/event-normalizer');
+const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-normalizer');
 const { createEventRouter } = require('./event-router');
 const { handleIdentityEvent } = require('../plugins/identity');
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
+
+const REPLY_UPDATE_TYPES = Object.freeze(['message_created']);
 
 function createIdentityUpdateProcessor(options = {}) {
   const router = options.router || createEventRouter({
@@ -12,6 +14,16 @@ function createIdentityUpdateProcessor(options = {}) {
   const outboundClient = options.outboundClient || createMaxOutboundClient(options.outboundClientOptions);
 
   return async function processUpdate(maxPayload) {
+    const updateType = getUpdateType(maxPayload);
+
+    if (!REPLY_UPDATE_TYPES.includes(updateType)) {
+      return {
+        mode: 'ignored',
+        networkEnabled: false,
+        updateType: updateType || 'unknown'
+      };
+    }
+
     const event = normalizeMaxEvent(maxPayload);
     const response = router.route(event, { route: 'identity' });
     const outbound = await outboundClient.send(response);
@@ -27,5 +39,6 @@ function createIdentityUpdateProcessor(options = {}) {
 }
 
 module.exports = {
-  createIdentityUpdateProcessor
+  createIdentityUpdateProcessor,
+  REPLY_UPDATE_TYPES
 };

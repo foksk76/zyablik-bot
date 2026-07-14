@@ -1,6 +1,6 @@
 'use strict';
 
-const { normalizeMaxEvent } = require('./event-normalizer');
+const { normalizeMaxEvent, getUpdateType } = require('./event-normalizer');
 const {
   createMaxOutboundClient,
   buildMaxOutboundPayload,
@@ -38,6 +38,7 @@ module.exports = {
   moduleName,
   createMaxTransport,
   normalizeMaxEvent,
+  getUpdateType,
   createMaxInboundWebhookHandler,
   createMaxOutboundClient,
   buildMaxOutboundPayload,

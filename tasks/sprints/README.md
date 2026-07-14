@@ -11,12 +11,14 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-02.md` — Live Inbound
 - `sprint-03.md` — Runtime And Operations
 - `sprint-04.md` — Live Acceptance
+- `sprint-05.md` — Follow-up after live diagnosis
 
 ## Status
 
 ```text
 Sprint 0-3: Complete
 Sprint 4: Open
+Sprint 5: Open
 ```
 
 Детальная информация в `docs/identity-plugin/live-sprint-plan.md`.
