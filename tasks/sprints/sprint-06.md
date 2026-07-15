@@ -10,7 +10,7 @@
 
 ### Task 1: Create `src/bot-platform/core/plugin-loader.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Создать модуль plugin-loader с тремя функциями: `loadPlugins(pluginsDir)`, `buildRouteMap(plugins)`, `createPluginLoader(pluginsDir)`.
 
@@ -34,7 +34,7 @@
 
 ### Task 2: Refactor `src/bot-platform/plugins/identity/index.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Заменить `createIdentityPlugin()` scaffold на flat export `{ name, routes }`. Удалить `moduleName` и `capabilities`. Сохранить прямые экспорты `formatIdentityResponse` и `handleIdentityEvent` для тестов.
 
@@ -56,7 +56,7 @@
 
 ### Task 3: Update `src/bot-platform/core/index.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Импортировать и реэкспортировать `createPluginLoader` из `./plugin-loader`. Изменить `pluginLoader: 'pending'` на `pluginLoader: 'available'` в компонентах.
 
@@ -76,7 +76,7 @@
 
 ### Task 4: Update `src/bot-platform/core/dry-run-pipeline.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Изменить `runMaxIdentityDryRun` для принятия `routeHandlers` как второго параметра. Удалить хардкоженный импорт `handleIdentityEvent`.
 
@@ -97,7 +97,7 @@
 
 ### Task 5: Update `src/bot-platform/core/live-pipeline.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Изменить `createIdentityUpdateProcessor` для принятия `routeHandlers` через `options`. Удалить хардкоженный импорт `handleIdentityEvent`.
 
@@ -118,7 +118,7 @@
 
 ### Task 6: Update `src/bot-platform/app.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Импортировать `createPluginLoader` из `./core/plugin-loader`. Вызывать его в `createBotPlatformApp`. Передавать `routes` в `runMaxIdentityDryRun`. Удалить импорт `createIdentityPlugin`.
 
@@ -140,7 +140,7 @@
 
 ### Task 7: Update `src/bot-platform/runtime/live-service.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Передавать `options.routeHandlers` в `createIdentityUpdateProcessor`.
 
@@ -160,7 +160,7 @@
 
 ### Task 8: Create `tests/bot-platform/plugin-loader.test.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Написать тесты для plugin-loader: загрузка из директории, валидация интерфейса, сборка route map, обработка дубликатов.
 
@@ -187,7 +187,7 @@
 
 ### Task 9: Update `tests/bot-platform/scaffold.test.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Обновить импорты и проверки: удалить `createIdentityPlugin`, добавить `createPluginLoader`, проверять `app.plugins` как массив и `app.routes` как объект.
 
@@ -210,7 +210,7 @@
 
 ### Task 10: Update `tests/bot-platform/dry-run-pipeline.test.js`
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Обновить вызовы `runMaxIdentityDryRun`: передавать `{ identity: handleIdentityEvent }` как `routeHandlers`.
 
@@ -230,7 +230,7 @@
 
 ### Task 11: Create ADR-0012
 
-**Status:** Open
+**Status:** Done
 
 **Description:** Зафиксировать решение о convention-based plugin loader в `docs/decisions/ADR-0012-use-convention-based-plugin-loader.md`.
 
@@ -257,22 +257,22 @@
 
 ## Checkpoint: After Tasks 1-3 (Foundation)
 
-- [ ] `plugin-loader.js` создан и работает
-- [ ] Identity plugin рефакторен на новый интерфейс
-- [ ] `core/index.js` экспортирует `createPluginLoader`
-- [ ] `npm test` passes (возможно с_Adjustments в тестах)
+- [x] `plugin-loader.js` создан и работает
+- [x] Identity plugin рефакторен на новый интерфейс
+- [x] `core/index.js` экспортирует `createPluginLoader`
+- [x] `npm test` passes
 
 ## Checkpoint: After Tasks 4-7 (Pipeline Integration)
 
-- [ ] Dry-run pipeline принимает `routeHandlers`
-- [ ] Live pipeline принимает `routeHandlers`
-- [ ] `app.js` использует plugin loader
-- [ ] `live-service.js` передаёт `routeHandlers`
-- [ ] `npm test` passes
+- [x] Dry-run pipeline принимает `routeHandlers`
+- [x] Live pipeline принимает `routeHandlers`
+- [x] `app.js` использует plugin loader
+- [x] `live-service.js` передаёт `routeHandlers`
+- [x] `npm test` passes
 
 ## Checkpoint: After Tasks 8-11 (Tests & Docs)
 
-- [ ] Все тесты проходят
-- [ ] ADR-0012 создан
-- [ ] Нет секретов и реальных идентификаторов
-- [ ] Готово к ревью
+- [x] Все тесты проходят
+- [x] ADR-0012 создан
+- [x] Нет секретов и реальных идентификаторов
+- [x] Готово к ревью
