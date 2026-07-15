@@ -12,9 +12,9 @@ function readFixture(fileName) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-test('MAX inbound webhook handler accepts user fixture request', () => {
+test('MAX inbound webhook handler accepts user fixture request', async () => {
   const handler = createMaxInboundWebhookHandler();
-  const result = handler.handle({
+  const result = await handler.handle({
     body: readFixture('max-inbound-user.fixture.json')
   });
 
@@ -26,9 +26,9 @@ test('MAX inbound webhook handler accepts user fixture request', () => {
   assert.equal(result.outbound.request.body.recipientType, 'user_id');
 });
 
-test('MAX inbound webhook handler accepts chat fixture request', () => {
+test('MAX inbound webhook handler accepts chat fixture request', async () => {
   const handler = createMaxInboundWebhookHandler();
-  const result = handler.handle({
+  const result = await handler.handle({
     body: readFixture('max-inbound-chat.fixture.json')
   });
 
@@ -40,11 +40,11 @@ test('MAX inbound webhook handler accepts chat fixture request', () => {
   assert.equal(result.outbound.request.body.recipientType, 'chat_id');
 });
 
-test('MAX inbound webhook handler rejects invalid request', () => {
+test('MAX inbound webhook handler rejects invalid request', async () => {
   const handler = createMaxInboundWebhookHandler();
 
-  assert.throws(
-    () => handler.handle({ body: null }),
+  await assert.rejects(
+    handler.handle({ body: null }),
     /Invalid MAX inbound request/
   );
 });

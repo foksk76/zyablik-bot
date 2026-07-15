@@ -31,6 +31,7 @@ message in MAX -> RecipientType -> To -> visible response from bot
 - `MAX_API_URL` заполнен для live API root; code derives `/updates` and `/messages`;
 - `MAX_BOT_TOKEN` хранится только локально;
 - `MAX_HTTP_PROXY` при необходимости задан локально;
+- `MAX_HTTP_TIMEOUT_MS` (необязательный) — таймаут одного HTTP-вызова к MAX API в миллисекундах; по умолчанию `90000` (90s, с запасом сверх long-poll `timeout` 90s). При превышении runtime убивает child-процесс и пишет transport error с `causeCode=HTTP_TIMEOUT`;
 - `MAX_LOG_LEVEL` не раскрывает секреты.
 
 Если `MAX_TRANSPORT_MODE=webhook`, live service не стартует и вернет заглушку:
@@ -159,6 +160,7 @@ long polling cycle failed error="MAX API request failed" code=MAX_API_ERROR reas
 Типовые причины:
 
 - `details.causeCode=UNABLE_TO_GET_ISSUER_CERT_LOCALLY` или `details.causeMessage=unable to get local issuer certificate` означает проблему доверия TLS/CA: проверьте системный CA bundle, корпоративную TLS inspection proxy и переменные proxy.
+- `details.causeCode=HTTP_TIMEOUT` означает, что HTTP-вызов к MAX API превысил `MAX_HTTP_TIMEOUT_MS` (по умолчанию 90s) и runtime убил child-процесс. При устойчивом повторении проверьте доступность MAX API и при необходимости увеличьте `MAX_HTTP_TIMEOUT_MS`.
 - `details.causeCode=EAI_AGAIN` означает временную DNS-проблему: проверьте resolver, сеть контейнера/host и повторите запрос.
 - `details.statusCode=401` или `403` означает проблему токена или доступа бота.
 - `details.statusCode=429` означает rate limit.

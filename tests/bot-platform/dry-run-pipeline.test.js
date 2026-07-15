@@ -12,8 +12,8 @@ function readFixture(fileName) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-test('dry-run pipeline returns identity response for user fixture', () => {
-  const result = runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
+test('dry-run pipeline returns identity response for user fixture', async () => {
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -26,8 +26,8 @@ test('dry-run pipeline returns identity response for user fixture', () => {
   assert.equal(result.outbound.request.body.recipientType, 'user_id');
 });
 
-test('dry-run pipeline returns identity response for chat fixture', () => {
-  const result = runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'));
+test('dry-run pipeline returns identity response for chat fixture', async () => {
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'));
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -38,8 +38,8 @@ test('dry-run pipeline returns identity response for chat fixture', () => {
   assert.equal(result.outbound.request.body.recipientType, 'chat_id');
 });
 
-test('dry-run pipeline does not expose raw event payload in response', () => {
-  const result = runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
+test('dry-run pipeline does not expose raw event payload in response', async () => {
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
 
   assert.equal(result.response.raw, undefined);
   assert.doesNotMatch(result.response.text, /<synthetic-message-id>/);
@@ -47,9 +47,9 @@ test('dry-run pipeline does not expose raw event payload in response', () => {
   assert.equal(result.outbound.request.body.raw, undefined);
 });
 
-test('dry-run pipeline rejects invalid MAX payload safely', () => {
-  assert.throws(
-    () => runMaxIdentityDryRun({}),
+test('dry-run pipeline rejects invalid MAX payload safely', async () => {
+  await assert.rejects(
+    runMaxIdentityDryRun({}),
     /Unsupported MAX chat type/
   );
 });

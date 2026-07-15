@@ -4,11 +4,11 @@ const path = require('node:path');
 
 const { main } = require('../../src/bot-platform/app');
 
-function runMain(fixtureName) {
+async function runMain(fixtureName) {
   let stdout = '';
   let stderr = '';
 
-  const exitCode = main([path.join('examples/bot-platform', fixtureName)], {
+  const exitCode = await main([path.join('examples/bot-platform', fixtureName)], {
     stdout: {
       write(chunk) {
         stdout += chunk;
@@ -28,7 +28,7 @@ function runMain(fixtureName) {
   };
 }
 
-function runMainWithEnv(environment, argv = [], options = {}) {
+async function runMainWithEnv(environment, argv = [], options = {}) {
   const originalEnv = process.env;
   let stdout = '';
   let stderr = '';
@@ -36,7 +36,7 @@ function runMainWithEnv(environment, argv = [], options = {}) {
   process.env = { ...originalEnv, ...environment };
 
   try {
-    const exitCode = main(argv, {
+    const exitCode = await main(argv, {
       stdout: {
         write(chunk) {
           stdout += chunk;
@@ -59,8 +59,8 @@ function runMainWithEnv(environment, argv = [], options = {}) {
   }
 }
 
-test('CLI dry-run prints a safe result for the user fixture', () => {
-  const result = runMain('max-inbound-user.fixture.json');
+test('CLI dry-run prints a safe result for the user fixture', async () => {
+  const result = await runMain('max-inbound-user.fixture.json');
 
   assert.equal(result.exitCode, 0);
   assert.equal(result.stderr, '');
@@ -75,8 +75,8 @@ test('CLI dry-run prints a safe result for the user fixture', () => {
   assert.equal(output.response.raw, undefined);
 });
 
-test('CLI dry-run prints a safe result for the chat fixture', () => {
-  const result = runMain('max-inbound-chat.fixture.json');
+test('CLI dry-run prints a safe result for the chat fixture', async () => {
+  const result = await runMain('max-inbound-chat.fixture.json');
 
   assert.equal(result.exitCode, 0);
   assert.equal(result.stderr, '');
@@ -91,8 +91,8 @@ test('CLI dry-run prints a safe result for the chat fixture', () => {
   assert.equal(output.response.raw, undefined);
 });
 
-test('CLI fails fast for webhook transport without starting network work', () => {
-  const result = runMainWithEnv({
+test('CLI fails fast for webhook transport without starting network work', async () => {
+  const result = await runMainWithEnv({
     MAX_TRANSPORT_MODE: 'webhook'
   });
 
@@ -101,9 +101,9 @@ test('CLI fails fast for webhook transport without starting network work', () =>
   assert.equal(result.stderr, 'Не реализовано: transport mode webhook\n');
 });
 
-test('CLI live command routes to live service entrypoint without using fixtures', () => {
+test('CLI live command routes to live service entrypoint without using fixtures', async () => {
   const calls = [];
-  const result = runMainWithEnv({
+  const result = await runMainWithEnv({
     MAX_TRANSPORT_MODE: 'long_polling'
   }, ['--live'], {
     liveOptions: {

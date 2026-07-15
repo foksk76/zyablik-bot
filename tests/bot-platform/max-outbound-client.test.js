@@ -39,11 +39,11 @@ test('buildMaxOutboundPayload rejects invalid response', () => {
   );
 });
 
-test('createMaxOutboundClient returns dry-run request without raw fields', () => {
+test('createMaxOutboundClient returns dry-run request without raw fields', async () => {
   const client = createMaxOutboundClient({
     apiUrl: 'https://synthetic.example/messages'
   });
-  const result = client.send(createIdentityResponse());
+  const result = await client.send(createIdentityResponse());
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -59,7 +59,7 @@ test('createMaxOutboundClient returns dry-run request without raw fields', () =>
   assert.equal(result.payload.raw, undefined);
 });
 
-test('createMaxOutboundClient does not log raw token values', () => {
+test('createMaxOutboundClient does not log raw token values', async () => {
   const entries = [];
   const client = createMaxOutboundClient({
     apiUrl: 'https://synthetic.example/messages',
@@ -71,7 +71,7 @@ test('createMaxOutboundClient does not log raw token values', () => {
     }
   });
 
-  client.send(createIdentityResponse());
+  await client.send(createIdentityResponse());
 
   const serialized = JSON.stringify(entries);
   assert.doesNotMatch(serialized, /synthetic-secret-token/);
@@ -95,7 +95,7 @@ test('buildMaxOutboundRequest creates a live MAX request with injected auth head
   });
 });
 
-test('createMaxOutboundClient uses injectable HTTP transport in live mode', () => {
+test('createMaxOutboundClient uses injectable HTTP transport in live mode', async () => {
   const requests = [];
   const client = createMaxOutboundClient({
     apiUrl: 'https://synthetic.example/messages',
@@ -116,7 +116,7 @@ test('createMaxOutboundClient uses injectable HTTP transport in live mode', () =
     networkEnabled: true
   });
 
-  const result = client.send(createIdentityResponse());
+  const result = await client.send(createIdentityResponse());
 
   assert.equal(result.mode, 'live');
   assert.equal(result.networkEnabled, true);
@@ -127,7 +127,7 @@ test('createMaxOutboundClient uses injectable HTTP transport in live mode', () =
   assert.equal(result.response.body.message.id, 'synthetic-message-id');
 });
 
-test('createMaxOutboundClient normalizes live HTTP failures safely', () => {
+test('createMaxOutboundClient normalizes live HTTP failures safely', async () => {
   const client = createMaxOutboundClient({
     apiUrl: 'https://synthetic.example/messages',
     token: 'synthetic-secret-token',
@@ -144,8 +144,8 @@ test('createMaxOutboundClient normalizes live HTTP failures safely', () => {
     networkEnabled: true
   });
 
-  assert.throws(
-    () => client.send(createIdentityResponse()),
+  await assert.rejects(
+    client.send(createIdentityResponse()),
     (error) => {
       assert.equal(error.code, MAX_API_ERROR_CODE);
       assert.equal(error.message, 'MAX API request failed');
@@ -155,7 +155,7 @@ test('createMaxOutboundClient normalizes live HTTP failures safely', () => {
   );
 });
 
-test('createMaxOutboundClient keeps safe transport failure diagnostics', () => {
+test('createMaxOutboundClient keeps safe transport failure diagnostics', async () => {
   const transportError = new Error('fetch failed');
   transportError.cause = {
     code: 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
@@ -173,8 +173,8 @@ test('createMaxOutboundClient keeps safe transport failure diagnostics', () => {
     networkEnabled: true
   });
 
-  assert.throws(
-    () => client.send(createIdentityResponse()),
+  await assert.rejects(
+    client.send(createIdentityResponse()),
     (error) => {
       assert.equal(error.code, MAX_API_ERROR_CODE);
       assert.equal(error.message, 'MAX API request failed');

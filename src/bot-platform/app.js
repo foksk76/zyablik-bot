@@ -62,7 +62,7 @@ function startLiveBotPlatformService(environment = process.env, options = {}) {
   return liveService;
 }
 
-function runBotPlatformDryRun(fixturePath) {
+async function runBotPlatformDryRun(fixturePath) {
   if (typeof fixturePath !== 'string' || fixturePath.length === 0) {
     throw new Error('Fixture path is required');
   }
@@ -87,7 +87,7 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
   });
 }
 
-function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
+async function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
   const environment = options.environment || process.env;
   const app = createBotPlatformApp(environment);
 
@@ -126,7 +126,7 @@ function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stder
   }
 
   try {
-    const result = runBotPlatformDryRun(argv[0]);
+    const result = await runBotPlatformDryRun(argv[0]);
     io.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
   } catch (error) {
@@ -136,7 +136,12 @@ function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stder
 }
 
 if (require.main === module) {
-  process.exitCode = main();
+  main().then((code) => {
+    process.exitCode = code;
+  }).catch((error) => {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  });
 }
 
 function isLiveCommand(argv) {

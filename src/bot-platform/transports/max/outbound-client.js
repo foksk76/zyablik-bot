@@ -22,7 +22,7 @@ function createMaxOutboundClient(options = {}) {
     moduleName,
     status: 'available',
     networkEnabled,
-    send(response) {
+    async send(response) {
       const payload = buildMaxOutboundPayload(response);
       const dryRunRequest = {
         method: 'POST',
@@ -52,7 +52,7 @@ function createMaxOutboundClient(options = {}) {
           apiUrl,
           token
         });
-        const httpResponse = httpClient.post(request);
+        const httpResponse = await httpClient.post(request);
         const normalizedResponse = normalizeHttpResponse(httpResponse);
 
         if (normalizedResponse.statusCode < 200 || normalizedResponse.statusCode >= 300) {

@@ -9,14 +9,14 @@ function createMaxInboundWebhookHandler() {
     moduleName,
     status: 'available',
     networkEnabled: false,
-    handle(request) {
+    async handle(request) {
       const payload = readRequestPayload(request);
 
       return {
         statusCode: 200,
         mode: 'dry-run',
         networkEnabled: false,
-        ...runMaxIdentityDryRun(payload)
+        ...await runMaxIdentityDryRun(payload)
       };
     }
   };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 
 const { createSafeLogger } = require('../core');
 const { createLongPollingService } = require('./long-polling');
@@ -10,6 +10,7 @@ const { createIdentityUpdateProcessor } = require('../core/live-pipeline');
 const { createMaxInboundUpdatesClient, createMaxOutboundClient } = require('../transports/max');
 
 const moduleName = 'live-service';
+const DEFAULT_HTTP_TIMEOUT_MS = 90000;
 
 function createLiveBotPlatformService(environment = process.env, options = {}) {
   const runtimeConfig = createLiveRuntimeConfig(environment);
@@ -20,7 +21,8 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
 
   const logger = createLiveLogger(options.logger, runtimeConfig);
   const httpClient = options.httpClient || createNativeFetchHttpClient({
-    fetchBinary: options.fetchBinary
+    fetchBinary: options.fetchBinary,
+    timeoutMs: options.httpTimeoutMs
   });
   const outboundApiUrl = buildLiveMessagesApiUrl(runtimeConfig.maxApiUrl);
   const inboundClient = options.inboundClient || createMaxInboundUpdatesClient({
@@ -133,15 +135,30 @@ function createNativeFetchHttpClient(options = {}) {
   const fetchBinary = typeof options.fetchBinary === 'string' && options.fetchBinary.trim()
     ? options.fetchBinary.trim()
     : process.execPath;
+  const timeoutMs = resolveHttpTimeoutMs(options.timeoutMs);
 
   return {
     get(request) {
-      return runFetchRequest(fetchBinary, request);
+      return runFetchRequest(fetchBinary, request, timeoutMs);
     },
     post(request) {
-      return runFetchRequest(fetchBinary, request);
+      return runFetchRequest(fetchBinary, request, timeoutMs);
     }
   };
+}
+
+function resolveHttpTimeoutMs(value) {
+  if (Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  const fromEnv = Number.parseInt(process.env.MAX_HTTP_TIMEOUT_MS, 10);
+
+  if (Number.isInteger(fromEnv) && fromEnv > 0) {
+    return fromEnv;
+  }
+
+  return DEFAULT_HTTP_TIMEOUT_MS;
 }
 
 function buildLiveMessagesApiUrl(apiUrl) {
@@ -152,8 +169,23 @@ function buildLiveMessagesApiUrl(apiUrl) {
   return new URL('/messages', ensureTrailingSlash(baseUrl)).toString();
 }
 
-function runFetchRequest(fetchBinary, request) {
-  const childScript = [
+function runFetchRequest(fetchBinary, request, timeoutMs = DEFAULT_HTTP_TIMEOUT_MS, childScriptOverride) {
+  // Async (non-blocking) variant: HTTP runs in a child process and the parent
+  // event loop stays free. Replaces the prior spawnSync implementation that
+  // blocked the event loop for the whole long-poll window (~30s).
+  // Source: https://nodejs.org/api/child_process.html — spawn() is async;
+  // `timeout` > 0 sends `killSignal` (default SIGTERM) after N ms.
+  // `childScriptOverride` is a test-only hook to inject a deterministic
+  // (e.g. hanging) child script without network.
+  const childScript = typeof childScriptOverride === 'string' && childScriptOverride
+    ? childScriptOverride
+    : buildFetchChildScript();
+
+  return runChildScript(fetchBinary, request, childScript, timeoutMs);
+}
+
+function buildFetchChildScript() {
+  return [
     "const fs = require('node:fs');",
     '(async () => {',
     "  const request = JSON.parse(fs.readFileSync(0, 'utf8'));",
@@ -190,34 +222,82 @@ function runFetchRequest(fetchBinary, request) {
     '  process.exit(1);',
     '});'
   ].join('\n');
+}
 
-  const result = spawnSync(fetchBinary, ['-e', childScript], {
-    input: JSON.stringify(request),
-    encoding: 'utf8'
+function runChildScript(fetchBinary, request, childScript, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(fetchBinary, ['-e', childScript], {
+      timeout: timeoutMs,
+      killSignal: 'SIGTERM'
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timedOut = false;
+
+    child.stdin.on('error', () => {});
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on('timeout', () => {
+      // Emitted when the child is killed after exceeding `timeout`.
+      timedOut = true;
+    });
+
+    child.on('error', (spawnError) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      const error = new Error(`Live HTTP request failed: ${spawnError.message}`);
+      error.cause = {
+        code: spawnError.code,
+        message: spawnError.message
+      };
+      reject(error);
+    });
+
+    child.on('close', (code, signal) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+
+      if (timedOut || signal === 'SIGTERM') {
+        const error = new Error('Live HTTP request timed out');
+        error.cause = { code: 'HTTP_TIMEOUT', message: `exceeded ${timeoutMs}ms` };
+        reject(error);
+        return;
+      }
+
+      if (code !== 0) {
+        reject(createFetchTransportError(stderr));
+        return;
+      }
+
+      if (typeof stdout !== 'string' || stdout.trim() === '') {
+        reject(new Error('Live HTTP request returned an empty response'));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (parseError) {
+        reject(new Error('Live HTTP request returned invalid JSON'));
+      }
+    });
+
+    child.stdin.end(JSON.stringify(request));
   });
-
-  if (result.error) {
-    const error = new Error(`Live HTTP request failed: ${result.error.message}`);
-    error.cause = {
-      code: result.error.code,
-      message: result.error.message
-    };
-    throw error;
-  }
-
-  if (result.status !== 0) {
-    throw createFetchTransportError(result.stderr);
-  }
-
-  if (typeof result.stdout !== 'string' || result.stdout.trim() === '') {
-    throw new Error('Live HTTP request returned an empty response');
-  }
-
-  try {
-    return JSON.parse(result.stdout);
-  } catch (error) {
-    throw new Error('Live HTTP request returned invalid JSON');
-  }
 }
 
 function createFetchTransportError(stderr) {
@@ -277,8 +357,10 @@ function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.s
 
 module.exports = {
   moduleName,
+  DEFAULT_HTTP_TIMEOUT_MS,
   createLiveBotPlatformService,
   createLiveServiceShutdownHandlers,
   createNativeFetchHttpClient,
+  runFetchRequest,
   buildLiveMessagesApiUrl
 };

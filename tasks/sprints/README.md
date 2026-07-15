@@ -18,7 +18,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 ```text
 Sprint 0-3: Complete
 Sprint 4: Partial (Task 4.1 personal dialog done; Task 4.2 chat reopened, see sprint-04.md)
-Sprint 5: Open
+Sprint 5: Complete (Task 5.1 docs research done; Task 5.2 async HTTP boundary done)
 ```
 
 Детальная информация в `docs/identity-plugin/live-sprint-plan.md`.

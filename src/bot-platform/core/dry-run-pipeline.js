@@ -5,7 +5,7 @@ const { createMaxOutboundClient } = require('../transports/max/outbound-client')
 const { handleIdentityEvent } = require('../plugins/identity');
 const { createEventRouter } = require('./event-router');
 
-function runMaxIdentityDryRun(maxPayload) {
+async function runMaxIdentityDryRun(maxPayload) {
   const event = normalizeMaxEvent(maxPayload);
   const router = createEventRouter({
     identity: handleIdentityEvent
@@ -18,7 +18,7 @@ function runMaxIdentityDryRun(maxPayload) {
     mode: 'dry-run',
     networkEnabled: false,
     response,
-    outbound: outboundClient.send(response)
+    outbound: await outboundClient.send(response)
   };
 }
 

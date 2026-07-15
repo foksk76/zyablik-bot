@@ -19,6 +19,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+.zcode/
 
 # Local AI / Codex skills installs
 .agents/external-skills/

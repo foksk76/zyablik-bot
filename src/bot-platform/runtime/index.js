@@ -8,7 +8,9 @@ const {
 const {
   createLiveBotPlatformService,
   createLiveServiceShutdownHandlers,
-  createNativeFetchHttpClient
+  createNativeFetchHttpClient,
+  runFetchRequest,
+  DEFAULT_HTTP_TIMEOUT_MS
 } = require('./live-service');
 const {
   createConsoleRuntimeLogger,
@@ -22,6 +24,8 @@ module.exports = {
   createLiveBotPlatformService,
   createLiveServiceShutdownHandlers,
   createNativeFetchHttpClient,
+  runFetchRequest,
+  DEFAULT_HTTP_TIMEOUT_MS,
   createConsoleRuntimeLogger,
   formatRuntimeLogLine
 };
