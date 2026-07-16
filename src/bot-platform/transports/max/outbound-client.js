@@ -7,6 +7,10 @@ const moduleName = 'max-outbound-client';
 const MAX_API_ERROR_CODE = 'MAX_API_ERROR';
 const DEFAULT_NOTIFY = true;
 const DEFAULT_FORMAT = 'markdown';
+const RECIPIENT_TYPE_MAP = Object.freeze({
+  user: 'user_id',
+  chat: 'chat_id'
+});
 
 function createMaxOutboundClient(options = {}) {
   const logger = createLogger(options.logger);
@@ -214,11 +218,6 @@ function buildTextPayload(response) {
   if (!response.recipient || !response.recipient.kind || !response.recipient.value) {
     throw new Error('Invalid text response: missing recipient');
   }
-
-  const RECIPIENT_TYPE_MAP = {
-    user: 'user_id',
-    chat: 'chat_id'
-  };
 
   const recipientType = RECIPIENT_TYPE_MAP[response.recipient.kind];
 

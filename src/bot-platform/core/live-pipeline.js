@@ -4,11 +4,7 @@ const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-no
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
 const { parseCommand } = require('./command-parser');
 const { createCommandRegistry } = require('./command-registry');
-
-const REPLY_UPDATE_TYPES = Object.freeze(['message_created', 'bot_added', 'bot_started']);
-
-const WELCOME_TEXT = 'Ready to help.';
-const UNKNOWN_COMMAND_TEXT = 'Unknown command. Send /help for available commands.';
+const { REPLY_UPDATE_TYPES, WELCOME_TEXT, UNKNOWN_COMMAND_TEXT } = require('./pipeline-constants');
 
 function createIdentityUpdateProcessor(options = {}) {
   const outboundClient = options.outboundClient || createMaxOutboundClient(options.outboundClientOptions);

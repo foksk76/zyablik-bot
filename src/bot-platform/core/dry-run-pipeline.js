@@ -4,13 +4,11 @@ const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-no
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
 const { parseCommand } = require('./command-parser');
 const { createCommandRegistry } = require('./command-registry');
-
-const REPLY_UPDATE_TYPES = Object.freeze(['message_created', 'bot_added', 'bot_started']);
-const WELCOME_TEXT = 'Ready to help.';
-const UNKNOWN_COMMAND_TEXT = 'Unknown command. Send /help for available commands.';
+const { REPLY_UPDATE_TYPES, WELCOME_TEXT, UNKNOWN_COMMAND_TEXT } = require('./pipeline-constants');
 
 async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}) {
   const updateType = getUpdateType(maxPayload);
+  const outboundClient = options.outboundClient || createMaxOutboundClient();
 
   if (!REPLY_UPDATE_TYPES.includes(updateType)) {
     return {
@@ -27,7 +25,6 @@ async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}
       text: WELCOME_TEXT,
       recipient: event.recipient
     };
-    const outboundClient = createMaxOutboundClient();
 
     return {
       mode: 'dry-run',
@@ -48,7 +45,6 @@ async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}
 
     if (entry) {
       const response = entry.handler(event);
-      const outboundClient = createMaxOutboundClient();
 
       return {
         mode: 'dry-run',
@@ -64,7 +60,6 @@ async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}
     text: UNKNOWN_COMMAND_TEXT,
     recipient: event.recipient
   };
-  const outboundClient = createMaxOutboundClient();
 
   return {
     mode: 'dry-run',

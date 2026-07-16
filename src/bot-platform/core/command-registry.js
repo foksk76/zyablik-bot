@@ -25,7 +25,7 @@ function createCommandRegistry(options = {}) {
       return null;
     }
 
-    return { description: cmd.description, handler: cmd.handler };
+    return cmd;
   }
 
   function getCommandList() {
