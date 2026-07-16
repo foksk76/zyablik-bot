@@ -23,7 +23,7 @@ test('MAX inbound webhook handler accepts user fixture request', async () => {
   assert.equal(result.statusCode, 200);
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
-  assert.equal(result.response.kind, 'identity');
+  assert.equal(result.response.kind, 'text');
   assert.equal(result.response.recipient.kind, 'user');
   assert.equal(result.outbound.request.body.recipientType, 'user_id');
 });
@@ -37,7 +37,7 @@ test('MAX inbound webhook handler accepts chat fixture request', async () => {
   assert.equal(result.statusCode, 200);
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
-  assert.equal(result.response.kind, 'identity');
+  assert.equal(result.response.kind, 'text');
   assert.equal(result.response.recipient.kind, 'chat');
   assert.equal(result.outbound.request.body.recipientType, 'chat_id');
 });

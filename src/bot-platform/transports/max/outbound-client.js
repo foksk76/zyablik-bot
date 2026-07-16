@@ -176,14 +176,28 @@ function createHttpClient(httpClient) {
 }
 
 function buildMaxOutboundPayload(response) {
-  const identityResponse = response && response.kind === 'identity' ? response : null;
-
-  if (!identityResponse || !identityResponse.zabbix) {
-    throw new Error('Invalid identity response');
+  if (!response || typeof response.kind !== 'string') {
+    throw new Error('Invalid response: missing kind');
   }
 
-  const recipientType = identityResponse.zabbix.recipientType;
-  const to = identityResponse.zabbix.to;
+  if (response.kind === 'identity') {
+    return buildIdentityPayload(response);
+  }
+
+  if (response.kind === 'text') {
+    return buildTextPayload(response);
+  }
+
+  throw new Error('Invalid response: unknown kind');
+}
+
+function buildIdentityPayload(response) {
+  if (!response.zabbix) {
+    throw new Error('Invalid identity response: missing zabbix');
+  }
+
+  const recipientType = response.zabbix.recipientType;
+  const to = response.zabbix.to;
 
   if (!recipientType || !to) {
     throw new Error('Missing MAX outbound payload fields');
@@ -192,7 +206,30 @@ function buildMaxOutboundPayload(response) {
   return {
     recipientType,
     to,
-    text: typeof identityResponse.text === 'string' ? identityResponse.text : ''
+    text: typeof response.text === 'string' ? response.text : ''
+  };
+}
+
+function buildTextPayload(response) {
+  if (!response.recipient || !response.recipient.kind || !response.recipient.value) {
+    throw new Error('Invalid text response: missing recipient');
+  }
+
+  const RECIPIENT_TYPE_MAP = {
+    user: 'user_id',
+    chat: 'chat_id'
+  };
+
+  const recipientType = RECIPIENT_TYPE_MAP[response.recipient.kind];
+
+  if (!recipientType) {
+    throw new Error('Invalid text response: unknown recipient kind');
+  }
+
+  return {
+    recipientType,
+    to: response.recipient.value,
+    text: typeof response.text === 'string' ? response.text : ''
   };
 }
 

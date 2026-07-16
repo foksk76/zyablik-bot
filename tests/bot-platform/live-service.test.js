@@ -88,7 +88,7 @@ test('live service wires inbound updates into outbound MAX response delivery', a
   assert.equal(liveService.state.updates, 1);
   assert.equal(liveService.state.results.length, 1);
   assert.equal(liveService.state.results[0].mode, 'live');
-  assert.equal(liveService.state.results[0].response.kind, 'identity');
+  assert.equal(liveService.state.results[0].response.kind, 'text');
   assert.equal(liveService.state.results[0].response.recipient.kind, 'user');
   assert.equal(liveService.state.results[0].outbound.mode, 'live');
   assert.equal(liveService.state.results[0].outbound.response.statusCode, 200);

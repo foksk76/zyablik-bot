@@ -15,8 +15,14 @@ function readFixture(fileName) {
 
 const routeHandlers = { identity: handleIdentityEvent };
 
-test('dry-run pipeline returns identity response for user fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
+test('dry-run pipeline returns identity response for /id command in user context', async () => {
+  const payload = readFixture('max-inbound-user.fixture.json');
+
+  payload.message.text = '/id';
+
+  const result = await runMaxIdentityDryRun(payload, routeHandlers, {
+    identityHandler: handleIdentityEvent
+  });
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -29,8 +35,14 @@ test('dry-run pipeline returns identity response for user fixture', async () => 
   assert.equal(result.outbound.request.body.recipientType, 'user_id');
 });
 
-test('dry-run pipeline returns identity response for chat fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'), routeHandlers);
+test('dry-run pipeline returns identity response for /id command in chat context', async () => {
+  const payload = readFixture('max-inbound-chat.fixture.json');
+
+  payload.message.text = '/id';
+
+  const result = await runMaxIdentityDryRun(payload, routeHandlers, {
+    identityHandler: handleIdentityEvent
+  });
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -39,6 +51,14 @@ test('dry-run pipeline returns identity response for chat fixture', async () => 
   assert.equal(result.response.zabbix.recipientType, 'chat_id');
   assert.equal(result.response.zabbix.to, '<synthetic-chat-id>');
   assert.equal(result.outbound.request.body.recipientType, 'chat_id');
+});
+
+test('dry-run pipeline returns unknown command for non-command text', async () => {
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
+
+  assert.equal(result.mode, 'dry-run');
+  assert.equal(result.response.kind, 'text');
+  assert.ok(result.response.text.includes('Unknown command'));
 });
 
 test('dry-run pipeline does not expose raw event payload in response', async () => {

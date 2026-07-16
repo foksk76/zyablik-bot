@@ -1,5 +1,7 @@
 # Bot Commands System
 
+**Status:** Implemented (sprint-13, branch `feature/bot-commands`)
+
 ## Problem Statement
 
 How might we let users in MAX chats self-discover bot capabilities via interactive commands (e.g., `/help`, `/id`, `/status`) without changing the existing plugin interface or architectural contracts?

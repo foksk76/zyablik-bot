@@ -68,7 +68,7 @@ test('CLI dry-run prints a safe result for the user fixture', async () => {
   const output = JSON.parse(result.stdout);
   assert.equal(output.mode, 'dry-run');
   assert.equal(output.networkEnabled, false);
-  assert.equal(output.response.kind, 'identity');
+  assert.equal(output.response.kind, 'text');
   assert.equal(output.response.recipient.kind, 'user');
   assert.equal(output.outbound.networkEnabled, false);
   assert.equal(output.outbound.request.body.recipientType, 'user_id');
@@ -84,7 +84,7 @@ test('CLI dry-run prints a safe result for the chat fixture', async () => {
   const output = JSON.parse(result.stdout);
   assert.equal(output.mode, 'dry-run');
   assert.equal(output.networkEnabled, false);
-  assert.equal(output.response.kind, 'identity');
+  assert.equal(output.response.kind, 'text');
   assert.equal(output.response.recipient.kind, 'chat');
   assert.equal(output.outbound.networkEnabled, false);
   assert.equal(output.outbound.request.body.recipientType, 'chat_id');

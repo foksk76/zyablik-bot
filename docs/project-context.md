@@ -44,11 +44,15 @@ Task 18 входит в актуальную live-приемку MAX Identity Bo
 
 По ADR-0005 выбран Hubot-based MVP MAX Identity Bot. Node-RED оставлен только как fallback-прототип.
 
-Bot-platform отделена от Zabbix Webhook и используется для identity-сценария:
+Bot-platform отделена от Zabbix Webhook и используется для identity-сценария и команд:
 
 ```text
-synthetic update -> определение типа получателя -> dry-run response с параметрами для Zabbix
+message_created -> command dispatch -> /help | /id | /status | unknown command reply
+message_created (no command) -> unknown command reply
+bot_added -> welcome message
 ```
+
+По ADR-0018 pipeline ветвится до `router.route()`: если текст начинается с `/`, обрабатывается через command registry; иначе — «Unknown command». По ADR-0019 outbound client поддерживает `kind: 'text'` ответы. По ADR-0020 `bot_added` события обрабатываются pipeline и отправляют приветствие.
 
 Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в Task 18.
 

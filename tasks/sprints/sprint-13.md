@@ -12,19 +12,21 @@
 
 ### Task 1: Create `src/bot-platform/core/command-parser.js`
 
+**Status:** Done
+
 **Description:** Модуль для парсинга команд из текста сообщения. Принимает строку, возвращает `{ command, args }` или `null` если текст не начинается с `/`.
 
 **Acceptance criteria:**
-- [ ] `parseCommand('/help')` → `{ command: '/help', args: '' }`
-- [ ] `parseCommand('/status --verbose')` → `{ command: '/status', args: '--verbose' }`
-- [ ] `parseCommand('hello')` → `null`
-- [ ] `parseCommand('')` → `null`
-- [ ] `parseCommand('/')` → `null` (пустая команда)
-- [ ] `parseCommand('/Help')` → `{ command: '/help', args: '' }` (case-insensitive)
+- [x] `parseCommand('/help')` → `{ command: '/help', args: '' }`
+- [x] `parseCommand('/status --verbose')` → `{ command: '/status', args: '--verbose' }`
+- [x] `parseCommand('hello')` → `null`
+- [x] `parseCommand('')` → `null`
+- [x] `parseCommand('/')` → `null` (пустая команда)
+- [x] `parseCommand('/Help')` → `{ command: '/help', args: '' }` (case-insensitive)
 
 **Verification:**
-- [ ] Модуль импортируется без ошибок
-- [ ] `npm test` passes
+- [x] Модуль импортируется без ошибок
+- [x] `npm test` passes
 
 **Dependencies:** None
 
@@ -35,19 +37,21 @@
 
 ### Task 2: Create `src/bot-platform/core/command-registry.js`
 
+**Status:** Done
+
 **Description:** Статический реестр команд. Объект `{ '/help': { description, handler }, '/id': { description, handler }, '/status': { description, handler } }`. Функция `lookup(commandName)` возвращает `{ description, handler }` или `null`. Обработчики команд `/help` и `/status` — встроенные. Обработчик `/id` делегирует в identity plugin.
 
 **Acceptance criteria:**
-- [ ] `lookup('/help')` возвращает `{ description: ..., handler: function }`
-- [ ] `lookup('/id')` возвращает `{ description: ..., handler: function }`
-- [ ] `lookup('/status')` возвращает `{ description: ..., handler: function }`
-- [ ] `lookup('/unknown')` возвращает `null`
-- [ ] `getCommandList()` возвращает массив `{ name, description }` для /help
-- [ ] `/help` handler возвращает text-ответ со списком команд
+- [x] `lookup('/help')` возвращает `{ description: ..., handler: function }`
+- [x] `lookup('/id')` возвращает `{ description: ..., handler: function }`
+- [x] `lookup('/status')` возвращает `{ description: ..., handler: function }`
+- [x] `lookup('/unknown')` возвращает `null`
+- [x] `getCommandList()` возвращает массив `{ name, description }` для /help
+- [x] `/help` handler возвращает text-ответ со списком команд
 
 **Verification:**
-- [ ] Модуль импортируется без ошибок
-- [ ] `npm test` passes
+- [x] Модуль импортируется без ошибок
+- [x] `npm test` passes
 
 **Dependencies:** Task 1
 
@@ -58,17 +62,19 @@
 
 ### Task 3: Extend `src/bot-platform/transports/max/outbound-client.js` for text-only responses
 
+**Status:** Done
+
 **Description:** Расширить `buildMaxOutboundPayload()` для поддержки `kind: 'text'` ответов (ADR-0019). Существующая ветка `kind: 'identity'` не меняется. Новая ветка извлекает `recipientType` и `to` из `response.recipient.kind` + `response.recipient.value`.
 
 **Acceptance criteria:**
-- [ ] `buildMaxOutboundPayload({ kind: 'identity', zabbix: { ... } })` — существующее поведение без изменений
-- [ ] `buildMaxOutboundPayload({ kind: 'text', recipient: { kind: 'chat', value: '2002' } })` → `{ recipientType: 'chat_id', to: '2002', text: ... }`
-- [ ] `buildMaxOutboundPayload({ kind: 'text', recipient: { kind: 'user', value: '12345' } })` → `{ recipientType: 'user_id', to: '12345', text: ... }`
-- [ ] `buildMaxOutboundPayload(null)` выбрасывает ошибку (существующее поведение)
-- [ ] `buildMaxOutboundPayload({ kind: 'unknown' })` выбрасывает ошибку
+- [x] `buildMaxOutboundPayload({ kind: 'identity', zabbix: { ... } })` — существующее поведение без изменений
+- [x] `buildMaxOutboundPayload({ kind: 'text', recipient: { kind: 'chat', value: '2002' } })` → `{ recipientType: 'chat_id', to: '2002', text: ... }`
+- [x] `buildMaxOutboundPayload({ kind: 'text', recipient: { kind: 'user', value: '12345' } })` → `{ recipientType: 'user_id', to: '12345', text: ... }`
+- [x] `buildMaxOutboundPayload(null)` выбрасывает ошибку (существующее поведение)
+- [x] `buildMaxOutboundPayload({ kind: 'unknown' })` выбрасывает ошибку
 
 **Verification:**
-- [ ] `npm test` passes (существующие identity-тесты не сломаны)
+- [x] `npm test` passes (существующие identity-тесты не сломаны)
 
 **Dependencies:** None
 
@@ -79,19 +85,21 @@
 
 ### Task 4: Add command dispatch to `src/bot-platform/core/live-pipeline.js`
 
+**Status:** Done
+
 **Description:** Добавить ветвление перед `router.route()` (ADR-0018): парсинг команды → lookup в registry → если команда: handler(event) → send; если не команда: вернуть «Unknown command» reply. Расширить `REPLY_UPDATE_TYPES` на `['message_created', 'bot_added']` (ADR-0020). `bot_added` → автоматический text-ответ «Ready to help.».
 
 **Acceptance criteria:**
-- [ ] `message_created` с `/help` → command handler, не router
-- [ ] `message_created` с `/unknown` → text-ответ «Unknown command. Send /help for available commands.»
-- [ ] `message_created` с `/id` → identity handler через command registry
-- [ ] `message_created` с текстом без `/` → text-ответ «Unknown command...» (identity catch-all удалён)
-- [ ] `bot_added` → text-ответ «Ready to help.» с `recipient` из event
-- [ ] `bot_started` → `mode: 'ignored'` (без изменений)
-- [ ] Существующие identity-тесты продолжают работать
+- [x] `message_created` с `/help` → command handler, не router
+- [x] `message_created` с `/unknown` → text-ответ «Unknown command. Send /help for available commands.»
+- [x] `message_created` с `/id` → identity handler через command registry
+- [x] `message_created` с текстом без `/` → text-ответ «Unknown command...» (identity catch-all удалён)
+- [x] `bot_added` → text-ответ «Ready to help.» с `recipient` из event
+- [x] `bot_started` → `mode: 'ignored'` (без изменений)
+- [x] Существующие identity-тесты продолжают работать
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** Tasks 1, 2, 3
 
@@ -102,16 +110,18 @@
 
 ### Task 5: Add command dispatch to `src/bot-platform/core/dry-run-pipeline.js`
 
+**Status:** Done
+
 **Description:** Добавить command dispatch в dry-run pipeline для паритета с live-pipeline (ADR-0018). Принимать command registry через options.
 
 **Acceptance criteria:**
-- [ ] `dry-run-pipeline` обрабатывает `/help` через command dispatch
-- [ ] `dry-run-pipeline` обрабатывает `/unknown` — возвращает «Unknown command» reply
-- [ ] `dry-run-pipeline` обрабатывает `bot_added` — возвращает «Ready to help.»
-- [ ] Существующие dry-run тесты продолжают работать
+- [x] `dry-run-pipeline` обрабатывает `/help` через command dispatch
+- [x] `dry-run-pipeline` обрабатывает `/unknown` — возвращает «Unknown command» reply
+- [x] `dry-run-pipeline` обрабатывает `bot_added` — возвращает «Ready to help.»
+- [x] Существующие dry-run тесты продолжают работать
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** Tasks 1, 2, 3
 
@@ -122,19 +132,21 @@
 
 ### Task 6: Create `tests/bot-platform/command-parser.test.js`
 
+**Status:** Done
+
 **Description:** Тесты для command-parser: положительные кейсы (`/help`, `/id`, `/status`), негативные (пустой текст, текст без `/`, только `/`), case-insensitive, аргументы.
 
 **Acceptance criteria:**
-- [ ] Тест: `/help` → `{ command: '/help', args: '' }`
-- [ ] Тест: `/status --verbose` → `{ command: '/status', args: '--verbose' }`
-- [ ] Тест: `hello` → `null`
-- [ ] Тест: `''` → `null`
-- [ ] Тест: `/` → `null`
-- [ ] Тест: `/Help` → `{ command: '/help', args: '' }`
-- [ ] Тест: `/id some args` → `{ command: '/id', args: 'some args' }`
+- [x] Тест: `/help` → `{ command: '/help', args: '' }`
+- [x] Тест: `/status --verbose` → `{ command: '/status', args: '--verbose' }`
+- [x] Тест: `hello` → `null`
+- [x] Тест: `''` → `null`
+- [x] Тест: `/` → `null`
+- [x] Тест: `/Help` → `{ command: '/help', args: '' }`
+- [x] Тест: `/id some args` → `{ command: '/id', args: 'some args' }`
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** Task 1
 
@@ -145,18 +157,20 @@
 
 ### Task 7: Create `tests/bot-platform/command-registry.test.js`
 
+**Status:** Done
+
 **Description:** Тесты для command-registry: lookup команд, getCommandList, обработчики возвращают правильные ответы.
 
 **Acceptance criteria:**
-- [ ] Тест: `lookup('/help')` возвращает объект с `handler`
-- [ ] Тест: `lookup('/id')` возвращает объект с `handler`
-- [ ] Тест: `lookup('/status')` возвращает объект с `handler`
-- [ ] Тест: `lookup('/unknown')` возвращает `null`
-- [ ] Тест: `getCommandList()` возвращает массив из 3 элементов
-- [ ] Тест: `/help` handler возвращает ответ с `kind: 'text'`
+- [x] Тест: `lookup('/help')` возвращает объект с `handler`
+- [x] Тест: `lookup('/id')` возвращает объект с `handler`
+- [x] Тест: `lookup('/status')` возвращает объект с `handler`
+- [x] Тест: `lookup('/unknown')` возвращает `null`
+- [x] Тест: `getCommandList()` возвращает массив из 3 элементов
+- [x] Тест: `/help` handler возвращает ответ с `kind: 'text'`
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** Task 2
 
@@ -167,18 +181,20 @@
 
 ### Task 8: Create `tests/bot-platform/bot-commands-pipeline.test.js`
 
+**Status:** Done
+
 **Description:** Интеграционные тесты pipeline с command dispatch: live-pipeline обрабатывает `/help`, `/id`, `/unknown`, `bot_added`, не-командный текст. Dry-run pipeline аналогично.
 
 **Acceptance criteria:**
-- [ ] Тест: live-pipeline + `/help` → mode !== 'ignored', response.text содержит список команд
-- [ ] Тест: live-pipeline + `/id` → mode !== 'ignored', response.kind === 'identity'
-- [ ] Тест: live-pipeline + `/unknown` → response.text содержит «Unknown command»
-- [ ] Тест: live-pipeline + `bot_added` → response.text === 'Ready to help.'
-- [ ] Тест: live-pipeline + `bot_started` → mode === 'ignored'
-- [ ] Тест: dry-run pipeline + `/help` → response с text полем
+- [x] Тест: live-pipeline + `/help` → mode !== 'ignored', response.text содержит список команд
+- [x] Тест: live-pipeline + `/id` → mode !== 'ignored', response.kind === 'identity'
+- [x] Тест: live-pipeline + `/unknown` → response.text содержит «Unknown command»
+- [x] Тест: live-pipeline + `bot_added` → response.text === 'Ready to help.'
+- [x] Тест: live-pipeline + `bot_started` → mode === 'ignored'
+- [x] Тест: dry-run pipeline + `/help` → response с text полем
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** Tasks 4, 5
 
@@ -189,16 +205,18 @@
 
 ### Task 9: Update `docs/decisions/README.md`
 
+**Status:** Done
+
 **Description:** Добавить ADR-0018, ADR-0019, ADR-0020 в индекс `docs/decisions/README.md`.
 
 **Acceptance criteria:**
-- [ ] ADR-0018 перечислен в README
-- [ ] ADR-0019 перечислен в README
-- [ ] ADR-0020 перечислен в README
-- [ ] Формат записи совпадает с существующими
+- [x] ADR-0018 перечислен в README
+- [x] ADR-0019 перечислен в README
+- [x] ADR-0020 перечислен в README
+- [x] Формат записи совпадает с существующими
 
 **Verification:**
-- [ ] `npm test` passes
+- [x] `npm test` passes
 
 **Dependencies:** None
 
@@ -209,16 +227,18 @@
 
 ### Task 10: Update `docs/project-context.md` and `docs/ideas/bot-commands.md`
 
+**Status:** Done
+
 **Description:** Обновить project-context.md: добавить описание bot commands системы. Обновить bot-commands.md: пометить ADRs как созданные, задачи как запланированные.
 
 **Acceptance criteria:**
-- [ ] `docs/project-context.md` содержит секцию о bot commands
-- [ ] `docs/ideas/bot-commands.md` ссылается на sprint-13
-- [ ] ADR-0018, 0019, 0020 помечены как Created/Accepted
+- [x] `docs/project-context.md` содержит секцию о bot commands
+- [x] `docs/ideas/bot-commands.md` ссылается на sprint-13
+- [x] ADR-0018, 0019, 0020 помечены как Created/Accepted
 
 **Verification:**
-- [ ] `npm test` passes
-- [ ] Документы не содержат секретов
+- [x] `npm test` passes
+- [x] Документы не содержат секретов
 
 **Dependencies:** Tasks 9
 
@@ -230,29 +250,29 @@
 
 ## Checkpoint: After Tasks 1-3 (Foundation)
 
-- [ ] `command-parser.js` создан и работает
-- [ ] `command-registry.js` создан и работает
-- [ ] `outbound-client.js` поддерживает `kind: 'text'` ответы
-- [ ] Существующие тесты не сломаны
-- [ ] `npm test` passes
+- [x] `command-parser.js` создан и работает
+- [x] `command-registry.js` создан и работает
+- [x] `outbound-client.js` поддерживает `kind: 'text'` ответы
+- [x] Существующие тесты не сломаны
+- [x] `npm test` passes (151 tests)
 
 ## Checkpoint: After Tasks 4-5 (Pipeline Integration)
 
-- [ ] Live pipeline обрабатывает команды и `bot_added`
-- [ ] Dry-run pipeline обрабатывает команды
-- [ ] Identity catch-all удалён (не-командный текст → «Unknown command»)
-- [ ] `npm test` passes
+- [x] Live pipeline обрабатывает команды и `bot_added`
+- [x] Dry-run pipeline обрабатывает команды
+- [x] Identity catch-all удалён (не-командный текст → «Unknown command»)
+- [x] `npm test` passes (153 tests)
 
 ## Checkpoint: After Tasks 6-8 (Tests)
 
-- [ ] 3 новых тест-файла созданы
-- [ ] Все тесты проходят
-- [ ] Команды работают end-to-end через pipeline
+- [x] 3 новых тест-файла созданы
+- [x] Все тесты проходят (185 tests)
+- [x] Команды работают end-to-end через pipeline
 
 ## Checkpoint: After Tasks 9-10 (Docs)
 
-- [ ] `docs/decisions/README.md` обновлён
-- [ ] `docs/project-context.md` обновлён
-- [ ] `docs/ideas/bot-commands.md` обновлён
-- [ ] Нет секретов и реальных идентификаторов
-- [ ] Готово к ревью
+- [x] `docs/decisions/README.md` обновлён
+- [x] `docs/project-context.md` обновлён
+- [x] `docs/ideas/bot-commands.md` обновлён
+- [x] Нет секретов и реальных идентификаторов
+- [x] Готово к ревью

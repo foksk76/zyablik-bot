@@ -31,7 +31,7 @@ test('long polling cycle processes synthetic user updates safely', async () => {
   assert.equal(result.updates, 1);
   assert.equal(result.results.length, 1);
   assert.equal(result.results[0].mode, 'dry-run');
-  assert.equal(result.results[0].response.kind, 'identity');
+  assert.equal(result.results[0].response.kind, 'text');
   assert.equal(result.results[0].response.recipient.kind, 'user');
   assert.equal(result.results[0].outbound.request.body.recipientType, 'user_id');
 });
@@ -89,7 +89,7 @@ test('long polling service can route live inbound updates through identity pipel
             }
           }
         },
-        payload: response.zabbix
+        payload: response.recipient || response.zabbix
       };
     }
   };
@@ -113,13 +113,13 @@ test('long polling service can route live inbound updates through identity pipel
 
   assert.equal(state.results.length, 1);
   assert.equal(state.results[0].mode, 'live');
-  assert.equal(state.results[0].response.kind, 'identity');
+  assert.equal(state.results[0].response.kind, 'text');
   assert.equal(state.results[0].response.recipient.kind, 'user');
   assert.equal(state.results[0].outbound.mode, 'live');
   assert.equal(state.results[0].outbound.request.body.notify, true);
   assert.equal(outboundCalls.length, 1);
-  assert.equal(outboundCalls[0].zabbix.recipientType, 'user_id');
-  assert.equal(outboundCalls[0].zabbix.to, '<synthetic-user-id>');
+  assert.equal(outboundCalls[0].recipient.kind, 'user');
+  assert.equal(outboundCalls[0].recipient.value, '<synthetic-user-id>');
   assert.ok(logEntries.some((entry) => entry.message === 'long polling update processed'));
 
   service.stop();

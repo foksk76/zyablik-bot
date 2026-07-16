@@ -35,7 +35,7 @@ test('buildMaxOutboundPayload creates a minimal payload from identity response',
 test('buildMaxOutboundPayload rejects invalid response', () => {
   assert.throws(
     () => buildMaxOutboundPayload({}),
-    /Invalid identity response/
+    /Invalid response/
   );
 });
 
