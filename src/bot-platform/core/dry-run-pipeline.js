@@ -2,15 +2,23 @@
 
 const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-normalizer');
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
-const { createEventRouter } = require('./event-router');
 const { parseCommand } = require('./command-parser');
 const { createCommandRegistry } = require('./command-registry');
 
+const REPLY_UPDATE_TYPES = Object.freeze(['message_created', 'bot_added']);
 const WELCOME_TEXT = 'Ready to help.';
 const UNKNOWN_COMMAND_TEXT = 'Unknown command. Send /help for available commands.';
 
 async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}) {
   const updateType = getUpdateType(maxPayload);
+
+  if (!REPLY_UPDATE_TYPES.includes(updateType)) {
+    return {
+      mode: 'ignored',
+      networkEnabled: false,
+      updateType: updateType || 'unknown'
+    };
+  }
 
   if (updateType === 'bot_added') {
     const event = normalizeMaxEvent(maxPayload);
@@ -30,8 +38,6 @@ async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}
   }
 
   const event = normalizeMaxEvent(maxPayload);
-  const router = createEventRouter(routeHandlers);
-
   const parsed = parseCommand(event.message.text);
 
   if (parsed) {
@@ -70,6 +76,7 @@ async function runMaxIdentityDryRun(maxPayload, routeHandlers = {}, options = {}
 
 module.exports = {
   runMaxIdentityDryRun,
+  REPLY_UPDATE_TYPES,
   WELCOME_TEXT,
   UNKNOWN_COMMAND_TEXT
 };

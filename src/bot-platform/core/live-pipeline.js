@@ -1,7 +1,6 @@
 'use strict';
 
 const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-normalizer');
-const { createEventRouter } = require('./event-router');
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
 const { parseCommand } = require('./command-parser');
 const { createCommandRegistry } = require('./command-registry');
@@ -12,8 +11,6 @@ const WELCOME_TEXT = 'Ready to help.';
 const UNKNOWN_COMMAND_TEXT = 'Unknown command. Send /help for available commands.';
 
 function createIdentityUpdateProcessor(options = {}) {
-  const routeHandlers = options.routeHandlers || {};
-  const router = options.router || createEventRouter(routeHandlers);
   const outboundClient = options.outboundClient || createMaxOutboundClient(options.outboundClientOptions);
   const commandRegistry = options.commandRegistry || createCommandRegistry({
     identityHandler: options.identityHandler || null

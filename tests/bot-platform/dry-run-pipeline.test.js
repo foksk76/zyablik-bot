@@ -72,7 +72,7 @@ test('dry-run pipeline does not expose raw event payload in response', async () 
 
 test('dry-run pipeline rejects invalid MAX payload safely', async () => {
   await assert.rejects(
-    runMaxIdentityDryRun({}, routeHandlers),
+    runMaxIdentityDryRun({ update_type: 'message_created' }, routeHandlers),
     /Unsupported MAX chat type/
   );
 });
