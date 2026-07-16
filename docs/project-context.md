@@ -34,7 +34,7 @@ docs/test-runs/final-acceptance-run.md
 Task 18: live MAX Identity Bot for user_id / chat_id
 ```
 
-Task 13 выполнена и подтверждена в `docs/test-runs/task-13-transport-mode-switch-run.md`.
+Task 13 выполнена и подтверждена (промежуточный прогон удалён из репозитория).
 
 Task 14 уже выполнен и относится к поддерживающим работам bot-platform.
 
