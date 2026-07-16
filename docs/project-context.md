@@ -121,5 +121,4 @@ docs/decisions/
 docs/decisions/README.md
 docs/project-acceptance.md
 AGENTS.md
-docs/documentation-policy.md
 ```

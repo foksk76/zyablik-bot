@@ -85,7 +85,6 @@ HTTP 200
 Live-реализация ведется отдельной задачей:
 
 ```text
-docs/task-18-breakdown.md -> sprint breakdown
 tasks/sprints/ -> Task 18.9-18.10
 docs/runbooks/live-identity-bot.md -> operational runbook
 ```
@@ -99,7 +98,7 @@ docs/runbooks/live-identity-bot.md -> operational runbook
 Pre-code source gate закрыт в Task 18.1:
 
 ```text
-docs/specs/task-18-1-max-api-source.md
+docs/identity-plugin/max-api-source.md
 ```
 
 Документ подтверждает официальный источник MAX Bot API. Task 18.2 выбрал первый live transport mode:
@@ -139,7 +138,6 @@ docs/runbooks/live-identity-bot.md
 
 ## Документы по теме
 
-- [`task-18-breakdown.md`](task-18-breakdown.md) — текущая декомпозиция live MAX Identity Bot.
 - [`runbooks/live-identity-bot.md`](runbooks/live-identity-bot.md) — запуск live MAX Identity Bot.
-- [`test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) — проверка safe test bot.
+- [`test-runs/task-18-live-acceptance-run.md`](test-runs/task-18-live-acceptance-run.md) — live-приемка MAX Identity Bot.
 - [`test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) — историческая приемка доставки Zabbix -> МАХ, не live-приемка identity bot.

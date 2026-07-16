@@ -16,7 +16,7 @@ Task 18 должен довести MAX Identity Bot до live-приемки:
 реальное сообщение в MAX -> ответ бота с RecipientType и To
 ```
 
-Task 18.1 подтвердил официальный MAX Bot API source в `docs/specs/task-18-1-max-api-source.md`.
+Task 18.1 подтвердил официальный MAX Bot API source в `docs/identity-plugin/max-api-source.md`.
 
 Официальная документация MAX API поддерживает два способа получения событий:
 
