@@ -2,7 +2,7 @@
 
 Документ является единственным источником project-level критериев завершения проекта.
 
-Критерии конкретных задач остаются в `tasks/todo.md`. Здесь фиксируются только условия, при которых проект в целом считается завершенным.
+Критерии конкретных задач остаются в `tasks/sprints/`. Здесь фиксируются только условия, при которых проект в целом считается завершенным.
 
 ## Граница приемки
 
@@ -35,7 +35,7 @@
 - [ ] Существующий Telegram-канал не нарушен и продолжает работать.
 - [ ] Документация позволяет повторить настройку без неформальных пояснений.
 - [ ] В документации и примерах нет реальных авторизационных значений, боевых идентификаторов, внутренних адресов и организационных названий.
-- [ ] Завершены задачи из `tasks/todo.md`, относящиеся к проекту.
+- [ ] Завершены задачи из `tasks/sprints/`, относящиеся к проекту.
 - [ ] Выполнен `npm test` без ошибок.
 - [ ] Проверка GitHub Actions завершилась успешно.
 - [ ] Проект не вышел за согласованные границы.
@@ -52,7 +52,7 @@
 | Test message доставляется в МАХ | [`docs/test-runs/max-media-type-manual-run.md`](test-runs/max-media-type-manual-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Problem доставляется в МАХ | [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Recovery доставляется в МАХ | [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
-| Bot-platform формирует ответ с `user_id` / `chat_id` в dry-run | [`docs/test-runs/task-12-5-identity-run.md`](test-runs/task-12-5-identity-run.md), [`docs/test-runs/task-12-12-dry-run-cli-run.md`](test-runs/task-12-12-dry-run-cli-run.md), [`docs/test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) |
+| Bot-platform формирует ответ с `user_id` / `chat_id` в dry-run | `npm test`, `docs/test-runs/final-acceptance-run.md` |
 | Бот МАХ получает реальное входящее сообщение | Обезличенный live test-run для MAX Identity Bot |
 | Бот МАХ отправляет реальный ответ через MAX Bot API | Обезличенный live test-run для MAX Identity Bot |
 | Бот МАХ возвращает `user_id` в личном диалоге | Обезличенный live test-run для MAX Identity Bot |
@@ -60,8 +60,8 @@
 | Runtime-секреты MAX Bot API хранятся вне репозитория | Обезличенный live test-run для MAX Identity Bot, `.gitignore`, локальная конфигурация стенда |
 | Telegram-канал продолжает работать | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Документация позволяет повторить настройку | [`docs/zabbix-media-type.md`](zabbix-media-type.md), [`examples/media-params.md`](../examples/media-params.md), [`examples/media-type-recreate-checklist.md`](../examples/media-type-recreate-checklist.md) |
-| Нет реальных авторизационных значений и боевых идентификаторов | [`docs/test-runs/max-media-type-manual-run.md`](test-runs/max-media-type-manual-run.md), [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/task-12-9-config-logger-run.md`](test-runs/task-12-9-config-logger-run.md), [`docs/test-runs/task-12-10-outbound-client-run.md`](test-runs/task-12-10-outbound-client-run.md), [`docs/test-runs/task-12-11-inbound-webhook-run.md`](test-runs/task-12-11-inbound-webhook-run.md), [`docs/test-runs/task-14-safe-test-bot-run.md`](test-runs/task-14-safe-test-bot-run.md) |
-| Завершены задачи из `tasks/todo.md`, относящиеся к проекту | [`tasks/todo.md`](../tasks/todo.md) |
+| Нет реальных авторизационных значений и боевых идентификаторов | [`docs/test-runs/max-media-type-manual-run.md`](test-runs/max-media-type-manual-run.md), [`docs/test-runs/max-problem-recovery-run.md`](test-runs/max-problem-recovery-run.md), [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
+| Завершены задачи из `tasks/sprints/`, относящиеся к проекту | [`tasks/sprints/`](../tasks/sprints/) |
 | `npm test` проходит без ошибок | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md), текущий `npm test` |
 | GitHub Actions завершился успешно | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Проект не вышел за согласованные границы | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md), [`docs/project-context.md`](project-context.md) |
@@ -81,7 +81,7 @@
 
 ## Финальный приемочный прогон
 
-Финальный прогон выполняется после закрытия задач из `tasks/todo.md`.
+Финальный прогон выполняется после закрытия задач из `tasks/sprints/`.
 
 Последовательность:
 

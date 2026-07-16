@@ -213,3 +213,38 @@ test('normalizeMaxEvent rejects dialog event without sender id', () => {
     /Missing MAX recipient value/
   );
 });
+
+test('normalizeMaxEvent maps channel message_created to chat recipient', () => {
+  const event = normalizeMaxEvent({
+    update_type: 'message_created',
+    timestamp: 1,
+    message: {
+      recipient: {
+        chat_id: 3003,
+        chat_type: 'channel'
+      },
+      body: { text: 'channel post' },
+      sender: { user_id: 1001 }
+    }
+  });
+
+  assert.equal(event.recipient.kind, 'chat');
+  assert.equal(event.recipient.value, '3003');
+  assert.equal(event.message.text, 'channel post');
+});
+
+test('normalizeMaxEvent output has exactly {source, recipient, message, raw}', () => {
+  const event = normalizeMaxEvent({
+    update_type: 'message_created',
+    timestamp: 1,
+    message: {
+      id: '<synthetic-message-id>',
+      sender: { user_id: 1001 },
+      recipient: { chat_id: 2002, chat_type: 'chat' },
+      body: { text: 'hello' }
+    }
+  });
+
+  const keys = Object.keys(event);
+  assert.deepEqual(keys.sort(), ['message', 'raw', 'recipient', 'source']);
+});

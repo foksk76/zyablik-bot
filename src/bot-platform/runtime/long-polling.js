@@ -40,9 +40,10 @@ function createLongPollingService(options = {}) {
   const onError = typeof options.onError === 'function' ? options.onError : null;
   const onCycleSuccess = typeof options.onCycleSuccess === 'function' ? options.onCycleSuccess : null;
   const maxCycles = normalizeMaxCycles(options.maxCycles);
+  const routeHandlers = options.routeHandlers || {};
   const processUpdate = typeof options.processUpdate === 'function'
     ? options.processUpdate
-    : runMaxIdentityDryRun;
+    : (payload) => runMaxIdentityDryRun(payload, routeHandlers);
 
   const state = {
     mode: 'long_polling',

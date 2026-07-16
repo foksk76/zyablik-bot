@@ -5,6 +5,9 @@ const path = require('node:path');
 
 const { createLiveBotPlatformService } = require('../../src/bot-platform/runtime');
 const { MAX_API_ERROR_CODE } = require('../../src/bot-platform/transports/max');
+const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
+
+const routeHandlers = { identity: handleIdentityEvent };
 
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
 
@@ -67,6 +70,7 @@ test('live service wires inbound updates into outbound MAX response delivery', a
     MAX_BOT_TOKEN: 'synthetic-bot-token'
   }, {
     httpClient,
+    routeHandlers,
     logger: createCaptureLogger(entries),
     sleep: async () => {},
     maxCycles: 1,
@@ -147,6 +151,7 @@ test('live service passes poll config and acknowledges marker after successful p
   }, {
     inboundClient,
     outboundClient,
+    routeHandlers,
     logger: createCaptureLogger([]),
     sleep: async () => {},
     maxCycles: 1,

@@ -68,3 +68,28 @@ test('createInternalEvent rejects unsupported recipient kind', () => {
     /Unsupported recipient kind/
   );
 });
+
+test('createInternalEvent throws when recipient is missing entirely', () => {
+  assert.throws(
+    () => createInternalEvent({}),
+    /Unsupported recipient kind/
+  );
+});
+
+test('createInternalEvent output has exactly {source, recipient, message, raw}', () => {
+  const event = createInternalEvent({
+    recipient: { kind: 'user', value: '<synthetic-user-id>' },
+    message: { text: 'hello' },
+    raw: { kind: 'reference', value: '<synthetic-raw>' },
+    extra: 'should be ignored'
+  });
+
+  const keys = Object.keys(event);
+  assert.deepEqual(keys.sort(), ['message', 'raw', 'recipient', 'source']);
+  assert.equal(event.source, 'max');
+  assert.equal(event.recipient.kind, 'user');
+  assert.equal(event.recipient.value, '<synthetic-user-id>');
+  assert.equal(event.message.text, 'hello');
+  assert.equal(event.raw.kind, 'reference');
+  assert.equal(event.raw.value, '<synthetic-raw>');
+});

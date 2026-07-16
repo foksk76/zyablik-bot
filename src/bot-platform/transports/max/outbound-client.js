@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildSafeTransportErrorDetails } = require('./error-details');
+const { normalizeHttpResponse, createLogger } = require('./shared-helpers');
 
 const moduleName = 'max-outbound-client';
 const MAX_API_ERROR_CODE = 'MAX_API_ERROR';
@@ -126,20 +127,6 @@ function buildRecipientUrl(apiUrl, recipientType, to) {
   return url.toString();
 }
 
-function normalizeHttpResponse(response) {
-  if (response && typeof response === 'object' && !Array.isArray(response)) {
-    return {
-      statusCode: Number.isInteger(response.statusCode) ? response.statusCode : 200,
-      body: Object.prototype.hasOwnProperty.call(response, 'body') ? response.body : response
-    };
-  }
-
-  return {
-    statusCode: 200,
-    body: response
-  };
-}
-
 function createMaxApiError(statusCode, extraDetails = {}) {
   const error = new Error('MAX API request failed');
   error.code = MAX_API_ERROR_CODE;
@@ -207,16 +194,6 @@ function buildMaxOutboundPayload(response) {
     to,
     text: typeof identityResponse.text === 'string' ? identityResponse.text : ''
   };
-}
-
-function createLogger(logger) {
-  if (!logger || typeof logger.info !== 'function') {
-    return {
-      info() {}
-    };
-  }
-
-  return logger;
 }
 
 module.exports = {

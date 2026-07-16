@@ -4,8 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { createMaxInboundWebhookHandler } = require('../../src/bot-platform/transports/max');
+const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
+const routeHandlers = { identity: handleIdentityEvent };
 
 function readFixture(fileName) {
   const filePath = path.join(fixturesDir, fileName);
@@ -13,7 +15,7 @@ function readFixture(fileName) {
 }
 
 test('MAX inbound webhook handler accepts user fixture request', async () => {
-  const handler = createMaxInboundWebhookHandler();
+  const handler = createMaxInboundWebhookHandler({ routeHandlers });
   const result = await handler.handle({
     body: readFixture('max-inbound-user.fixture.json')
   });
@@ -27,7 +29,7 @@ test('MAX inbound webhook handler accepts user fixture request', async () => {
 });
 
 test('MAX inbound webhook handler accepts chat fixture request', async () => {
-  const handler = createMaxInboundWebhookHandler();
+  const handler = createMaxInboundWebhookHandler({ routeHandlers });
   const result = await handler.handle({
     body: readFixture('max-inbound-chat.fixture.json')
   });
@@ -41,7 +43,7 @@ test('MAX inbound webhook handler accepts chat fixture request', async () => {
 });
 
 test('MAX inbound webhook handler rejects invalid request', async () => {
-  const handler = createMaxInboundWebhookHandler();
+  const handler = createMaxInboundWebhookHandler({ routeHandlers });
 
   await assert.rejects(
     handler.handle({ body: null }),

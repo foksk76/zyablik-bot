@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { runMaxIdentityDryRun } = require('../../src/bot-platform/app');
+const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
 
@@ -12,8 +13,10 @@ function readFixture(fileName) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+const routeHandlers = { identity: handleIdentityEvent };
+
 test('dry-run pipeline returns identity response for user fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -27,7 +30,7 @@ test('dry-run pipeline returns identity response for user fixture', async () => 
 });
 
 test('dry-run pipeline returns identity response for chat fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'));
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'), routeHandlers);
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -39,7 +42,7 @@ test('dry-run pipeline returns identity response for chat fixture', async () => 
 });
 
 test('dry-run pipeline does not expose raw event payload in response', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
 
   assert.equal(result.response.raw, undefined);
   assert.doesNotMatch(result.response.text, /<synthetic-message-id>/);
@@ -49,7 +52,7 @@ test('dry-run pipeline does not expose raw event payload in response', async () 
 
 test('dry-run pipeline rejects invalid MAX payload safely', async () => {
   await assert.rejects(
-    runMaxIdentityDryRun({}),
+    runMaxIdentityDryRun({}, routeHandlers),
     /Unsupported MAX chat type/
   );
 });

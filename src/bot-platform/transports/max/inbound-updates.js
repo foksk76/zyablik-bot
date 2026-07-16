@@ -3,6 +3,7 @@
 const { CONFIG_VALIDATION_ERROR_CODE } = require('../../core/config');
 const { MAX_API_ERROR_CODE } = require('./outbound-client');
 const { buildSafeTransportErrorDetails } = require('./error-details');
+const { normalizeHttpResponse, createLogger } = require('./shared-helpers');
 
 const moduleName = 'max-inbound-updates-client';
 const DEFAULT_API_URL = 'https://platform-api2.max.ru';
@@ -147,20 +148,6 @@ function normalizeUpdatesResponse(body) {
   };
 }
 
-function normalizeHttpResponse(response) {
-  if (response && typeof response === 'object' && !Array.isArray(response)) {
-    return {
-      statusCode: Number.isInteger(response.statusCode) ? response.statusCode : 200,
-      body: Object.prototype.hasOwnProperty.call(response, 'body') ? response.body : response
-    };
-  }
-
-  return {
-    statusCode: 200,
-    body: response
-  };
-}
-
 function normalizeResponseBody(body) {
   if (typeof body === 'string') {
     try {
@@ -280,16 +267,6 @@ function createHttpClient(httpClient) {
   }
 
   return null;
-}
-
-function createLogger(logger) {
-  if (logger && typeof logger.info === 'function') {
-    return logger;
-  }
-
-  return {
-    info() {}
-  };
 }
 
 module.exports = {

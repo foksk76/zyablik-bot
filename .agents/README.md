@@ -6,7 +6,6 @@
 
 ```text
 .agents/
-  project-context.md              короткий рабочий контекст агента
   README.md                       карта AI workspace
   checklists/
     pre-commit.md                 проверка перед фиксацией изменений
@@ -23,8 +22,7 @@
 Каноничное место для задач:
 
 ```text
-tasks/plan.md
-tasks/todo.md
+tasks/sprints/
 ```
 
 ## Где искать решения
@@ -41,10 +39,8 @@ docs/decisions/
 
 ```text
 docs/decisions/README.md
-docs/documentation-policy.md
 docs/project-context.md
-tasks/plan.md
-tasks/todo.md
+tasks/sprints/
 ```
 
 ## Принцип

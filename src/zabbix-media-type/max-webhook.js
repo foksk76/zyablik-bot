@@ -114,28 +114,28 @@ try {
         }
     }
 
-    if (params.Severity == 'Warning') {
+    if (params.Severity === 'Warning') {
         icon = '⚠️';
         Max.notify = false;
-    } else if (params.Severity == 'Average') {
+    } else if (params.Severity === 'Average') {
         icon = String.fromCodePoint('0x2622');
-    } else if (params.Severity == 'High') {
+    } else if (params.Severity === 'High') {
         icon = '⛔';
-    } else if (params.Severity == 'Disaster') {
+    } else if (params.Severity === 'Disaster') {
         icon = String.fromCodePoint('0x1F525');
     } else {
         icon = String.fromCodePoint('0x2139');
         Max.notify = false;
     }
 
-    if (params.Trigger_status == 'OK') {
+    if (params.Trigger_status === 'OK') {
         icon = '✅';
         Max.notify = false;
     }
 
     Max.message = icon + ' ' + params.Subject + '\n' + params.Message;
 
-    if (params.ParseMode == 'markdown') {
+    if (params.ParseMode === 'markdown') {
         Max.message = Max.escapeMarkup(Max.message, params.ParseMode);
     }
 

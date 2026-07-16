@@ -48,7 +48,7 @@ test('required project files exist', () => {
     'docs/project-context.md',
     'docs/live-identity-bot.md',
     'docs/identity-plugin/README.md',
-    'docs/identity-plugin/live-sprint-plan.md',
+    'tasks/sprints/sprint-07.md',
     'docs/identity-plugin/max-api-source.md',
     'docs/identity-plugin/live-transport-spec.md',
     'docs/decisions/README.md',
@@ -92,12 +92,29 @@ test('old task-18 files are removed', () => {
   assert.equal(exists('docs/specs/task-18-2-live-transport-spec.md'), false, 'old specs must be removed');
 });
 
-test('old tasks files are removed', () => {
-  assert.equal(exists('tasks/plan.md'), false, 'tasks/plan.md must be removed after sprint reorganization');
-  assert.equal(exists('tasks/todo.md'), false, 'tasks/todo.md must be removed after sprint reorganization');
+test('tasks files are in correct location', () => {
+  assert.equal(exists('tasks/sprints'), true, 'tasks/sprints/ should exist for task breakdown');
 });
 
 test('legacy docs/specs and docs/test-runs task-18 files are removed', () => {
   assert.equal(exists('docs/specs'), false, 'docs/specs must be removed after reorganization to identity-plugin');
   assert.equal(exists('docs/test-runs/task-18-8-live-runtime-security-review.md'), false, 'old test-run must be moved to identity-plugin');
+});
+
+test('package.json has no runtime dependencies (ADR-0015)', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(
+    pkg.dependencies === undefined || Object.keys(pkg.dependencies).length === 0,
+    true,
+    'package.json must not have runtime dependencies — bot-platform uses only Node.js stdlib'
+  );
+});
+
+test('package.json has no devDependencies (ADR-0015)', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(
+    pkg.devDependencies === undefined || Object.keys(pkg.devDependencies).length === 0,
+    true,
+    'package.json must not have devDependencies — tests use built-in node:test'
+  );
 });

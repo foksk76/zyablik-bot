@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 
 const { createIdentityUpdateProcessor } = require('../../src/bot-platform/core');
 const { getUpdateType } = require('../../src/bot-platform/transports/max');
+const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
+
+const routeHandlers = { identity: handleIdentityEvent };
 
 function createRecordingOutbound() {
   const calls = [];
@@ -24,7 +27,7 @@ function createRecordingOutbound() {
 
 test('identity processor replies to message_created updates', async () => {
   const outbound = createRecordingOutbound();
-  const processUpdate = createIdentityUpdateProcessor({ outboundClient: outbound });
+  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient: outbound });
 
   const result = await processUpdate({
     update_type: 'message_created',
@@ -44,7 +47,7 @@ test('identity processor replies to message_created updates', async () => {
 
 test('identity processor ignores bot_added without sending an outbound response', async () => {
   const outbound = createRecordingOutbound();
-  const processUpdate = createIdentityUpdateProcessor({ outboundClient: outbound });
+  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient: outbound });
 
   const result = await processUpdate({
     update_type: 'bot_added',
@@ -63,7 +66,7 @@ test('identity processor ignores bot_added without sending an outbound response'
 
 test('identity processor ignores bot_started without sending an outbound response', async () => {
   const outbound = createRecordingOutbound();
-  const processUpdate = createIdentityUpdateProcessor({ outboundClient: outbound });
+  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient: outbound });
 
   const result = await processUpdate({
     update_type: 'bot_started',
@@ -80,7 +83,7 @@ test('identity processor ignores bot_started without sending an outbound respons
 
 test('identity processor ignores updates of unknown type without throwing', async () => {
   const outbound = createRecordingOutbound();
-  const processUpdate = createIdentityUpdateProcessor({ outboundClient: outbound });
+  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient: outbound });
 
   const result = await processUpdate({
     update_type: 'callback_query',

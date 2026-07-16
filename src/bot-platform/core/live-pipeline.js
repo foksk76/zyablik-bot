@@ -2,15 +2,13 @@
 
 const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-normalizer');
 const { createEventRouter } = require('./event-router');
-const { handleIdentityEvent } = require('../plugins/identity');
 const { createMaxOutboundClient } = require('../transports/max/outbound-client');
 
 const REPLY_UPDATE_TYPES = Object.freeze(['message_created']);
 
 function createIdentityUpdateProcessor(options = {}) {
-  const router = options.router || createEventRouter({
-    identity: handleIdentityEvent
-  });
+  const routeHandlers = options.routeHandlers || {};
+  const router = options.router || createEventRouter(routeHandlers);
   const outboundClient = options.outboundClient || createMaxOutboundClient(options.outboundClientOptions);
 
   return async function processUpdate(maxPayload) {

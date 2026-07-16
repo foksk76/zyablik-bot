@@ -35,13 +35,13 @@ docs/project-acceptance.md
 Критерии отдельных задач оставить в:
 
 ```text
-tasks/todo.md
+tasks/sprints/
 ```
 
 План фаз, зависимости и checkpoints оставить в:
 
 ```text
-tasks/plan.md
+tasks/sprints/
 ```
 
 Методы разработки, тестирования и прогонов описывать в:
@@ -50,7 +50,7 @@ tasks/plan.md
 DEVELOPMENT.md
 ```
 
-Для задач в `tasks/todo.md` явно указывать:
+Для задач в `tasks/sprints/` явно указывать:
 
 - Method;
 - Skill;
@@ -79,7 +79,7 @@ DEVELOPMENT.md
 
 Решение: отклонено.
 
-### Хранить критерии завершения в tasks/plan.md
+### Хранить критерии завершения в tasks/sprints/
 
 Плюсы:
 
@@ -111,7 +111,6 @@ DEVELOPMENT.md
 ## Последствия
 
 - `docs/project-acceptance.md` становится единственным источником project-level критериев завершения первого этапа.
-- `tasks/todo.md` хранит только критерии конкретных задач.
-- `tasks/plan.md` хранит порядок выполнения, зависимости, риски и checkpoints без дублирования project-level приемки.
+- `tasks/sprints/` хранит критерии конкретных задач, порядок выполнения, зависимости, риски и checkpoints без дублирования project-level приемки.
 - `DEVELOPMENT.md` хранит методы разработки, тестирования, прогонов и соответствующие skills.
 - Изменение project-level критериев требует нового ADR или обновления этого решения.

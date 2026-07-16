@@ -12,17 +12,9 @@
 
 ## Live MAX Identity Bot
 
-Live test-run для Task 18 пока отсутствует.
+- [`task-18-live-acceptance-run.md`](task-18-live-acceptance-run.md) — live-приемка MAX Identity Bot: user_id и chat_id подтверждены (2026-07-15).
 
-- [`task-18-8-live-runtime-security-review.md`](task-18-8-live-runtime-security-review.md) — security review и failure-mode coverage для live runtime до live acceptance.
-
-Для приемки нужен отдельный обезличенный документ, который подтвердит:
-
-- реальное входящее сообщение МАХ;
-- реальный ответ через MAX Bot API;
-- ответ `RecipientType: user_id` в личном диалоге;
-- ответ `RecipientType: chat_id` в chat-сценарии;
-- отсутствие реальных токенов и идентификаторов в репозитории.
+Live-приемка выполнена. Бот получает входящие сообщения и отправляет ответы через MAX Bot API.
 
 ## Bot-platform Dry-run И Safe-test
 

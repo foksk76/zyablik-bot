@@ -32,8 +32,8 @@
 
 - [x] В spec есть прямые ссылки на официальные страницы MAX Bot API или цитаты.
 - [x] В spec явно отмечено: подтверждено официальной документацией / SDK / только локальным наблюдением / неизвестно.
-- [ ] Вывод в `docs/live-identity-bot.md` обновлен по результатам spec.
-- [ ] `npm test` passes.
+- [x] Вывод в `docs/live-identity-bot.md` обновлен по результатам spec.
+- [x] `npm test` passes.
 
 **Dependencies:** Live-диагностика из Sprint 4, `docs/identity-plugin/max-api-source.md`.
 

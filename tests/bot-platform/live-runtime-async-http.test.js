@@ -46,6 +46,96 @@ test('runFetchRequest rejects with a timeout when the child hangs and does not b
   assert.ok(elapsed >= timeoutMs, `timeout should elapse before rejection (elapsed=${elapsed}ms)`);
 });
 
+test('runFetchRequest rejects when child exits non-zero with JSON stderr', async () => {
+  const fetchBinary = process.execPath;
+  const errorScript = [
+    "const payload = JSON.stringify({",
+    "  message: 'synthetic fetch error',",
+    "  cause: { code: 'ECONNREFUSED', message: 'connect refused', hostname: 'synthetic.host' }",
+    "});",
+    "process.stderr.write(payload);",
+    "process.exit(1);"
+  ].join('\n');
+
+  await assert.rejects(
+    runFetchRequest(fetchBinary, {}, 5000, errorScript),
+    (error) => {
+      assert.equal(error.message, 'synthetic fetch error');
+      assert.equal(error.cause.code, 'ECONNREFUSED');
+      assert.equal(error.cause.message, 'connect refused');
+      assert.equal(error.cause.hostname, 'synthetic.host');
+      return true;
+    }
+  );
+});
+
+test('runFetchRequest rejects when child exits non-zero with empty stderr', async () => {
+  const fetchBinary = process.execPath;
+  const errorScript = "process.exit(1);";
+
+  await assert.rejects(
+    runFetchRequest(fetchBinary, {}, 5000, errorScript),
+    (error) => {
+      assert.equal(error.message, 'Live HTTP request failed');
+      return true;
+    }
+  );
+});
+
+test('runFetchRequest rejects when child exits non-zero with malformed stderr', async () => {
+  const fetchBinary = process.execPath;
+  const errorScript = "process.stderr.write('not-json-at-all'); process.exit(1);";
+
+  await assert.rejects(
+    runFetchRequest(fetchBinary, {}, 5000, errorScript),
+    (error) => {
+      assert.equal(error.message, 'not-json-at-all');
+      return true;
+    }
+  );
+});
+
+test('runFetchRequest rejects when child exits 0 with empty stdout', async () => {
+  const fetchBinary = process.execPath;
+  const emptyScript = "process.exit(0);";
+
+  await assert.rejects(
+    runFetchRequest(fetchBinary, {}, 5000, emptyScript),
+    (error) => {
+      assert.equal(error.message, 'Live HTTP request returned an empty response');
+      return true;
+    }
+  );
+});
+
+test('runFetchRequest rejects when child exits 0 with invalid JSON stdout', async () => {
+  const fetchBinary = process.execPath;
+  const badJsonScript = "process.stdout.write('not-json>'); process.exit(0);";
+
+  await assert.rejects(
+    runFetchRequest(fetchBinary, {}, 5000, badJsonScript),
+    (error) => {
+      assert.equal(error.message, 'Live HTTP request returned invalid JSON');
+      return true;
+    }
+  );
+});
+
+test('runFetchRequest resolves with parsed JSON on successful child exit', async () => {
+  const fetchBinary = process.execPath;
+  const successScript = [
+    "process.stdout.write(JSON.stringify({",
+    "  statusCode: 200,",
+    "  body: { ok: true }",
+    "}));"
+  ].join('\n');
+
+  const result = await runFetchRequest(fetchBinary, {}, 5000, successScript);
+
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(result.body, { ok: true });
+});
+
 test('live service can be stopped promptly while a poll cycle is in flight', async () => {
   // A live service whose inbound poll never resolves (simulates a hung
   // long-poll). stop() must return without waiting for the poll to settle.

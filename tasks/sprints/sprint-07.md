@@ -103,11 +103,11 @@ Outcome: live `user_id` and `chat_id` scenarios are proven with sanitized eviden
 
 Checkpoint:
 
-- [ ] Bot replies visibly in personal dialog.
-- [ ] Bot replies visibly in chat scenario.
-- [ ] Sanitized live test-run is committed.
-- [ ] `docs/live-identity-bot.md` references the live run.
-- [ ] `npm test` passes.
+- [x] Bot replies visibly in personal dialog.
+- [x] Bot replies visibly in chat scenario.
+- [x] Sanitized live test-run is committed (`docs/test-runs/task-18-live-acceptance-run.md`).
+- [x] `docs/live-identity-bot.md` references the live run.
+- [x] `npm test` passes.
 
 ## Parallelization
 
@@ -132,8 +132,8 @@ Must be sequential:
 
 ## Definition Of Done
 
-- [ ] All sprints complete.
-- [ ] Live user and chat scenarios have sanitized evidence.
-- [ ] No real tokens, IDs, internal URLs or organization names are committed.
-- [ ] `npm test` passes.
-- [ ] `docs/live-identity-bot.md` is synchronized.
+- [x] All sprints complete.
+- [x] Live user and chat scenarios have sanitized evidence.
+- [x] No real tokens, IDs, internal URLs or organization names are committed.
+- [x] `npm test` passes.
+- [x] `docs/live-identity-bot.md` is synchronized.

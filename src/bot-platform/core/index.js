@@ -5,6 +5,7 @@ const { runMaxIdentityDryRun } = require('./dry-run-pipeline');
 const { createIdentityUpdateProcessor } = require('./live-pipeline');
 const { createBotPlatformConfig, createLiveRuntimeConfig } = require('./config');
 const { createSafeLogger } = require('./logger');
+const { createPluginLoader } = require('./plugin-loader');
 
 const moduleName = 'core';
 
@@ -17,7 +18,7 @@ function createCore(environment = process.env) {
       config: 'available',
       logger: 'available',
       eventRouter: 'available',
-      pluginLoader: 'pending',
+      pluginLoader: 'available',
       dryRunPipeline: 'available'
     }
   };
@@ -31,5 +32,6 @@ module.exports = {
   createIdentityUpdateProcessor,
   createSafeLogger,
   createEventRouter,
+  createPluginLoader,
   runMaxIdentityDryRun
 };

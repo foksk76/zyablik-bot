@@ -4,9 +4,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { createCore, runMaxIdentityDryRun } = require('./core');
+const { createCore, createPluginLoader, runMaxIdentityDryRun } = require('./core');
 const { createMaxTransport } = require('./transports/max');
-const { createIdentityPlugin } = require('./plugins/identity');
 const {
   createSyntheticLongPollingSource,
   createLongPollingService,
@@ -18,6 +17,7 @@ const {
 function createBotPlatformApp(environment = process.env) {
   const core = createCore(environment);
   const transportMode = core.config.maxTransportMode;
+  const pluginLoader = createPluginLoader(path.join(__dirname, 'plugins'));
 
   return {
     name: 'max-identity-bot-platform',
@@ -26,9 +26,8 @@ function createBotPlatformApp(environment = process.env) {
     transports: {
       max: createMaxTransport({ transportMode })
     },
-    plugins: {
-      identity: createIdentityPlugin()
-    },
+    plugins: pluginLoader.plugins,
+    routes: pluginLoader.routes,
     pipeline: {
       dryRun: 'available',
       transportMode
@@ -44,8 +43,9 @@ function startBotPlatformService(environment = process.env, options = {}) {
   }
 
   return createLongPollingService({
-    pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
     ...options,
+    routeHandlers: options.routeHandlers || app.routes,
+    pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
     logger: options.logger || options.coreLogger || console
   });
 }
@@ -62,7 +62,7 @@ function startLiveBotPlatformService(environment = process.env, options = {}) {
   return liveService;
 }
 
-async function runBotPlatformDryRun(fixturePath) {
+async function runBotPlatformDryRun(fixturePath, routeHandlers = {}) {
   if (typeof fixturePath !== 'string' || fixturePath.length === 0) {
     throw new Error('Fixture path is required');
   }
@@ -70,7 +70,7 @@ async function runBotPlatformDryRun(fixturePath) {
   const resolvedPath = path.resolve(process.cwd(), fixturePath);
   const payload = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
 
-  return runMaxIdentityDryRun(payload);
+  return runMaxIdentityDryRun(payload, routeHandlers);
 }
 
 function runBotPlatformLongPollingOnce(environment = process.env, options = {}) {
@@ -82,6 +82,7 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
 
   return runLongPollingCycle({
     ...options,
+    routeHandlers: options.routeHandlers || app.routes,
     pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
     logger: options.logger || options.coreLogger || console
   });
@@ -110,6 +111,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
       startLiveService(environment, {
         ...options.liveOptions,
+        routeHandlers: options.liveOptions && options.liveOptions.routeHandlers || app.routes,
         io
       });
       io.stdout.write('MAX bot-platform live service started in long_polling mode\n');
@@ -126,7 +128,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
   }
 
   try {
-    const result = await runBotPlatformDryRun(argv[0]);
+    const result = await runBotPlatformDryRun(argv[0], app.routes);
     io.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
   } catch (error) {

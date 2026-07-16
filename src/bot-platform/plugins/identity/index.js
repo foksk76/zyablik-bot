@@ -1,25 +1,13 @@
 'use strict';
 
-const { formatIdentityResponse } = require('./formatter');
 const { handleIdentityEvent } = require('./handler');
-
-const moduleName = 'identity-plugin';
-
-function createIdentityPlugin() {
-  return {
-    moduleName,
-    status: 'scaffold',
-    capabilities: {
-      userRecipient: 'available',
-      chatRecipient: 'available',
-      responseFormatter: 'available'
-    }
-  };
-}
+const { formatIdentityResponse } = require('./formatter');
 
 module.exports = {
-  moduleName,
-  createIdentityPlugin,
+  name: 'identity',
+  routes: {
+    identity: handleIdentityEvent
+  },
   formatIdentityResponse,
   handleIdentityEvent
 };
