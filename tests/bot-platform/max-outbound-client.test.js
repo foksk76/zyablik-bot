@@ -22,6 +22,17 @@ function createIdentityResponse() {
   };
 }
 
+function createTextResponse() {
+  return {
+    kind: 'text',
+    recipient: {
+      kind: 'user',
+      value: '<synthetic-user-id>'
+    },
+    text: 'Ready to help.'
+  };
+}
+
 test('buildMaxOutboundPayload creates a minimal payload from identity response', () => {
   const payload = buildMaxOutboundPayload(createIdentityResponse());
 
@@ -153,6 +164,52 @@ test('createMaxOutboundClient normalizes live HTTP failures safely', async () =>
       return true;
     }
   );
+});
+
+test('buildMaxOutboundPayload creates payload from text response', () => {
+  const payload = buildMaxOutboundPayload(createTextResponse());
+
+  assert.deepEqual(payload, {
+    recipientType: 'user_id',
+    to: '<synthetic-user-id>',
+    text: 'Ready to help.'
+  });
+});
+
+test('createMaxOutboundClient sends text response through live HTTP transport', async () => {
+  const requests = [];
+  const client = createMaxOutboundClient({
+    apiUrl: 'https://synthetic.example/messages',
+    token: 'synthetic-secret-token',
+    httpClient: {
+      post(request) {
+        requests.push(request);
+        return {
+          statusCode: 200,
+          body: {
+            message: {
+              id: 'synthetic-message-id'
+            }
+          }
+        };
+      }
+    },
+    networkEnabled: true
+  });
+
+  const result = await client.send(createTextResponse());
+
+  assert.equal(result.mode, 'live');
+  assert.equal(result.networkEnabled, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].headers.Authorization, 'synthetic-secret-token');
+  assert.equal(requests[0].url, 'https://synthetic.example/messages?user_id=%3Csynthetic-user-id%3E');
+  assert.deepEqual(requests[0].body, {
+    text: 'Ready to help.',
+    notify: true,
+    format: 'markdown'
+  });
+  assert.equal(result.response.statusCode, 200);
 });
 
 test('createMaxOutboundClient keeps safe transport failure diagnostics', async () => {
