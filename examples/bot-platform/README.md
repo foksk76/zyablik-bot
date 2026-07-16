@@ -8,6 +8,7 @@
 |---|---|
 | `max-inbound-user.fixture.json` | Synthetic personal dialog message. Not real MAX payload. |
 | `max-inbound-chat.fixture.json` | Synthetic group chat message. Not real MAX payload. |
+| `max-inbound-id-command.fixture.json` | Synthetic /id command in personal dialog. Not real MAX payload. |
 
 ## Rules
 
