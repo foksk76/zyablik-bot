@@ -14,7 +14,7 @@ A single `core/command-registry.js` file holds all available commands as a plain
 
 Built-in commands (`/help`, `/status`) are defined in the registry with handlers in `core/`. The identity plugin gets an `/id` command registered in the same file. The outbound client gains support for text-only responses (no `zabbix` field required) so command replies don't need the identity response shape.
 
-The `live-pipeline.js` event filter expands to include `bot_added` events, which trigger an auto-response with a welcome message + `/help` output.
+The `live-pipeline.js` event filter expands to include `bot_added` and `bot_started` events, which trigger an auto-response with a welcome message (`Ready to help.`).
 
 **Why this direction:** The project's identity is deliberate minimalism — zero dependencies (ADR-0015), convention-based loader (ADR-0012), no middleware (rejected in ADR-0012). A static registry keeps all those contracts intact. Adding a new command is a one-line edit to a single file. The plugin interface stays `(event) => response` — plugins don't need to know commands exist.
 
@@ -60,7 +60,7 @@ The `live-pipeline.js` event filter expands to include `bot_added` events, which
 - **Plugin loader picking up `commands.js` files** — Convention-based discovery is elegant but adds loader complexity. Not worth it until multiple independent plugin authors need to add commands without coordinating.
 - **Command arguments/parameters** — Scope creep. MVP validates whether users use `/` at all. Arguments are a Phase 2 feature.
 - **Permission/ACL system** — The project serves a small team. Authorization can be added later if the bot is exposed to untrusted users.
-- **Auto-response on `bot_started`** — `bot_started` fires when a user DMs the bot for the first time. Auto-help there may be intrusive. Only `bot_added` (group context) triggers auto-help.
+- **Auto-response on `bot_started`** — `bot_started` fires when a user DMs the bot for the first time. Both `bot_added` and `bot_started` trigger the same welcome message (ADR-0021).
 
 ## Open Questions (Resolved)
 
