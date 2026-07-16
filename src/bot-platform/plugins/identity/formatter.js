@@ -32,7 +32,7 @@ function formatIdentityResponse(event) {
 
 function formatText(recipientType, to) {
   return [
-    'Identity parameters:',
+    'Recipient parameters:',
     `RecipientType: ${recipientType}`,
     `To: ${to}`
   ].join('\n');

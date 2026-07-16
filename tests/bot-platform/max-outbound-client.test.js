@@ -18,7 +18,7 @@ function createIdentityResponse() {
       recipientType: 'user_id',
       to: '<synthetic-user-id>'
     },
-    text: 'Identity parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
   };
 }
 
@@ -28,7 +28,7 @@ test('buildMaxOutboundPayload creates a minimal payload from identity response',
   assert.deepEqual(payload, {
     recipientType: 'user_id',
     to: '<synthetic-user-id>',
-    text: 'Identity parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
   });
 });
 
@@ -53,7 +53,7 @@ test('createMaxOutboundClient returns dry-run request without raw fields', async
   assert.deepEqual(result.request.body, {
     recipientType: 'user_id',
     to: '<synthetic-user-id>',
-    text: 'Identity parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
   });
   assert.equal(result.request.body.raw, undefined);
   assert.equal(result.payload.raw, undefined);
@@ -89,7 +89,7 @@ test('buildMaxOutboundRequest creates a live MAX request with injected auth head
   assert.equal(request.headers['Content-Type'], 'application/json');
   assert.equal(request.headers.Authorization, 'synthetic-secret-token');
   assert.deepEqual(request.body, {
-    text: 'Identity parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>',
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>',
     notify: true,
     format: 'markdown'
   });
