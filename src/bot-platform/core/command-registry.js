@@ -9,7 +9,7 @@ function createCommandRegistry(options = {}) {
       handler: handleHelp
     },
     '/id': {
-      description: 'Show Zabbix recipient parameters for this chat',
+      description: 'Show recipient parameters for this chat',
       handler: handleId
     },
     '/status': {

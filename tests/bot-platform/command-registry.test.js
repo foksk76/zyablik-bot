@@ -18,7 +18,7 @@ test('lookup returns handler for /id', () => {
 
   assert.ok(entry);
   assert.equal(typeof entry.handler, 'function');
-  assert.equal(entry.description, 'Show Zabbix recipient parameters for this chat');
+  assert.equal(entry.description, 'Show recipient parameters for this chat');
 });
 
 test('lookup returns handler for /status', () => {
