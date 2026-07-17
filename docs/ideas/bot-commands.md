@@ -63,6 +63,6 @@ The `live-pipeline.js` event filter expands to include `bot_added` and `bot_star
 
 ## Open Questions (Resolved)
 
-- **MAX API `bot_added` delivery:** Confirmed via MAX API docs (`https://dev.max.ru/docs-api/objects/Update`). The `bot_added` event is a supported update type, delivered via Long Polling and Webhook. Payload: `{ update_type: "bot_added", timestamp, chat_id, user: { user_id }, is_channel }`. The event is already collected in `DEFAULT_MAX_POLL_TYPES` (`config.js:8`) but filtered out by `live-pipeline.js:7`. Re-enabling is safe — the normalizer already handles it (`event-normalizer.js:51-56`).
+- **MAX API `bot_added` delivery:** Confirmed via MAX API docs (`https://dev.max.ru/docs-api/objects/Update`). The `bot_added` event is a supported update type, delivered via Long Polling and Webhook. Payload: `{ update_type: "bot_added", timestamp, chat_id, user: { user_id }, is_channel }`. The event is already collected in `DEFAULT_MAX_POLL_TYPES` (`config.js:8`) but filtered out by `pipeline-constants.js:3`. Re-enabling is safe — the normalizer already handles it (`event-normalizer.js:51-56`).
 - **Identity behavior:** `/id` is the only way to get identity info. Non-command text returns "Unknown command. Send /help for available commands." — the current catch-all identity response is removed.
 - **Welcome message:** `bot_added` triggers: `Ready to help.` (short welcome, no `/help` output inline — user runs `/help` explicitly after seeing the welcome).
