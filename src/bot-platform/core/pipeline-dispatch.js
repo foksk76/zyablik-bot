@@ -12,7 +12,8 @@ function buildPipelineResponse(event, updateType, commandRegistry) {
         };
     }
 
-    const parsed = parseCommand(event.message.text);
+    const text = event.message && event.message.text;
+    const parsed = parseCommand(text);
 
     if (parsed) {
         const entry = commandRegistry.lookup(parsed.command);

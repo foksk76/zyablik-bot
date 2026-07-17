@@ -67,10 +67,10 @@ function createCommandRegistry(options = {}) {
     };
   }
 
-    return {
-        lookup,
-        getCommandList
-    };
+  return {
+    lookup,
+    getCommandList
+  };
 }
 
 module.exports = {

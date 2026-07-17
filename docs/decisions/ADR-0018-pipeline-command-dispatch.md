@@ -46,7 +46,7 @@ normalize → isCommand(text)?
 
 ### Обработка `bot_added`
 
-Расширить `REPLY_UPDATE_TYPES` на `['message_created', 'bot_added']`. Для `bot_added` — автоматический ответ «Ready to help.» без вызова router или command dispatch.
+Расширить `REPLY_UPDATE_TYPES` на `['message_created', 'bot_added', 'bot_started']`. Для `bot_added` / `bot_started` — автоматический ответ «Ready to help.» без вызова router или command dispatch.
 
 ## Почему ветвление, а не middleware
 

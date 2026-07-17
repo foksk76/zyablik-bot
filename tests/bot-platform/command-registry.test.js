@@ -36,14 +36,34 @@ test('lookup returns null for unknown command', () => {
   assert.equal(registry.lookup('/unknown'), null);
 });
 
+test('lookup returns null for null', () => {
+  const registry = createCommandRegistry();
+
+  assert.equal(registry.lookup(null), null);
+});
+
+test('lookup returns null for undefined', () => {
+  const registry = createCommandRegistry();
+
+  assert.equal(registry.lookup(undefined), null);
+});
+
 test('getCommandList returns all commands', () => {
   const registry = createCommandRegistry();
   const list = registry.getCommandList();
 
   assert.equal(list.length, 3);
-  assert.ok(list.some((cmd) => cmd.name === '/help'));
-  assert.ok(list.some((cmd) => cmd.name === '/id'));
-  assert.ok(list.some((cmd) => cmd.name === '/status'));
+
+  const help = list.find((cmd) => cmd.name === '/help');
+  const id = list.find((cmd) => cmd.name === '/id');
+  const status = list.find((cmd) => cmd.name === '/status');
+
+  assert.ok(help);
+  assert.equal(help.description, 'Show available commands');
+  assert.ok(id);
+  assert.equal(id.description, 'Show recipient parameters for this chat');
+  assert.ok(status);
+  assert.equal(status.description, 'Check bot status');
 });
 
 test('/help handler returns text response with command list', () => {

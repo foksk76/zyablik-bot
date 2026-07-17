@@ -30,7 +30,7 @@ const identityHandler = (event) => ({
 });
 
 test('buildPipelineResponse: bot_added returns welcome text', () => {
-    const event = chatEvent('/help');
+    const event = chatEvent('any text');
     const registry = createCommandRegistry();
     const response = buildPipelineResponse(event, 'bot_added', registry);
 
@@ -40,7 +40,7 @@ test('buildPipelineResponse: bot_added returns welcome text', () => {
 });
 
 test('buildPipelineResponse: bot_started returns welcome text', () => {
-    const event = userEvent('/help');
+    const event = userEvent('any text');
     const registry = createCommandRegistry();
     const response = buildPipelineResponse(event, 'bot_started', registry);
 
@@ -121,4 +121,18 @@ test('buildPipelineResponse: never calls network', () => {
 
     assert.ok(response);
     assert.equal(typeof response.kind, 'string');
+});
+
+test('buildPipelineResponse: event without message.text returns unknown command', () => {
+    const event = {
+        source: 'max',
+        recipient: { kind: 'chat', value: '2002' },
+        message: {},
+        raw: { kind: 'reference', value: '<synthetic>' }
+    };
+    const registry = createCommandRegistry();
+    const response = buildPipelineResponse(event, 'message_created', registry);
+
+    assert.equal(response.kind, 'text');
+    assert.ok(response.text.includes('Unknown command'));
 });
