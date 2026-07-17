@@ -35,8 +35,8 @@ function createSomeModule(options = {}) {
 | `long-polling.js` | `pollUpdates`, `sleep`, `logger`, `onUpdate`, `onError`, `processUpdate` |
 | `outbound-client.js` | `httpClient`, `logger` |
 | `inbound-updates.js` | `httpClient`, `logger` |
-| `dry-run-pipeline.js` | `routeHandlers` |
-| `app.js` | `routeHandlers`, `pollUpdates`, `logger` |
+| `dry-run-pipeline.js` | `outboundClient`, `commandRegistry`, `identityHandler` |
+| `app.js` | `pollUpdates`, `logger`, `identityHandler` |
 
 ### childScriptOverride
 

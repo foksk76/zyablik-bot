@@ -50,6 +50,7 @@ async function runMaxIdentityDryRun(maxPayload, options = {}) {
       return {
         mode: 'dry-run',
         networkEnabled: false,
+        event,
         response,
         outbound: await outboundClient.send(response)
       };

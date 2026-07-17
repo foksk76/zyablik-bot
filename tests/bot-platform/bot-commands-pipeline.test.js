@@ -59,6 +59,8 @@ test('live pipeline: /help returns command list', async () => {
   const result = await processUpdate(createChatPayload('/help'));
 
   assert.equal(result.mode, 'live');
+  assert.ok(result.event);
+  assert.equal(result.event.recipient.kind, 'chat');
   assert.equal(result.response.kind, 'text');
   assert.ok(result.response.text.includes('/help'));
   assert.ok(result.response.text.includes('/id'));
@@ -154,6 +156,8 @@ test('dry-run pipeline: /help returns command list', async () => {
   );
 
   assert.equal(result.mode, 'dry-run');
+  assert.ok(result.event);
+  assert.equal(result.event.recipient.kind, 'chat');
   assert.equal(result.response.kind, 'text');
   assert.ok(result.response.text.includes('/help'));
 });
@@ -189,6 +193,8 @@ test('dry-run pipeline: bot_added returns welcome message', async () => {
   });
 
   assert.equal(result.mode, 'dry-run');
+  assert.ok(result.event);
+  assert.equal(result.event.recipient.kind, 'chat');
   assert.equal(result.response.kind, 'text');
   assert.equal(result.response.text, 'Ready to help.');
 });
@@ -201,6 +207,8 @@ test('dry-run pipeline: bot_started returns welcome message', async () => {
   });
 
   assert.equal(result.mode, 'dry-run');
+  assert.ok(result.event);
+  assert.equal(result.event.recipient.kind, 'user');
   assert.equal(result.response.kind, 'text');
   assert.equal(result.response.text, 'Ready to help.');
 });
