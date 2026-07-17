@@ -19,7 +19,7 @@ The `live-pipeline.js` event filter expands to include `bot_added` and `bot_star
 **Why this direction:** The project's identity is deliberate minimalism — zero dependencies (ADR-0015), convention-based loader (ADR-0012), no middleware (rejected in ADR-0012). A static registry keeps all those contracts intact. Adding a new command is a one-line edit to a single file. The plugin interface stays `(event) => response` — plugins don't need to know commands exist.
 
 **ADRs:**
-- ADR-0018 — pipeline command dispatch (ветвление до `router.route`)
+- ADR-0018 — pipeline command dispatch (ветвление в pipeline)
 - ADR-0019 — outbound response shape extensibility (text-only ответы)
 - ADR-0020 — expanded pipeline event scope (`bot_added` auto-response)
 
@@ -36,7 +36,7 @@ The `live-pipeline.js` event filter expands to include `bot_added` and `bot_star
 **In:**
 - `core/command-registry.js` — static command map with `/help`, `/status`, `/id`
 - `core/command-parser.js` — parse `/command [args]` from `event.message.text`
-- Command dispatch in `live-pipeline.js` (before `router.route()`)
+- Command dispatch in `live-pipeline.js`
 - Command dispatch in `dry-run-pipeline.js` (for testing)
 - `outbound-client.js` — text-only response support (new `kind: 'text'` or similar)
 - `live-pipeline.js` — expand `REPLY_UPDATE_TYPES` to include `bot_added`

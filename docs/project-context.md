@@ -53,7 +53,7 @@ bot_added -> welcome message
 bot_started -> welcome message
 ```
 
-По ADR-0018 pipeline ветвится до `router.route()`: если текст начинается с `/`, обрабатывается через command registry; иначе — «Unknown command». По ADR-0019 outbound client поддерживает `kind: 'text'` ответы. По ADR-0020 `bot_added` и ADR-0021 `bot_started` события обрабатываются pipeline и отправляют приветствие.
+По ADR-0018 pipeline ветвится: если текст начинается с `/`, обрабатывается через command registry; иначе — «Unknown command». По ADR-0019 outbound client поддерживает `kind: 'text'` ответы. По ADR-0020 `bot_added` и ADR-0021 `bot_started` события обрабатываются pipeline и отправляют приветствие.
 
 Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в Task 18.
 

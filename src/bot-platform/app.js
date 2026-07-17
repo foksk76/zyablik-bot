@@ -44,7 +44,6 @@ function startBotPlatformService(environment = process.env, options = {}) {
 
   return createLongPollingService({
     ...options,
-    routeHandlers: options.routeHandlers || app.routes,
     pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
     logger: options.logger || options.coreLogger || console
   });
@@ -82,7 +81,6 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
 
   return runLongPollingCycle({
     ...options,
-    routeHandlers: options.routeHandlers || app.routes,
     pollUpdates: options.pollUpdates || createSyntheticLongPollingSource(),
     logger: options.logger || options.coreLogger || console
   });
@@ -111,7 +109,6 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
       startLiveService(environment, {
         ...options.liveOptions,
-        routeHandlers: options.liveOptions && options.liveOptions.routeHandlers || app.routes,
         identityHandler: options.liveOptions && options.liveOptions.identityHandler || app.routes.identity,
         io
       });

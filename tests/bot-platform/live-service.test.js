@@ -7,8 +7,6 @@ const { createLiveBotPlatformService } = require('../../src/bot-platform/runtime
 const { MAX_API_ERROR_CODE } = require('../../src/bot-platform/transports/max');
 const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
-const routeHandlers = { identity: handleIdentityEvent };
-
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
 
 function readFixture(fileName) {
@@ -70,7 +68,6 @@ test('live service wires inbound updates into outbound MAX response delivery', a
     MAX_BOT_TOKEN: 'synthetic-bot-token'
   }, {
     httpClient,
-    routeHandlers,
     logger: createCaptureLogger(entries),
     sleep: async () => {},
     maxCycles: 1,
@@ -151,7 +148,6 @@ test('live service passes poll config and acknowledges marker after successful p
   }, {
     inboundClient,
     outboundClient,
-    routeHandlers,
     logger: createCaptureLogger([]),
     sleep: async () => {},
     maxCycles: 1,
@@ -387,7 +383,6 @@ test('live service wires identityHandler through to command registry for /id', a
         return { mode: 'live', networkEnabled: true, response: { statusCode: 200, body: {} } };
       }
     },
-    routeHandlers,
     identityHandler: handleIdentityEvent,
     logger: createCaptureLogger([]),
     maxCycles: 1,

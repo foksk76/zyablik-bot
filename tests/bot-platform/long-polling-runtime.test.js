@@ -8,10 +8,8 @@ const {
   runLongPollingCycle
 } = require('../../src/bot-platform/runtime');
 const { createIdentityUpdateProcessor } = require('../../src/bot-platform/core');
-const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
-const routeHandlers = { identity: handleIdentityEvent };
 
 function readFixture(fileName) {
   const filePath = path.join(fixturesDir, fileName);
@@ -20,7 +18,6 @@ function readFixture(fileName) {
 
 test('long polling cycle processes synthetic user updates safely', async () => {
   const result = await runLongPollingCycle({
-    routeHandlers,
     pollUpdates: async () => [readFixture('max-inbound-user.fixture.json')],
     sleep: async () => {}
   });
@@ -39,7 +36,6 @@ test('long polling cycle processes synthetic user updates safely', async () => {
 test('long polling service exposes long polling mode and no network', async () => {
   const service = createLongPollingService({
     autoStart: false,
-    routeHandlers,
     pollUpdates: async () => [readFixture('max-inbound-chat.fixture.json')],
     sleep: async () => {}
   });
@@ -93,7 +89,7 @@ test('long polling service can route live inbound updates through identity pipel
       };
     }
   };
-  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient });
+  const processUpdate = createIdentityUpdateProcessor({ outboundClient });
   const service = createLongPollingService({
     autoStart: false,
     pollUpdates: async () => [readFixture('max-inbound-user.fixture.json')],

@@ -5,8 +5,6 @@ const { createIdentityUpdateProcessor } = require('../../src/bot-platform/core')
 const { getUpdateType } = require('../../src/bot-platform/transports/max');
 const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
-const routeHandlers = { identity: handleIdentityEvent };
-
 function createRecordingOutbound() {
   const calls = [];
 
@@ -28,7 +26,6 @@ function createRecordingOutbound() {
 test('identity processor replies to /id command with identity response', async () => {
   const outbound = createRecordingOutbound();
   const processUpdate = createIdentityUpdateProcessor({
-    routeHandlers,
     outboundClient: outbound,
     identityHandler: handleIdentityEvent
   });
@@ -52,7 +49,6 @@ test('identity processor replies to /id command with identity response', async (
 test('identity processor returns unknown command for non-command text', async () => {
   const outbound = createRecordingOutbound();
   const processUpdate = createIdentityUpdateProcessor({
-    routeHandlers,
     outboundClient: outbound,
     identityHandler: handleIdentityEvent
   });
@@ -77,7 +73,6 @@ test('identity processor returns unknown command for non-command text', async ()
 test('identity processor sends welcome on bot_added', async () => {
   const outbound = createRecordingOutbound();
   const processUpdate = createIdentityUpdateProcessor({
-    routeHandlers,
     outboundClient: outbound,
     identityHandler: handleIdentityEvent
   });
@@ -100,7 +95,6 @@ test('identity processor sends welcome on bot_added', async () => {
 test('identity processor sends welcome on bot_started', async () => {
   const outbound = createRecordingOutbound();
   const processUpdate = createIdentityUpdateProcessor({
-    routeHandlers,
     outboundClient: outbound,
     identityHandler: handleIdentityEvent
   });
@@ -120,7 +114,7 @@ test('identity processor sends welcome on bot_started', async () => {
 
 test('identity processor ignores updates of unknown type without throwing', async () => {
   const outbound = createRecordingOutbound();
-  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient: outbound });
+  const processUpdate = createIdentityUpdateProcessor({ outboundClient: outbound });
 
   const result = await processUpdate({
     update_type: 'callback_query',

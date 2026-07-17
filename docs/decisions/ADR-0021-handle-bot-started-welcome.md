@@ -25,7 +25,7 @@ ADR-0020 расширил `REPLY_UPDATE_TYPES` на `['message_created', 'bot_ad
 ```text
 normalize → updateType === 'bot_added' || updateType === 'bot_started'?
   → да:  send(welcomeMessage) — return
-  → нет: parseCommand → command dispatch / router.route → send
+  → нет: parseCommand → command dispatch → send
 ```
 
 ### Приветственное сообщение

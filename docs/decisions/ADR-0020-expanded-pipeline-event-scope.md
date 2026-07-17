@@ -30,12 +30,12 @@ const DEFAULT_MAX_POLL_TYPES = Object.freeze(['message_created', 'bot_started', 
 
 ### Обработка `bot_added` в pipeline
 
-`bot_added` обрабатывается **до** command dispatch и router:
+`bot_added` обрабатывается **до** command dispatch:
 
 ```text
 normalize → updateType === 'bot_added'?
   → да:  send(welcomeMessage) — return
-  → нет: parseCommand → command dispatch / router.route → send
+  → нет: parseCommand → command dispatch → send
 ```
 
 ### Приветственное сообщение

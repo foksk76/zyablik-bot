@@ -47,6 +47,11 @@
 ### Changed
 - Non-command text now returns "Unknown command" instead of identity response
 - Pipeline dispatch replaces `router.route()` for all inbound events (ADR-0018)
+- Removed dead `routeHandlers` parameter from pipeline callers and runtime
+- Dry-run pipeline now accepts `outboundClient` and `commandRegistry` via options (DI parity with live pipeline)
+- Removed stale `router.route()` references from documentation (ADR-0020, ADR-0021, project-context, bot-commands)
+- Removed unnecessary shallow copy in command-registry `lookup()`
+- Dry-run response now includes `event` field for parity with live pipeline
 
 ### Completed
 - Task 18.9: Live personal-dialog `user_id` verification (2026-07-15 10:50 UTC)

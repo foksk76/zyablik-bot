@@ -7,8 +7,11 @@ const { createCommandRegistry } = require('./command-registry');
 const { REPLY_UPDATE_TYPES, WELCOME_TEXT, UNKNOWN_COMMAND_TEXT } = require('./pipeline-constants');
 
 async function runMaxIdentityDryRun(maxPayload, options = {}) {
+  const outboundClient = options.outboundClient || createMaxOutboundClient(options.outboundClientOptions);
+  const commandRegistry = options.commandRegistry || createCommandRegistry({
+    identityHandler: options.identityHandler || null
+  });
   const updateType = getUpdateType(maxPayload);
-  const outboundClient = options.outboundClient || createMaxOutboundClient();
 
   if (!REPLY_UPDATE_TYPES.includes(updateType)) {
     return {
@@ -29,6 +32,7 @@ async function runMaxIdentityDryRun(maxPayload, options = {}) {
     return {
       mode: 'dry-run',
       networkEnabled: false,
+      event,
       response,
       outbound: await outboundClient.send(response)
     };
@@ -38,7 +42,6 @@ async function runMaxIdentityDryRun(maxPayload, options = {}) {
   const parsed = parseCommand(event.message.text);
 
   if (parsed) {
-    const commandRegistry = options.commandRegistry || createCommandRegistry({ identityHandler: options.identityHandler || null });
     const entry = commandRegistry.lookup(parsed.command);
 
     if (entry) {
