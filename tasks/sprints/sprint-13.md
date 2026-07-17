@@ -4,7 +4,7 @@
 
 Добавить систему команд в bot-platform: парсер `/command`, реестр команд в `core/`, ветвление в pipeline перед `router.route()`, auto-response на `bot_added`, text-only ответы в outbound client.
 
-Реализует `docs/ideas/bot-commands.md` по ADR-0018 (pipeline dispatch), ADR-0019 (outbound response shape), ADR-0020 (expanded event scope).
+Реализует `docs/ideas/bot-commands.md` по ADR-0018 (pipeline dispatch), ADR-0019 (outbound response shape), ADR-0020 (expanded event scope — `bot_added`), ADR-0021 (expanded event scope — `bot_started`).
 
 Контекст: pipeline сейчас линеен — нормализация → `router.route('identity')` → send. `event.message.text` доступен, но не используется. Outbound client хардкодит `kind: 'identity'` с `zabbix` полями. `bot_added` фильтруется.
 
@@ -87,7 +87,7 @@
 
 **Status:** Done
 
-**Description:** Добавить ветвление перед `router.route()` (ADR-0018): парсинг команды → lookup в registry → если команда: handler(event) → send; если не команда: вернуть «Unknown command» reply. Расширить `REPLY_UPDATE_TYPES` на `['message_created', 'bot_added']` (ADR-0020). `bot_added` → автоматический text-ответ «Ready to help.».
+**Description:** Добавить ветвление перед `router.route()` (ADR-0018): парсинг команды → lookup в registry → если команда: handler(event) → send; если не команда: вернуть «Unknown command» reply. Расширить `REPLY_UPDATE_TYPES` на `['message_created', 'bot_added']` (ADR-0020). `bot_added` → автоматический text-ответ «Ready to help.». Позже ADR-0021 расширил scope до `bot_started` — см. Task 11.
 
 **Acceptance criteria:**
 - [x] `message_created` с `/help` → command handler, не router
@@ -95,7 +95,7 @@
 - [x] `message_created` с `/id` → identity handler через command registry
 - [x] `message_created` с текстом без `/` → text-ответ «Unknown command...» (identity catch-all удалён)
 - [x] `bot_added` → text-ответ «Ready to help.» с `recipient` из event
-- [x] `bot_started` → `mode: 'ignored'` (без изменений)
+- [x] `bot_started` → text-ответ «Ready to help.» (расширено в ADR-0021, см. Task 11)
 - [x] Существующие identity-тесты продолжают работать
 
 **Verification:**
@@ -190,7 +190,7 @@
 - [x] Тест: live-pipeline + `/id` → mode !== 'ignored', response.kind === 'identity'
 - [x] Тест: live-pipeline + `/unknown` → response.text содержит «Unknown command»
 - [x] Тест: live-pipeline + `bot_added` → response.text === 'Ready to help.'
-- [x] Тест: live-pipeline + `bot_started` → mode === 'ignored'
+- [x] Тест: live-pipeline + `bot_started` → text-ответ «Ready to help.» (расширено в ADR-0021, см. Task 11)
 - [x] Тест: dry-run pipeline + `/help` → response с text полем
 
 **Verification:**
@@ -247,6 +247,35 @@
 - `docs/ideas/bot-commands.md`
 
 **Estimated scope:** S (2 files)
+
+### Task 11: Handle `bot_started` events with welcome (ADR-0021)
+
+**Status:** Done
+
+**Description:** Принять ADR-0021 — расширить `REPLY_UPDATE_TYPES` на `bot_started`. Баг-репорт показал, что пользователи ожидают приветствие при начале личного диалога с ботом. `bot_started` обрабатывается аналогично `bot_added` — отправляет «Ready to help.» без вызова command dispatch. Обновить `docs/live-identity-bot.md`.
+
+**Acceptance criteria:**
+- [x] ADR-0021 создан и помечен как Accepted
+- [x] `REPLY_UPDATE_TYPES` включает `bot_started`
+- [x] `bot_started` → text-ответ «Ready to help.» с `recipient` из event
+- [x] `live-pipeline.js` и `dry-run-pipeline.js` обновлены
+- [x] Тесты `bot_started` обновлены: возвращают приветствие вместо `mode: 'ignored'`
+- [x] `docs/live-identity-bot.md` обновлён
+- [x] `npm test` passes
+
+**Verification:**
+- [x] `npm test` passes
+
+**Dependencies:** Task 4
+
+**Files likely touched:**
+- `docs/decisions/ADR-0021-handle-bot-started-welcome.md` (new)
+- `src/bot-platform/core/pipeline-constants.js`
+- `src/bot-platform/core/live-pipeline.js`
+- `src/bot-platform/core/dry-run-pipeline.js`
+- `docs/live-identity-bot.md`
+
+**Estimated scope:** S (5 files)
 
 ## Checkpoint: After Tasks 1-3 (Foundation)
 

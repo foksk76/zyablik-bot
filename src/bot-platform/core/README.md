@@ -90,7 +90,43 @@ createLiveRuntimeConfig(environment)
 createIdentityUpdateProcessor({ outboundClient, commandRegistry, identityHandler, outboundClientOptions })
 ```
 
-Преобразует нормализованный MAX update в identity response и отправляет его через injectable outbound client boundary. Long polling runtime использует этот helper через опциональный `processUpdate` callback, а synthetic dry-run path остается без изменений.
+Преобразует нормализованный MAX update в response и отправляет его через injectable outbound client boundary. Long polling runtime использует этот helper через опциональный `processUpdate` callback, а synthetic dry-run path остается без изменений.
+
+Ветвление (ADR-0018): `bot_added`/`bot_started` → приветствие; иначе `parseCommand` → command dispatch → send; не-команда → «Unknown command» reply.
+
+### `command-parser.js`
+
+```text
+parseCommand(text)
+```
+
+Парсит `/command [args]` из `event.message.text` (ADR-0018). Возвращает `{ command, args }` (command в нижнем регистре, с ведущим `/`) или `null`, если текст не начинается с `/` или команда пуста.
+
+### `pipeline-dispatch.js`
+
+```text
+buildPipelineResponse(event, updateType, commandRegistry)
+```
+
+Чистая функция (ADR-0018): принимает нормализованный `event`, `updateType` и `commandRegistry`, возвращает объект response для отправки. Не вызывает outbound client — это ответственность pipeline. Ветвление:
+
+- `bot_added` / `bot_started` → приветствие (`WELCOME_TEXT`)
+- `message_created` с `/command` → `commandRegistry.lookup(name).handler(event)`
+- иначе → «Unknown command»
+
+Оба pipeline (`live-pipeline.js`, `dry-run-pipeline.js`) потребляют этот модуль, что делает расхождение ветвления структурно невозможным.
+
+### `command-registry.js`
+
+```text
+createCommandRegistry({ identityHandler })
+```
+
+Статический реестр команд (ADR-0018): `/help`, `/id`, `/status`. `lookup(commandName)` возвращает `{ description, handler }` или `null`. `getCommandList()` возвращает `[{ name, description }]` для `/help`. Обработчик `/id` делегирует в `identityHandler` (DI через options), с text-fallback, если handler не передан.
+
+### `pipeline-constants.js`
+
+Константы pipeline: `REPLY_UPDATE_TYPES` (`['message_created', 'bot_added', 'bot_started']` — ADR-0020, ADR-0021), `WELCOME_TEXT`, `UNKNOWN_COMMAND_TEXT`, `RECIPIENT_TYPE_MAP` (внутренний `kind` → MAX API параметр: `user` → `user_id`, `chat` → `chat_id`).
 
 ### `logger.js`
 

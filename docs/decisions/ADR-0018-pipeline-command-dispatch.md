@@ -63,9 +63,11 @@ normalize → isCommand(text)?
 
 ## Почему не расширять event-router
 
-- `event-router.js` маршрутизирует по имени route, а не по содержимому текста
+> **Примечание:** `event-router.js` удалён (commit 7585a6f). Раздел сохранён как историческое обоснование решения, принятого до удаления модуля.
+
+- `event-router.js` маршрутизировал по имени route, а не по содержимому текста
 - Command dispatch — другая задача: сопоставление `/command` → handler
-- Смешение Responsibilities усложнит оба механизма
+- Смешение Responsibilities усложнило бы оба механизма
 
 ## Последствия
 
@@ -73,6 +75,7 @@ normalize → isCommand(text)?
 - Pipeline получает одну дополнительную проверку `if`
 - `router.route()` больше не вызывается — command dispatch заменил плагиновую маршрутизацию для всех входящих событий
 - Не-командный текст возвращает «Unknown command» вместо identity-ответа
+- Решение о типе ответа (welcome / known-command / unknown-command) живёт в общем модуле `pipeline-dispatch.js` (`buildPipelineResponse`). Live и dry-run pipeline потребляют его, поэтому расхождение ветвления структурно невозможно
 
 ## Рассмотренные альтернативы
 
@@ -90,4 +93,4 @@ normalize → isCommand(text)?
 
 ### Regex-based dispatch
 
-Минус: `startsWith('/')` + split проще и покрывает все нужные случаю. Regex добавляет сложность без выигрыша.
+Минус: `startsWith('/')` + split проще и покрывает все нужные случаи. Regex добавляет сложность без выигрыша.

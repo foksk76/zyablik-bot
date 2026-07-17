@@ -71,6 +71,7 @@ Bot-platform (identity bot)
 - ADR-0015: нулевые внешние зависимости
 - ADR-0017: внутренний контракт событий
 - ADR-0018: pipeline command dispatch
+- ADR-0019: outbound response shape extensibility (text-only ответы)
 - ADR-0020: обработка bot_added событий
 - ADR-0021: обработка bot_started событий
 
