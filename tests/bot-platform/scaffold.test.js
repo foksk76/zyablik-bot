@@ -6,7 +6,6 @@ const {
   createCore,
   createBotPlatformConfig,
   createSafeLogger,
-  createEventRouter,
   createPluginLoader
 } = require('../../src/bot-platform/core');
 const {
@@ -30,7 +29,6 @@ test('bot platform scaffold modules can be imported', () => {
   assert.equal(typeof createCore, 'function');
   assert.equal(typeof createBotPlatformConfig, 'function');
   assert.equal(typeof createSafeLogger, 'function');
-  assert.equal(typeof createEventRouter, 'function');
   assert.equal(typeof createPluginLoader, 'function');
   assert.equal(typeof createMaxTransport, 'function');
   assert.equal(typeof normalizeMaxEvent, 'function');
@@ -51,7 +49,6 @@ test('bot platform app scaffold wires placeholder modules', () => {
   assert.equal(app.core.moduleName, 'core');
   assert.equal(app.core.components.config, 'available');
   assert.equal(app.core.components.logger, 'available');
-  assert.equal(app.core.components.eventRouter, 'available');
   assert.equal(app.core.components.pluginLoader, 'available');
   assert.equal(app.core.components.dryRunPipeline, 'available');
   assert.equal(app.transports.max.moduleName, 'max-transport');

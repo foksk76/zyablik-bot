@@ -18,7 +18,18 @@ function createIdentityResponse() {
       recipientType: 'user_id',
       to: '<synthetic-user-id>'
     },
-    text: 'Use these Zabbix recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+  };
+}
+
+function createTextResponse() {
+  return {
+    kind: 'text',
+    recipient: {
+      kind: 'user',
+      value: '<synthetic-user-id>'
+    },
+    text: 'Ready to help.'
   };
 }
 
@@ -28,14 +39,14 @@ test('buildMaxOutboundPayload creates a minimal payload from identity response',
   assert.deepEqual(payload, {
     recipientType: 'user_id',
     to: '<synthetic-user-id>',
-    text: 'Use these Zabbix recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
   });
 });
 
 test('buildMaxOutboundPayload rejects invalid response', () => {
   assert.throws(
     () => buildMaxOutboundPayload({}),
-    /Invalid identity response/
+    /Invalid response/
   );
 });
 
@@ -53,7 +64,7 @@ test('createMaxOutboundClient returns dry-run request without raw fields', async
   assert.deepEqual(result.request.body, {
     recipientType: 'user_id',
     to: '<synthetic-user-id>',
-    text: 'Use these Zabbix recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>'
   });
   assert.equal(result.request.body.raw, undefined);
   assert.equal(result.payload.raw, undefined);
@@ -79,7 +90,9 @@ test('createMaxOutboundClient does not log raw token values', async () => {
 });
 
 test('buildMaxOutboundRequest creates a live MAX request with injected auth header', () => {
-  const request = buildMaxOutboundRequest(createIdentityResponse(), {
+  const response = createIdentityResponse();
+  const payload = buildMaxOutboundPayload(response);
+  const request = buildMaxOutboundRequest(response, payload, {
     apiUrl: 'https://synthetic.example/messages',
     token: 'synthetic-secret-token'
   });
@@ -89,7 +102,7 @@ test('buildMaxOutboundRequest creates a live MAX request with injected auth head
   assert.equal(request.headers['Content-Type'], 'application/json');
   assert.equal(request.headers.Authorization, 'synthetic-secret-token');
   assert.deepEqual(request.body, {
-    text: 'Use these Zabbix recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>',
+    text: 'Recipient parameters:\nRecipientType: user_id\nTo: <synthetic-user-id>',
     notify: true,
     format: 'markdown'
   });
@@ -153,6 +166,52 @@ test('createMaxOutboundClient normalizes live HTTP failures safely', async () =>
       return true;
     }
   );
+});
+
+test('buildMaxOutboundPayload creates payload from text response', () => {
+  const payload = buildMaxOutboundPayload(createTextResponse());
+
+  assert.deepEqual(payload, {
+    recipientType: 'user_id',
+    to: '<synthetic-user-id>',
+    text: 'Ready to help.'
+  });
+});
+
+test('createMaxOutboundClient sends text response through live HTTP transport', async () => {
+  const requests = [];
+  const client = createMaxOutboundClient({
+    apiUrl: 'https://synthetic.example/messages',
+    token: 'synthetic-secret-token',
+    httpClient: {
+      post(request) {
+        requests.push(request);
+        return {
+          statusCode: 200,
+          body: {
+            message: {
+              id: 'synthetic-message-id'
+            }
+          }
+        };
+      }
+    },
+    networkEnabled: true
+  });
+
+  const result = await client.send(createTextResponse());
+
+  assert.equal(result.mode, 'live');
+  assert.equal(result.networkEnabled, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].headers.Authorization, 'synthetic-secret-token');
+  assert.equal(requests[0].url, 'https://synthetic.example/messages?user_id=%3Csynthetic-user-id%3E');
+  assert.deepEqual(requests[0].body, {
+    text: 'Ready to help.',
+    notify: true,
+    format: 'markdown'
+  });
+  assert.equal(result.response.statusCode, 200);
 });
 
 test('createMaxOutboundClient keeps safe transport failure diagnostics', async () => {

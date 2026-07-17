@@ -45,7 +45,7 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
   });
   const processUpdate = typeof options.processUpdate === 'function'
     ? options.processUpdate
-    : createIdentityUpdateProcessor({ routeHandlers: options.routeHandlers, outboundClient });
+    : createIdentityUpdateProcessor({ outboundClient, identityHandler: options.identityHandler });
   const pollUpdates = typeof options.pollUpdates === 'function'
     ? options.pollUpdates
     : async () => {

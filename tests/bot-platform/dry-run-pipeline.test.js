@@ -13,10 +13,14 @@ function readFixture(fileName) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-const routeHandlers = { identity: handleIdentityEvent };
+test('dry-run pipeline returns identity response for /id command in user context', async () => {
+  const payload = readFixture('max-inbound-user.fixture.json');
 
-test('dry-run pipeline returns identity response for user fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
+  payload.message.text = '/id';
+
+  const result = await runMaxIdentityDryRun(payload, {
+    identityHandler: handleIdentityEvent
+  });
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -29,8 +33,14 @@ test('dry-run pipeline returns identity response for user fixture', async () => 
   assert.equal(result.outbound.request.body.recipientType, 'user_id');
 });
 
-test('dry-run pipeline returns identity response for chat fixture', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-chat.fixture.json'), routeHandlers);
+test('dry-run pipeline returns identity response for /id command in chat context', async () => {
+  const payload = readFixture('max-inbound-chat.fixture.json');
+
+  payload.message.text = '/id';
+
+  const result = await runMaxIdentityDryRun(payload, {
+    identityHandler: handleIdentityEvent
+  });
 
   assert.equal(result.mode, 'dry-run');
   assert.equal(result.networkEnabled, false);
@@ -41,8 +51,16 @@ test('dry-run pipeline returns identity response for chat fixture', async () => 
   assert.equal(result.outbound.request.body.recipientType, 'chat_id');
 });
 
+test('dry-run pipeline returns unknown command for non-command text', async () => {
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
+
+  assert.equal(result.mode, 'dry-run');
+  assert.equal(result.response.kind, 'text');
+  assert.ok(result.response.text.includes('Unknown command'));
+});
+
 test('dry-run pipeline does not expose raw event payload in response', async () => {
-  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'), routeHandlers);
+  const result = await runMaxIdentityDryRun(readFixture('max-inbound-user.fixture.json'));
 
   assert.equal(result.response.raw, undefined);
   assert.doesNotMatch(result.response.text, /<synthetic-message-id>/);
@@ -52,7 +70,7 @@ test('dry-run pipeline does not expose raw event payload in response', async () 
 
 test('dry-run pipeline rejects invalid MAX payload safely', async () => {
   await assert.rejects(
-    runMaxIdentityDryRun({}, routeHandlers),
+    runMaxIdentityDryRun({ update_type: 'message_created' }),
     /Unsupported MAX chat type/
   );
 });

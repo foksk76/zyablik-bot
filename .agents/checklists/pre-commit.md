@@ -9,4 +9,4 @@
 - [ ] Основной webhook-скрипт лежит в `src/zabbix-media-type/max-webhook.js`.
 - [ ] Если изменено поведение webhook, обновлен `docs/zabbix-media-type.md`.
 - [ ] Если изменена архитектура, процесс разработки или границы проекта, добавлен ADR в `docs/decisions/`.
-- [ ] Выполнен `bash scripts/verify-repo.sh` или проведена ручная проверка.
+- [ ] Выполнен `npm test` или проведена ручная проверка.

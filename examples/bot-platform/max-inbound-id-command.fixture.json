@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "synthetic": true,
+    "realPayload": false,
+    "description": "Synthetic /id command for regression testing"
+  },
+  "source": "max",
+  "event_type": "message_created",
+  "chat": {
+    "type": "dialog",
+    "id": "<synthetic-user-id>"
+  },
+  "sender": {
+    "type": "user",
+    "id": "<synthetic-user-id>",
+    "display_name": "Synthetic User"
+  },
+  "message": {
+    "id": "<synthetic-message-id>",
+    "text": "/id"
+  },
+  "received_at": "<synthetic-timestamp>"
+}

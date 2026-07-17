@@ -5,8 +5,6 @@ const { runMaxIdentityDryRun } = require('../../core/dry-run-pipeline');
 const moduleName = 'max-inbound-webhook';
 
 function createMaxInboundWebhookHandler(options = {}) {
-  const routeHandlers = options.routeHandlers || {};
-
   return {
     moduleName,
     status: 'available',
@@ -18,7 +16,7 @@ function createMaxInboundWebhookHandler(options = {}) {
         statusCode: 200,
         mode: 'dry-run',
         networkEnabled: false,
-        ...await runMaxIdentityDryRun(payload, routeHandlers)
+        ...await runMaxIdentityDryRun(payload, options)
       };
     }
   };

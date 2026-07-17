@@ -13,7 +13,7 @@ event-contract.js
 Назначение:
 
 ```text
-MAX transport normalizes incoming event -> internal event -> event router -> identity plugin
+MAX transport normalizes incoming event -> internal event -> pipeline (command dispatch + identity handler)
 ```
 
 ## Event shape
@@ -87,7 +87,7 @@ createLiveRuntimeConfig(environment)
 ### `live-pipeline.js`
 
 ```text
-createIdentityUpdateProcessor({ outboundClient, router, outboundClientOptions })
+createIdentityUpdateProcessor({ outboundClient, commandRegistry, identityHandler, outboundClientOptions })
 ```
 
 Преобразует нормализованный MAX update в identity response и отправляет его через injectable outbound client boundary. Long polling runtime использует этот helper через опциональный `processUpdate` callback, а synthetic dry-run path остается без изменений.

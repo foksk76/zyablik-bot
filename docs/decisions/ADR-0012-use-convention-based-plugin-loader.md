@@ -76,7 +76,7 @@ module.exports = {
 
 - Добавление плагина: создать `src/bot-platform/plugins/{name}/index.js` с `{ name, routes }`
 - `app.js`, `dry-run-pipeline.js`, `live-pipeline.js` больше не хардкодят конкретные плагины
-- Тесты передают `routeHandlers` явно
+- Тесты передают `outboundClient` и `identityHandler` явно
 - Существующий identity plugin рефакторен на новый интерфейс
 
 ## Рассмотренные альтернативы

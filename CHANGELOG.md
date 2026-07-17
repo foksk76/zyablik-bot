@@ -39,6 +39,19 @@
 ### Added
 - Convention-based plugin loader for bot-platform (ADR-0012)
 - Auto-discovery of plugins from `src/bot-platform/plugins/{name}/`
+- Bot command system with static command registry and pipeline dispatch (ADR-0018)
+- Outbound response shape extensibility — text-only responses (ADR-0019)
+- Welcome message on `bot_added` events (ADR-0020)
+- Welcome message on `bot_started` events (ADR-0021)
+
+### Changed
+- Non-command text now returns "Unknown command" instead of identity response
+- Pipeline dispatch replaces `router.route()` for all inbound events (ADR-0018)
+- Removed dead `routeHandlers` parameter from pipeline callers and runtime
+- Dry-run pipeline now accepts `outboundClient` and `commandRegistry` via options (DI parity with live pipeline)
+- Removed stale `router.route()` references from documentation (ADR-0020, ADR-0021, project-context, bot-commands)
+- Removed unnecessary shallow copy in command-registry `lookup()`
+- Dry-run response now includes `event` field for parity with live pipeline
 
 ### Completed
 - Task 18.9: Live personal-dialog `user_id` verification (2026-07-15 10:50 UTC)

@@ -52,16 +52,16 @@ Live identity bot не принимает события Zabbix, не маршр
 
 ## На какие события бот отвечает
 
-Identity-бот отвечает только на update типа `message_created`. Другие типы update игнорируются без отправки ответа:
+Identity-бот отвечает на update типа `message_created`, `bot_added` и `bot_started`. Другие типы update игнорируются без отправки ответа:
 
 ```text
-message_created -> бот отвечает с RecipientType и To
-bot_started     -> игнорируется
-bot_added       -> игнорируется
+message_created -> бот обрабатывает команды (/help, /id, /status) или отвечает "Unknown command"
+bot_started     -> бот отправляет приветствие
+bot_added       -> бот отправляет приветствие
 любой другой    -> игнорируется
 ```
 
-Правило живет в `src/bot-platform/core/live-pipeline.js` (`REPLY_UPDATE_TYPES`). Раннее поведение отвечало и на `bot_added` (добавление бота в чат), что засоряло чат — теперь это исправлено.
+Правило живет в `src/bot-platform/core/live-pipeline.js` и `src/bot-platform/core/dry-run-pipeline.js` (`REPLY_UPDATE_TYPES`).
 
 ## Доставка updates в групповых чатах MAX
 
@@ -121,7 +121,7 @@ MAX_TRANSPORT_MODE=long_polling
 
 1. Проверить, запущен ли runtime в режиме, который реально получает события от MAX.
 2. Проверить, что источник входящих событий не synthetic fixtures.
-3. Проверить тип update: бот отвечает только на `message_created`. В групповом чате MAX по умолчанию не доставляет боту `message_created` для обычных сообщений участников — прямой запрос `GET /updates` вернёт пустой список `updates`. Это поведение платформы MAX, а не ошибка сети, токена или кода. Личный диалог (dialog) обновления доставляет.
+3. Проверить тип update: бот отвечает на `message_created` (команды и текст), `bot_added` (приветствие при добавлении в чат) и `bot_started` (приветствие при начале диалога). В групповом чате MAX по умолчанию не доставляет боту `message_created` для обычных сообщений участников — прямой запрос `GET /updates` вернёт пустой список `updates`. Это поведение платформы MAX, а не ошибка сети, токена или кода. Личный диалог (dialog) обновления доставляет.
 4. Проверить, что outbound client делает сетевой вызов MAX Bot API.
 5. Проверить, что `MAX_BOT_TOKEN` и другие секреты заданы только локально.
 6. Проверить логи без раскрытия токенов, `user_id`, `chat_id`, внутренних URL и организационных названий.

@@ -8,10 +8,8 @@ const {
   runLongPollingCycle
 } = require('../../src/bot-platform/runtime');
 const { createIdentityUpdateProcessor } = require('../../src/bot-platform/core');
-const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
-const routeHandlers = { identity: handleIdentityEvent };
 
 function readFixture(fileName) {
   const filePath = path.join(fixturesDir, fileName);
@@ -20,7 +18,6 @@ function readFixture(fileName) {
 
 test('long polling cycle processes synthetic user updates safely', async () => {
   const result = await runLongPollingCycle({
-    routeHandlers,
     pollUpdates: async () => [readFixture('max-inbound-user.fixture.json')],
     sleep: async () => {}
   });
@@ -31,7 +28,7 @@ test('long polling cycle processes synthetic user updates safely', async () => {
   assert.equal(result.updates, 1);
   assert.equal(result.results.length, 1);
   assert.equal(result.results[0].mode, 'dry-run');
-  assert.equal(result.results[0].response.kind, 'identity');
+  assert.equal(result.results[0].response.kind, 'text');
   assert.equal(result.results[0].response.recipient.kind, 'user');
   assert.equal(result.results[0].outbound.request.body.recipientType, 'user_id');
 });
@@ -39,7 +36,6 @@ test('long polling cycle processes synthetic user updates safely', async () => {
 test('long polling service exposes long polling mode and no network', async () => {
   const service = createLongPollingService({
     autoStart: false,
-    routeHandlers,
     pollUpdates: async () => [readFixture('max-inbound-chat.fixture.json')],
     sleep: async () => {}
   });
@@ -89,11 +85,11 @@ test('long polling service can route live inbound updates through identity pipel
             }
           }
         },
-        payload: response.zabbix
+        payload: response.recipient || response.zabbix
       };
     }
   };
-  const processUpdate = createIdentityUpdateProcessor({ routeHandlers, outboundClient });
+  const processUpdate = createIdentityUpdateProcessor({ outboundClient });
   const service = createLongPollingService({
     autoStart: false,
     pollUpdates: async () => [readFixture('max-inbound-user.fixture.json')],
@@ -113,13 +109,13 @@ test('long polling service can route live inbound updates through identity pipel
 
   assert.equal(state.results.length, 1);
   assert.equal(state.results[0].mode, 'live');
-  assert.equal(state.results[0].response.kind, 'identity');
+  assert.equal(state.results[0].response.kind, 'text');
   assert.equal(state.results[0].response.recipient.kind, 'user');
   assert.equal(state.results[0].outbound.mode, 'live');
   assert.equal(state.results[0].outbound.request.body.notify, true);
   assert.equal(outboundCalls.length, 1);
-  assert.equal(outboundCalls[0].zabbix.recipientType, 'user_id');
-  assert.equal(outboundCalls[0].zabbix.to, '<synthetic-user-id>');
+  assert.equal(outboundCalls[0].recipient.kind, 'user');
+  assert.equal(outboundCalls[0].recipient.value, '<synthetic-user-id>');
   assert.ok(logEntries.some((entry) => entry.message === 'long polling update processed'));
 
   service.stop();

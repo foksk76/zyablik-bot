@@ -7,8 +7,6 @@ const { createLiveBotPlatformService } = require('../../src/bot-platform/runtime
 const { MAX_API_ERROR_CODE } = require('../../src/bot-platform/transports/max');
 const { handleIdentityEvent } = require('../../src/bot-platform/plugins/identity');
 
-const routeHandlers = { identity: handleIdentityEvent };
-
 const fixturesDir = path.join(__dirname, '../../examples/bot-platform');
 
 function readFixture(fileName) {
@@ -70,7 +68,6 @@ test('live service wires inbound updates into outbound MAX response delivery', a
     MAX_BOT_TOKEN: 'synthetic-bot-token'
   }, {
     httpClient,
-    routeHandlers,
     logger: createCaptureLogger(entries),
     sleep: async () => {},
     maxCycles: 1,
@@ -88,7 +85,7 @@ test('live service wires inbound updates into outbound MAX response delivery', a
   assert.equal(liveService.state.updates, 1);
   assert.equal(liveService.state.results.length, 1);
   assert.equal(liveService.state.results[0].mode, 'live');
-  assert.equal(liveService.state.results[0].response.kind, 'identity');
+  assert.equal(liveService.state.results[0].response.kind, 'text');
   assert.equal(liveService.state.results[0].response.recipient.kind, 'user');
   assert.equal(liveService.state.results[0].outbound.mode, 'live');
   assert.equal(liveService.state.results[0].outbound.response.statusCode, 200);
@@ -151,7 +148,6 @@ test('live service passes poll config and acknowledges marker after successful p
   }, {
     inboundClient,
     outboundClient,
-    routeHandlers,
     logger: createCaptureLogger([]),
     sleep: async () => {},
     maxCycles: 1,
@@ -362,6 +358,44 @@ test('live service classifies outbound API failures and keeps the loop alive', a
   assert.ok(entries.some((entry) => entry.level === 'error' && entry.message === 'long polling loop recovered from error'));
   assert.doesNotMatch(serialized, /synthetic-secret-token/);
   assert.doesNotMatch(serialized, /<synthetic-user-id>/);
+
+  liveService.stop();
+});
+
+test('live service wires identityHandler through to command registry for /id', async () => {
+  const posts = [];
+  const liveService = createLiveBotPlatformService({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    MAX_API_URL: 'https://synthetic.example',
+    MAX_BOT_TOKEN: 'synthetic-bot-token'
+  }, {
+    inboundClient: {
+      async poll() {
+        return {
+          updates: [readFixture('max-inbound-id-command.fixture.json')],
+          marker: 1
+        };
+      }
+    },
+    outboundClient: {
+      send(response) {
+        posts.push(response);
+        return { mode: 'live', networkEnabled: true, response: { statusCode: 200, body: {} } };
+      }
+    },
+    identityHandler: handleIdentityEvent,
+    logger: createCaptureLogger([]),
+    maxCycles: 1,
+    sleep: async () => {},
+    installSignalHandlers: false
+  });
+
+  liveService.start();
+  await liveService.loopPromise;
+
+  assert.equal(posts.length, 1);
+  assert.ok(posts[0].text.includes('<synthetic-user-id>'), `response should contain the user_id, got: ${posts[0].text}`);
+  assert.ok(!posts[0].text.includes('Identity handler not available'), 'should not contain fallback error');
 
   liveService.stop();
 });

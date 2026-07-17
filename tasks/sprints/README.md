@@ -19,6 +19,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-10.md` — ADR-0015 Zero Dependencies Policy Test
 - `sprint-11.md` — ADR-0016 DI Injection Audit Test
 - `sprint-12.md` — ADR-0017 Event Contract Edge Cases
+- `sprint-13.md` — Bot Commands System
 
 ## Status
 
@@ -29,6 +30,7 @@ Sprint 5: Complete (Task 5.1 docs research done; Task 5.2 async HTTP boundary do
 Sprint 6: Complete (Convention-based plugin loader)
 Sprint 7: Complete (Identity Plugin Live Plan)
 Sprint 8-12: Complete (ADR test coverage: safe logger, async HTTP, zero deps, DI, event contract)
+Sprint 13: Planned (Bot Commands System — command parser, registry, pipeline dispatch, text-only responses)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.

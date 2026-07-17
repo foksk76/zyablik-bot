@@ -1,6 +1,5 @@
 'use strict';
 
-const { createEventRouter } = require('./event-router');
 const { runMaxIdentityDryRun } = require('./dry-run-pipeline');
 const { createIdentityUpdateProcessor } = require('./live-pipeline');
 const { createBotPlatformConfig, createLiveRuntimeConfig } = require('./config');
@@ -17,7 +16,6 @@ function createCore(environment = process.env) {
     components: {
       config: 'available',
       logger: 'available',
-      eventRouter: 'available',
       pluginLoader: 'available',
       dryRunPipeline: 'available'
     }
@@ -31,7 +29,6 @@ module.exports = {
   createLiveRuntimeConfig,
   createIdentityUpdateProcessor,
   createSafeLogger,
-  createEventRouter,
   createPluginLoader,
   runMaxIdentityDryRun
 };

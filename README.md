@@ -47,6 +47,33 @@ tasks/            sprint plans
 tests/            Node.js policy tests и unit tests
 ```
 
+## Архитектура
+
+Основные компоненты:
+
+```text
+Zabbix Media type (Webhook)
+  └─ src/zabbix-media-type/max-webhook.js
+       └─ MAX Bot API
+            └─ чат или пользователь в МАХ
+
+Bot-platform (identity bot)
+  └─ src/bot-platform/app.js
+       ├─ core/live-pipeline.js    обработка updates
+       ├─ plugins/identity/        identity-сценарий
+       └─ transports/max/          транспорт MAX API
+```
+
+Ключевые архитектурные решения зафиксированы в ADR (`docs/decisions/`):
+
+- ADR-0005: Hubot-based MVP MAX Identity Bot
+- ADR-0012: convention-based plugin loader
+- ADR-0015: нулевые внешние зависимости
+- ADR-0017: внутренний контракт событий
+- ADR-0018: pipeline command dispatch
+- ADR-0020: обработка bot_added событий
+- ADR-0021: обработка bot_started событий
+
 ## Документация
 
 Основные документы:
