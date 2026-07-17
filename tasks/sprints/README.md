@@ -33,10 +33,10 @@ Sprint 5: Complete (Task 5.1 docs research done; Task 5.2 async HTTP boundary do
 Sprint 6: Complete (Convention-based plugin loader)
 Sprint 7: Complete (Identity Plugin Live Plan)
 Sprint 8-12: Complete (ADR test coverage: safe logger, async HTTP, zero deps, DI, event contract)
-Sprint 13: Planned (Bot Commands System — command parser, registry, pipeline dispatch, text-only responses)
-Sprint 14: Planned (Queue Infrastructure — SQLite queue store, worker, pipeline integration)
-Sprint 15: Planned (Ingress Pipeline — JWT auth, normalizers, HTTP server)
-Sprint 16: Planned (App Wiring + Integration — end-to-end multi-source ingest)
+Sprint 13: Complete (Bot Commands System — command parser, registry, pipeline dispatch, text-only responses)
+Sprint 14: Complete (Queue Infrastructure — SQLite queue store, worker, pipeline integration)
+Sprint 15: Complete (Ingress Pipeline — JWT auth, normalizers, HTTP server)
+Sprint 16: Complete (App Wiring + Integration — end-to-end multi-source ingest)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.

@@ -6,6 +6,9 @@ const path = require('node:path');
 
 const { createCore, createPluginLoader, runMaxIdentityDryRun } = require('./core');
 const { createMaxTransport } = require('./transports/max');
+const { createIngressPipeline } = require('./ingress');
+const { createQueueStore } = require('./queue/store');
+const { createQueueWorker } = require('./queue/worker');
 const {
   createSyntheticLongPollingSource,
   createLongPollingService,
@@ -89,10 +92,52 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
 async function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
   const environment = options.environment || process.env;
   const app = createBotPlatformApp(environment);
+  const config = app.core.config;
 
   if (argv.length === 0) {
-    if (app.core.config.maxTransportMode === 'long_polling') {
+    if (config.maxTransportMode === 'long_polling') {
       startBotPlatformService(environment);
+
+      const { createMaxOutboundClient } = require('./transports/max/outbound-client');
+      const outboundClient = options.outboundClient || createMaxOutboundClient();
+
+      let queueStore = null;
+      if (config.queueEnabled) {
+        queueStore = options.queueStore || createQueueStore({
+          dbPath: options.queueDbPath || 'delivery-queue.db',
+          backoffBase: config.queueBackoffBase,
+          backoffMax: config.queueBackoffMax
+        });
+      }
+
+      if (config.ingressEnabled) {
+        const ingress = createIngressPipeline({
+          port: config.ingressPort,
+          issuer: config.oktaIssuer,
+          audience: config.oktaAudience,
+          outboundClient,
+          queueStore,
+          logger: options.logger || console
+        });
+
+        await ingress.start();
+        io.stdout.write(`HTTP-ingress server started on port ${config.ingressPort}\n`);
+      }
+
+      if (config.queueEnabled) {
+        const worker = createQueueWorker({
+          queueStore,
+          outboundClient,
+          batchSize: config.queueBatchSize,
+          intervalMs: config.queueIntervalMs,
+          maxAttempts: config.queueMaxAttempts,
+          logger: options.logger || console
+        });
+
+        worker.start();
+        io.stdout.write('Queue worker started\n');
+      }
+
       io.stdout.write('MAX bot-platform safe test service started in long_polling mode with synthetic updates\n');
       return 0;
     }

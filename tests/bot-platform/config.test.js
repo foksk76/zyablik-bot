@@ -127,3 +127,81 @@ test('env.example stays synthetic and secret-free', () => {
   assert.doesNotMatch(envExample, /https?:\/\//i);
   assert.doesNotMatch(envExample, /Bearer\s+/i);
 });
+
+test('createBotPlatformConfig returns queue defaults when env is empty', () => {
+  const config = createBotPlatformConfig({});
+
+  assert.equal(config.queueEnabled, false);
+  assert.equal(config.queueMaxAttempts, 5);
+  assert.equal(config.queueIntervalMs, 5000);
+  assert.equal(config.queueBatchSize, 10);
+  assert.equal(config.queueBackoffBase, 2);
+  assert.equal(config.queueBackoffMax, 300);
+});
+
+test('createBotPlatformConfig reads queue environment overrides', () => {
+  const config = createBotPlatformConfig({
+    QUEUE_ENABLED: 'true',
+    QUEUE_MAX_ATTEMPTS: '10',
+    QUEUE_INTERVAL_MS: '2000',
+    QUEUE_BATCH_SIZE: '50',
+    QUEUE_BACKOFF_BASE: '3',
+    QUEUE_BACKOFF_MAX: '600'
+  });
+
+  assert.equal(config.queueEnabled, true);
+  assert.equal(config.queueMaxAttempts, 10);
+  assert.equal(config.queueIntervalMs, 2000);
+  assert.equal(config.queueBatchSize, 50);
+  assert.equal(config.queueBackoffBase, 3);
+  assert.equal(config.queueBackoffMax, 600);
+});
+
+test('createBotPlatformConfig rejects invalid queue values', () => {
+  assert.throws(
+    () => createBotPlatformConfig({ QUEUE_MAX_ATTEMPTS: '0' }),
+    /Invalid QUEUE_MAX_ATTEMPTS value: 0/
+  );
+  assert.throws(
+    () => createBotPlatformConfig({ QUEUE_INTERVAL_MS: '99' }),
+    /Invalid QUEUE_INTERVAL_MS value: 99/
+  );
+  assert.throws(
+    () => createBotPlatformConfig({ QUEUE_BATCH_SIZE: '0' }),
+    /Invalid QUEUE_BATCH_SIZE value: 0/
+  );
+});
+
+test('createBotPlatformConfig returns ingress defaults when env is empty', () => {
+  const config = createBotPlatformConfig({});
+
+  assert.equal(config.ingressEnabled, false);
+  assert.equal(config.ingressPort, 8443);
+  assert.equal(config.oktaIssuer, '');
+  assert.equal(config.oktaAudience, '');
+});
+
+test('createBotPlatformConfig reads ingress environment overrides', () => {
+  const config = createBotPlatformConfig({
+    INGRESS_ENABLED: 'true',
+    INGRESS_PORT: '9443',
+    OKTA_ISSUER: 'https://synthetic.okta.com',
+    OKTA_AUDIENCE: 'synthetic-audience'
+  });
+
+  assert.equal(config.ingressEnabled, true);
+  assert.equal(config.ingressPort, 9443);
+  assert.equal(config.oktaIssuer, 'https://synthetic.okta.com');
+  assert.equal(config.oktaAudience, 'synthetic-audience');
+});
+
+test('createBotPlatformConfig rejects invalid ingress values', () => {
+  assert.throws(
+    () => createBotPlatformConfig({ INGRESS_PORT: '0' }),
+    /Invalid INGRESS_PORT value: 0/
+  );
+  assert.throws(
+    () => createBotPlatformConfig({ INGRESS_PORT: '99999' }),
+    /Invalid INGRESS_PORT value: 99999/
+  );
+});

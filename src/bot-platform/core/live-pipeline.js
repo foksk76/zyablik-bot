@@ -11,6 +11,8 @@ function createIdentityUpdateProcessor(options = {}) {
     const commandRegistry = options.commandRegistry || createCommandRegistry({
         identityHandler: options.identityHandler || null
     });
+    const queueStore = options.queueStore || null;
+    const queueEnabled = options.queueEnabled === true && queueStore !== null;
 
     return async function processUpdate(maxPayload) {
         const updateType = getUpdateType(maxPayload);
@@ -25,6 +27,19 @@ function createIdentityUpdateProcessor(options = {}) {
 
         const event = normalizeMaxEvent(maxPayload);
         const response = buildPipelineResponse(event, updateType, commandRegistry);
+
+        if (queueEnabled) {
+            const { id } = queueStore.enqueue({ payload: response, source: 'max' });
+
+            return {
+                mode: 'queued',
+                networkEnabled: false,
+                event,
+                response,
+                outbound: { mode: 'queued', queueId: id }
+            };
+        }
+
         const outbound = await outboundClient.send(response);
 
         return {

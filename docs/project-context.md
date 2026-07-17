@@ -136,6 +136,44 @@ CHANGELOG.md
 docs/decisions/
 ```
 
+## Статус реализации multi-source ingest
+
+Реализовано (sprint 14-16):
+
+```text
+src/bot-platform/queue/store.js        — SQLite-based queue store (ADR-0025)
+src/bot-platform/queue/worker.js       — Queue worker с retry + backoff (ADR-0028)
+src/bot-platform/ingress/              — Ingress pipeline:
+  ├── jwt-source-auth.js               — JWT-аутентификация (ADR-0024)
+  ├── http-server.js                   — HTTP-сервер POST /ingest (ADR-0023)
+  ├── normalizers/                     — Per-source нормализаторы
+  │   ├── zabbix.js                    — Zabbix normalizer
+  │   └── index.js                     — Normalizer registry
+  └── index.js                         — Ingress facade
+src/bot-platform/app.js                — Wiring: ingress + queue в одном процессе
+```
+
+Конфигурация (переменные окружения):
+
+```text
+QUEUE_ENABLED=false         — включение очереди (по умолчанию false)
+QUEUE_MAX_ATTEMPTS=5        — максимальное количество попыток доставки
+QUEUE_INTERVAL_MS=5000      — интервал polling очереди
+QUEUE_BATCH_SIZE=10         — размер батча для dequeue
+INGRESS_ENABLED=false       — включение HTTP-ingress (по умолчанию false)
+INGRESS_PORT=8443           — порт HTTP-ingress сервера
+OKTA_ISSUER=                — Okta issuer URL
+OKTA_AUDIENCE=              — Okta audience
+```
+
+Ожидается (live test-run):
+
+```text
+- Okta IdP на MVP стенде (ADR-0027)
+- Live test-run ingest path с реальным JWT
+- Deprecation прямого пути после live-evidence
+```
+
 ## Правило для агентов
 
 Не переизобретать принятые решения. Перед предложением нового подхода агент должен проверить:

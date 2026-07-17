@@ -1,6 +1,8 @@
 'use strict';
 
 const SOURCE_MAX = 'max';
+const SOURCE_ZABBIX = 'zabbix';
+const SOURCE_INGEST = 'ingest';
 const RECIPIENT_KIND_USER = 'user';
 const RECIPIENT_KIND_CHAT = 'chat';
 const RECIPIENT_KINDS = Object.freeze([
@@ -39,6 +41,8 @@ function createInternalEvent(input = {}) {
 
 module.exports = {
   SOURCE_MAX,
+  SOURCE_ZABBIX,
+  SOURCE_INGEST,
   RECIPIENT_KIND_USER,
   RECIPIENT_KIND_CHAT,
   RECIPIENT_KINDS,
