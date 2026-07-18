@@ -162,7 +162,7 @@ filter {
 
 ```text
 MAX_LOG_LEVEL=info                # debug|info|warn|error
-LOG_AUDIT=true                    # включить audit trail
+LOG_AUDIT=false                    # включить audit trail
 LOG_TRACE=true                    # включить lifecycle trace
 ```
 
@@ -247,7 +247,7 @@ Sprint 17 (2026-07-18):
 
 | Модуль | Изменение |
 |--------|-----------|
-| `core/config.js` | `LOG_AUDIT`, `LOG_TRACE` env vars (default: true) |
+| `core/config.js` | `LOG_AUDIT`, `LOG_TRACE` env vars (default: false/true) |
 | `core/logger.js` | `formatLogLine()` helper для ADR-0029 формата |
 | `queue/store.js` | `req_id` столбец (nullable) + index, trace log при enqueue |
 | `ingress/http-server.js` | `reqId` генерируется через `crypto.randomUUID()`, trace/audit логи |

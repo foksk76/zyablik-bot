@@ -50,7 +50,7 @@ function createBotPlatformConfig(environment = process.env) {
     idpAudience: readEnvValue(environment, 'IDP_AUDIENCE'),
     jwtClaimName: readEnvValue(environment, 'JWT_CLAIM_NAME'),
     jwtClaimValue: readEnvValue(environment, 'JWT_CLAIM_VALUE'),
-    logAudit: readBoolEnvValue(environment, 'LOG_AUDIT', true),
+    logAudit: readBoolEnvValue(environment, 'LOG_AUDIT', false),
     logTrace: readBoolEnvValue(environment, 'LOG_TRACE', true)
   };
 }

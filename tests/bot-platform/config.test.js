@@ -209,7 +209,7 @@ test('createBotPlatformConfig rejects invalid ingress values', () => {
 test('createBotPlatformConfig returns audit/trace defaults when env is empty', () => {
   const config = createBotPlatformConfig({});
 
-  assert.equal(config.logAudit, true);
+  assert.equal(config.logAudit, false);
   assert.equal(config.logTrace, true);
 });
 

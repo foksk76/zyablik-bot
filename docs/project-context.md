@@ -171,7 +171,7 @@ IDP_ISSUER=                 — URL Identity Provider (NanoIDP/Keycloak)
 IDP_AUDIENCE=               — аудиенция для JWT verification
 JWT_CLAIM_NAME=             — имя claim для source identification
 JWT_CLAIM_VALUE=            — значение claim для source identification
-LOG_AUDIT=true              — включить audit trail (ADR-0029)
+LOG_AUDIT=false              — включить audit trail (ADR-0029)
 LOG_TRACE=true              — включить lifecycle trace (ADR-0029)
 ```
 
