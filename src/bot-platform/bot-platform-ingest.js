@@ -216,9 +216,10 @@ async function main() {
   const args = parseArgs(process.argv);
 
   if (args.test) {
+    const recipientKind = args.kind || 'user';
     const results = await runLiveTest({
       idpClientSecret: args.secret,
-      userId: args['user-id'] || '123',
+      recipient: { kind: recipientKind, value: args['user-id'] || '123' },
       message: args.message || 'Test message from bot-platform-ingest.js'
     });
 
