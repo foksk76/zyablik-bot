@@ -19,14 +19,9 @@ const {
 } = require('./runtime');
 
 function createIssuerVerifierFactory(issuer) {
-  if (!issuer || issuer.startsWith('https://')) {
-    return null;
-  }
-
-  if (issuer.startsWith('http://')) {
+  if (issuer && issuer.startsWith('http://')) {
     return createOidcVerifierFactory();
   }
-
   return null;
 }
 
