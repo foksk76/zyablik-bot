@@ -10,6 +10,10 @@ function createOidcVerifierFactory(options = {}) {
   const fetchFn = options.fetchFn || globalThis.fetch;
 
   return function createVerifier({ issuer, audience }) {
+    if (issuer.startsWith('http://')) {
+      logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
+    }
+
     let jwks = null;
     let jwksFetchedAt = 0;
 
@@ -67,16 +71,16 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error('JWT header missing kid');
       }
 
-      const keyJwk = findKey(header.kid);
+      let keyJwk = findKey(header.kid);
       if (!keyJwk) {
         await getJwks();
-        const keyAfterRefresh = findKey(header.kid);
-        if (!keyAfterRefresh) {
+        keyJwk = findKey(header.kid);
+        if (!keyJwk) {
           throw new Error(`Key not found in JWKS: ${header.kid}`);
         }
       }
 
-      const key = importKey(findKey(header.kid));
+      const key = importKey(keyJwk);
 
       const algMap = { RS256: 'sha256', RS384: 'sha384', RS512: 'sha512' };
       const algorithm = algMap[header.alg];
@@ -102,7 +106,7 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error('Token expired');
       }
 
-      if (payload.iat && payload.iat > now + 60) {
+      if (payload.iat && payload.iat > now) {
         throw new Error('Token issued in the future');
       }
 
