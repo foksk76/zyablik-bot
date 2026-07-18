@@ -216,10 +216,14 @@ async function main() {
   const args = parseArgs(process.argv);
 
   if (args.test) {
-    const recipientKind = args.kind || 'user';
+    const userId = args['user-id'] || '123';
+    let recipientKind = args.kind;
+    if (!recipientKind || recipientKind === 'auto') {
+      recipientKind = userId.startsWith('-') ? 'chat' : 'user';
+    }
     const results = await runLiveTest({
       idpClientSecret: args.secret,
-      recipient: { kind: recipientKind, value: args['user-id'] || '123' },
+      recipient: { kind: recipientKind, value: userId },
       message: args.message || 'Test message from bot-platform-ingest.js'
     });
 
