@@ -8,4 +8,13 @@ users:
     tenant: "default"
     source_acl: ["ACL_READ", "ACL_WRITE"]
 
+  zabbix:
+    password: "c7ae2beac537f0f624fa6b5ca27917f7"
+    email: "zabbix@example.org"
+    roles: ["USER"]
+    identity_class: "INTERNAL"
+    entitlements: ["zabbix"]
+    tenant: "default"
+    source_acl: ["ACL_READ"]
+
 default_user: "admin"

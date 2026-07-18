@@ -99,7 +99,17 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
 
 async function startIngressAndQueue(config, options, io) {
   const { createMaxOutboundClient } = require('./transports/max/outbound-client');
-  const outboundClient = options.outboundClient || createMaxOutboundClient();
+  const { createNativeFetchHttpClient, buildLiveMessagesApiUrl } = require('./runtime');
+
+  const httpClient = options.httpClient || createNativeFetchHttpClient();
+  const outboundApiUrl = buildLiveMessagesApiUrl(config.maxApiUrl);
+  const outboundClient = options.outboundClient || createMaxOutboundClient({
+    apiUrl: outboundApiUrl,
+    token: config.maxBotToken,
+    httpClient,
+    networkEnabled: true,
+    logger: options.logger || console
+  });
 
   let queueStore = null;
   if (config.queueEnabled) {

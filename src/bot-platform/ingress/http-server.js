@@ -101,7 +101,12 @@ function createIngressHttpServer(options = {}) {
 
     try {
       if (queueStore) {
-        queueStore.enqueue({ payload: event, source });
+        const outboundResponse = {
+          kind: 'text',
+          recipient: event.recipient,
+          text: typeof event.message === 'string' ? event.message : (event.message.text || '')
+        };
+        queueStore.enqueue({ payload: outboundResponse, source });
         sendResponse(res, 200, { status: 'queued' });
       } else {
         await outboundClient.send(event);
