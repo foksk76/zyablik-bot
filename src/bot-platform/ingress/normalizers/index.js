@@ -2,7 +2,7 @@
 
 const { normalizeIngestEvent } = require('./ingest');
 
-function getNormalizer(sourceName) {
+function getNormalizer() {
   return normalizeIngestEvent;
 }
 

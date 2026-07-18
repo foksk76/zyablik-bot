@@ -90,11 +90,6 @@ function createIngressHttpServer(options = {}) {
 
     const normalizer = normalizerRegistry.getNormalizer(source);
 
-    if (!normalizer) {
-      sendResponse(res, 400, { error: `Unknown source: ${source}` });
-      return;
-    }
-
     let event;
 
     try {
