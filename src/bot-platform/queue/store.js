@@ -37,8 +37,10 @@ function createQueueStore(options = {}) {
   for (const sql of MIGRATION_SQL) {
     try {
       db.exec(sql);
-    } catch (_) {
-      // column/index already exists
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(error.message)) {
+        throw error;
+      }
     }
   }
 

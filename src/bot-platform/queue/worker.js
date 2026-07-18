@@ -132,23 +132,28 @@ function createQueueWorker(options = {}) {
       return;
     }
 
-    intervalId = setInterval(async () => {
-      try {
-        await poll();
-      } catch (error) {
-        logger.error(formatLogLine({
-          level: 'error',
-          module: MODULE_NAME,
-          action: 'poll error',
-          context: { reason: error.message }
-        }));
-      }
-    }, intervalMs);
+    function scheduleNext() {
+      intervalId = setTimeout(async () => {
+        try {
+          await poll();
+        } catch (error) {
+          logger.error(formatLogLine({
+            level: 'error',
+            module: MODULE_NAME,
+            action: 'poll error',
+            context: { reason: error.message }
+          }));
+        }
+        scheduleNext();
+      }, intervalMs);
+    }
+
+    scheduleNext();
   }
 
   function stop() {
     if (intervalId !== null) {
-      clearInterval(intervalId);
+      clearTimeout(intervalId);
       intervalId = null;
     }
   }

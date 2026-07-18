@@ -61,15 +61,15 @@ CREATE INDEX idx_queue_pending ON delivery_queue(status, next_retry_at);
 
 ### Retry strategy
 
-Exponential backoff: `delay = min(5^(attempt-1), 600)` секунд.
+Exponential backoff: `delay = min(base^attempts * 60, max)` секунд.
 
-| Attempt | Delay |
+| Attempt | Delay (base=2, max=300) |
 |---|---|
-| 1 | immediate |
-| 2 | 5 секунд |
-| 3 | 25 секунд |
-| 4 | 2 минуты |
-| 5 | 10 минут |
+| 1 | 2 минуты |
+| 2 | 4 минуты |
+| 3 | 5 минут (capped) |
+| 4 | 5 минут (capped) |
+| 5 | 5 минут (capped) |
 
 После `max_attempts` → статус `failed`. Запись остаётся в таблице для review.
 
@@ -116,8 +116,8 @@ QUEUE_ENABLED=false           # default off (backward compatible)
 QUEUE_MAX_ATTEMPTS=5          # retry limit
 QUEUE_INTERVAL_MS=5000        # worker poll interval
 QUEUE_BATCH_SIZE=10           # messages per worker cycle
-QUEUE_BACKOFF_BASE=5          # exponential backoff base (seconds)
-QUEUE_BACKOFF_MAX=600         # max backoff (seconds)
+QUEUE_BACKOFF_BASE=2           # exponential backoff base
+QUEUE_BACKOFF_MAX=300          # max backoff (seconds)
 QUEUE_FAILED_TTL_DAYS=7       # auto-cleanup failed entries (будущее)
 ```
 

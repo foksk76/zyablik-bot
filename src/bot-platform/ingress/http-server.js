@@ -80,7 +80,7 @@ function createIngressHttpServer(options = {}) {
       return;
     }
 
-    if (!body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
       sendResponse(res, 400, { error: 'Invalid request body' });
       return;
     }

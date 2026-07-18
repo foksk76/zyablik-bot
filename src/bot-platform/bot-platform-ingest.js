@@ -208,7 +208,7 @@ async function runZabbixWebhook(params) {
 
   } catch (error) {
     log('error', `Zabbix Webhook failed: ${error.message}`);
-    throw `Sending failed: ${error.message}.`;
+    throw new Error(`Sending failed: ${error.message}.`);
   }
 }
 

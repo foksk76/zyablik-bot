@@ -37,7 +37,10 @@ function createJwtSourceAuth(options = {}) {
     if (!claim) return null;
 
     if (claimValue) {
-      return Array.isArray(claim) && claim.includes(claimValue) ? claimValue : null;
+      if (Array.isArray(claim)) {
+        return claim.includes(claimValue) ? claimValue : null;
+      }
+      return claim === claimValue ? claimValue : null;
     }
 
     return claim;
