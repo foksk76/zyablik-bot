@@ -37,10 +37,12 @@ function createMaxOutboundClient(options = {}) {
         body: payload
       };
 
-      logger.info('prepared MAX outbound request', {
-        recipientType: payload.recipientType,
-        networkEnabled
-      });
+      logger.info(formatLogLine({
+        level: 'info',
+        module: moduleName,
+        action: 'prepared request',
+        context: { recipientType: payload.recipientType, networkEnabled }
+      }));
 
       if (!networkEnabled) {
         return {
@@ -86,11 +88,12 @@ function createMaxOutboundClient(options = {}) {
           }));
         }
 
-        logger.info('sent MAX outbound response', {
-          statusCode: normalizedResponse.statusCode,
-          recipientType: payload.recipientType,
-          networkEnabled: true
-        });
+        logger.info(formatLogLine({
+          level: 'info',
+          module: moduleName,
+          action: 'sent response',
+          context: { statusCode: normalizedResponse.statusCode, recipientType: payload.recipientType, networkEnabled: true }
+        }));
 
         return {
           mode: 'live',

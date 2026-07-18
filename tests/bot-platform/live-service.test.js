@@ -95,8 +95,8 @@ test('live service wires inbound updates into outbound MAX response delivery', a
   assert.equal(requests[0].request.url, 'https://synthetic.example/updates?limit=100&timeout=30&types=message_created%2Cbot_started%2Cbot_added');
   assert.equal(requests[1].request.url, 'https://synthetic.example/messages?user_id=%3Csynthetic-user-id%3E');
   assert.ok(entries.some((entry) => entry.level === 'info' && entry.message === 'live MAX Identity Bot service started'));
-  assert.ok(entries.some((entry) => entry.level === 'info' && entry.message === 'received MAX inbound updates'));
-  assert.ok(entries.some((entry) => entry.level === 'info' && entry.message === 'sent MAX outbound response'));
+  assert.ok(entries.some((entry) => entry.level === 'info' && entry.message.includes('received updates')));
+  assert.ok(entries.some((entry) => entry.level === 'info' && entry.message.includes('sent response')));
 
   const serialized = JSON.stringify(entries);
 

@@ -102,10 +102,22 @@ function createQueueWorker(options = {}) {
           try {
             queueStore.nack(item.id, attempts, maxAttempts);
           } catch (nackError) {
-            logger.error(`[queue-worker] nack failed for item ${item.id}: ${nackError.message}`);
+            logger.error(formatLogLine({
+              level: 'error',
+              module: MODULE_NAME,
+              reqId: item.reqId,
+              action: 'nack failed',
+              context: { id: item.id, reason: nackError.message }
+            }));
           }
 
-          logger.error(`[queue-worker] send failed for item ${item.id}: ${error.message}`);
+          logger.error(formatLogLine({
+            level: 'error',
+            module: MODULE_NAME,
+            reqId: item.reqId,
+            action: 'send failed',
+            context: { id: item.id, reason: error.message }
+          }));
         }
       }
 
@@ -124,7 +136,12 @@ function createQueueWorker(options = {}) {
       try {
         await poll();
       } catch (error) {
-        logger.error(`[queue-worker] poll error: ${error.message}`);
+        logger.error(formatLogLine({
+          level: 'error',
+          module: MODULE_NAME,
+          action: 'poll error',
+          context: { reason: error.message }
+        }));
       }
     }, intervalMs);
   }

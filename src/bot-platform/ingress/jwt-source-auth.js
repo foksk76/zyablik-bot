@@ -137,7 +137,13 @@ function createJwtSourceAuth(options = {}) {
       if (error.message === `Missing ${claimName} claim`) {
         throw error;
       }
-      logger.error(`[${MODULE_NAME}] JWT verification failed: ${error.message}`);
+      logger.error(formatLogLine({
+        level: 'error',
+        module: MODULE_NAME,
+        reqId,
+        action: 'jwt verification failed',
+        context: { reason: error.message, ip }
+      }));
       if (reqId) {
         logger.info(formatLogLine({
           level: 'info',

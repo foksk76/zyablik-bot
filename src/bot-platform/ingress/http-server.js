@@ -160,7 +160,13 @@ function createIngressHttpServer(options = {}) {
         sendResponse(res, 200, { status: 'sent' });
       }
     } catch (error) {
-      logger.error(`[${MODULE_NAME}] Send failed: ${error.message}`);
+      logger.error(formatLogLine({
+        level: 'error',
+        module: MODULE_NAME,
+        reqId,
+        action: 'send failed',
+        context: { reason: error.message }
+      }));
       sendResponse(res, 500, { error: 'Internal server error' });
     }
   }
