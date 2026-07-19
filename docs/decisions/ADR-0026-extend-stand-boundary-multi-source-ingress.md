@@ -93,7 +93,7 @@ ADR-0006 описывает callback-path для MAX webhook, но multi-source 
 
 ### systemd
 
-Текущий `systemd/max-identity-bot.service` продолжает работать для long-polling pipeline. HTTP-ingress pipeline добавляется в тот же процесс `app.js` — отдельный systemd-unit не требуется (ADR-0009, ADR-0023).
+Текущий `systemd/zyablik-bot.service` продолжает работать для long-polling pipeline. HTTP-ingress pipeline добавляется в тот же процесс `app.js` — отдельный systemd-unit не требуется (ADR-0009, ADR-0023).
 
 Новый systemd-unit для ingress mode (отдельный `.env` с ingress-конфигурацией):
 
@@ -101,7 +101,7 @@ ADR-0006 описывает callback-path для MAX webhook, но multi-source 
 systemd/max-bot-platform-ingress.service
 ```
 
-Единственное отличие от `max-identity-bot.service`:
+Единственное отличие от `zyablik-bot.service`:
 - `EnvironmentFile` указывает на конфиг с ingress-параметрами (порт, Okta domain, source-mapping);
 - Режим: `MAX_TRANSPORT_MODE=ingress` (или комбинация `long_polling` + `ingress`).
 

@@ -31,7 +31,7 @@ Live-приемка MAX Identity Bot выполнена:
 
 ## Примечания
 
-- Сервис `max-identity-bot-live.service` обработал live-обновления через long polling
+- Сервис `zyablik-bot-live.service` обработал live-обновления через long polling
 - Transport mode: `long_polling`
 - Network enabled: `true`
 - Identity plugin корректно форматирует ответ с параметрами для Zabbix

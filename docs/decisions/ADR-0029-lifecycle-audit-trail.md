@@ -102,7 +102,7 @@ Trace-точки:
 
 - Человек читает текст до `{`
 - Logstash парсит JSON-хвост через `json` filter
-- Фильтрация: `journalctl -u max-identity-bot-live | grep '\[audit\]'`
+- Фильтрация: `journalctl -u zyablik-bot-live | grep '\[audit\]'`
 
 ### Прокидывание reqId через очередь
 
