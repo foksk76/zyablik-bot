@@ -1,8 +1,9 @@
 {
-  "name": "zabbix-max-alert-bot",
+  "name": "zyablik-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "Zabbix webhook integration for sending alerts to MAX messenger",
+  "description": "Zyablik — bot for delivering notifications in MAX messenger",
+  "license": "Apache-2.0",
   "scripts": {
     "test": "node --test",
     "verify": "npm test"

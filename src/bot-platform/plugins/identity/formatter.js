@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const { RECIPIENT_TYPE_MAP } = require('../../core/pipeline-constants');

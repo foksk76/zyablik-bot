@@ -23,6 +23,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-14.md` — ADR-0025/0028 Queue Infrastructure (delivery queue)
 - `sprint-15.md` — ADR-0023/0024 Ingress Pipeline (HTTP + JWT auth + normalizers)
 - `sprint-16.md` — App Wiring + Integration (multi-source ingest end-to-end)
+- `sprint-17.md` — ADR-0029 Lifecycle Audit Trail
+- `sprint-18.md` — ADR-0031 Пре-продакшн: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot
 
 ## Status
 
@@ -37,6 +39,8 @@ Sprint 13: Complete (Bot Commands System — command parser, registry, pipeline 
 Sprint 14: Complete (Queue Infrastructure — SQLite queue store, worker, pipeline integration)
 Sprint 15: Complete (Ingress Pipeline — JWT auth, normalizers, HTTP server)
 Sprint 16: Complete (App Wiring + Integration — end-to-end multi-source ingest)
+Sprint 17: Planned (Lifecycle Audit Trail, ADR-0029)
+Sprint 18: Complete (ADR-0031: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.

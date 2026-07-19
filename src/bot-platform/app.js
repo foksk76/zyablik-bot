@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const fs = require('node:fs');
@@ -32,7 +33,7 @@ function createBotPlatformApp(environment = process.env) {
   const pluginLoader = createPluginLoader(path.join(__dirname, 'plugins'));
 
   return {
-    name: 'max-identity-bot-platform',
+    name: 'zyablik-bot-platform',
     status: 'scaffold',
     core,
     transports: {

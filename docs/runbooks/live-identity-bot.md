@@ -65,53 +65,53 @@ node src/bot-platform/app.js examples/bot-platform/max-inbound-user.fixture.json
 Для live режима используется отдельный unit:
 
 ```text
-systemd/max-identity-bot-live.service
+systemd/zyablik-bot-live.service
 ```
 
 Смысл разделения:
 
-- `systemd/max-identity-bot.service` остается safe-test service;
-- `systemd/max-identity-bot-live.service` запускает live entrypoint с `--live`;
+- `systemd/zyablik-bot.service` остается safe-test service;
+- `systemd/zyablik-bot-live.service` запускает live entrypoint с `--live`;
 - оба варианта используют локальный `.env`, но разные цели запуска;
 - safe-test не должен быть неожиданно заменен live режимом.
 
 ### Установка live unit
 
 ```bash
-sudo cp systemd/max-identity-bot-live.service /etc/systemd/system/max-identity-bot-live.service
+sudo cp systemd/zyablik-bot-live.service /etc/systemd/system/zyablik-bot-live.service
 sudo systemctl daemon-reload
-sudo systemctl enable max-identity-bot-live
-sudo systemctl start max-identity-bot-live
+sudo systemctl enable zyablik-bot-live
+sudo systemctl start zyablik-bot-live
 ```
 
 ### Проверка статуса
 
 ```bash
-sudo systemctl status max-identity-bot-live --no-pager
+sudo systemctl status zyablik-bot-live --no-pager
 ```
 
 ### Остановка
 
 ```bash
-sudo systemctl stop max-identity-bot-live
+sudo systemctl stop zyablik-bot-live
 ```
 
 ### Логи
 
 ```bash
-journalctl -u max-identity-bot-live -n 100 --no-pager
+journalctl -u zyablik-bot-live -n 100 --no-pager
 ```
 
 Для просмотра логов в реальном времени используйте `journalctl -f`:
 
 ```bash
-sudo journalctl -u max-identity-bot-live -f
+sudo journalctl -u zyablik-bot-live -f
 ```
 
 Если нужно сначала увидеть последние строки и дальше продолжить просмотр:
 
 ```bash
-sudo journalctl -u max-identity-bot-live -n 100 -f
+sudo journalctl -u zyablik-bot-live -n 100 -f
 ```
 
 Остановить просмотр:
@@ -190,8 +190,8 @@ long polling tick skipped
 Команды rollback:
 
 ```bash
-sudo systemctl disable --now max-identity-bot-live
-sudo systemctl enable --now max-identity-bot
+sudo systemctl disable --now zyablik-bot-live
+sudo systemctl enable --now zyablik-bot
 ```
 
 Если нужен только локальный безопасный прогон без live API, используйте `npm test` или dry-run fixture.

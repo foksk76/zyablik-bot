@@ -1,4 +1,7 @@
-# Zabbix MAX Alert Bot
+# Зяблик / Zyablik
+
+![Zyablik](docs/assets/zyablik-logo.png)
+![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)
 
 Небольшой проект для доставки уведомлений из Zabbix в корпоративный мессенджер МАХ.
 
@@ -155,3 +158,11 @@ docs/decisions/        ADR и история решений
 CHANGELOG.md           заметные изменения
 tasks/sprints/          sprint plans
 ```
+
+## License
+
+Проект лицензирован по [Apache License 2.0](LICENSE).
+
+Авторское право © 2026 Kirill Fomichev.
+
+Русская версия лицензии: [LICENSE.ru](LICENSE.ru).

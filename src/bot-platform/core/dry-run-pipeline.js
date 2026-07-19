@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const { normalizeMaxEvent, getUpdateType } = require('../transports/max/event-normalizer');

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const REPLY_UPDATE_TYPES = Object.freeze(['message_created', 'bot_added', 'bot_started']);

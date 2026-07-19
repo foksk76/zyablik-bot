@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const { createInternalEvent, RECIPIENT_KIND_USER, RECIPIENT_KIND_CHAT } = require('../../core/event-contract');

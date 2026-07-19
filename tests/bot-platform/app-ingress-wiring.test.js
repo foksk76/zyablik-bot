@@ -5,7 +5,7 @@ const { createBotPlatformApp } = require('../../src/bot-platform/app');
 
 test('createBotPlatformApp returns app object with config', () => {
   const app = createBotPlatformApp({});
-  assert.equal(app.name, 'max-identity-bot-platform');
+  assert.equal(app.name, 'zyablik-bot-platform');
   assert.equal(app.status, 'scaffold');
   assert.ok(app.core);
   assert.ok(app.core.config);

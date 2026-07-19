@@ -53,7 +53,7 @@ Keep the value in the local `.env` file and out of version control.
 For the outbound-only LXC, run the safe test bot as a `systemd` service:
 
 ```text
-systemd/max-identity-bot.service
+systemd/zyablik-bot.service
 ```
 
 The service runs `src/bot-platform/app.js` with `MAX_TRANSPORT_MODE=long_polling` from a local `.env` file. It stays in the same runtime process, keeps inbound webhook disabled, and processes synthetic updates safely.

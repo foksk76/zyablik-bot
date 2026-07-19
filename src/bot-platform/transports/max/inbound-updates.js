@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 
 const { CONFIG_VALIDATION_ERROR_CODE } = require('../../core/config');

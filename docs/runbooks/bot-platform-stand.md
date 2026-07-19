@@ -113,14 +113,14 @@ npm --version
 ### Получение исходного кода
 
 ```bash
-git clone <repository-url> zabbix-max-alert-bot
-cd zabbix-max-alert-bot
+git clone <repository-url> zyablik-bot
+cd zyablik-bot
 ```
 
 Если репозиторий уже получен:
 
 ```bash
-cd <project-path>/zabbix-max-alert-bot
+cd <project-path>/zyablik-bot
 git status --short
 git pull --ff-only
 ```
@@ -276,14 +276,14 @@ npm --version
 ### Получение исходного кода
 
 ```bash
-git clone <repository-url> zabbix-max-alert-bot
-cd zabbix-max-alert-bot
+git clone <repository-url> zyablik-bot
+cd zyablik-bot
 ```
 
 Если репозиторий уже получен:
 
 ```bash
-cd <project-path>/zabbix-max-alert-bot
+cd <project-path>/zyablik-bot
 git status --short
 git pull --ff-only
 ```
@@ -394,7 +394,7 @@ NODE
 Для outbound-only LXC safe test bot запускается как `systemd` service:
 
 ```text
-systemd/max-identity-bot.service
+systemd/zyablik-bot.service
 ```
 
 Сервис использует:

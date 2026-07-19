@@ -25,8 +25,8 @@ JWT-токен с claim source (например, entitlements: ["zabbix"])
 ## 1. Подготовить рабочую копию
 
 ```bash
-git clone <repository-url> zabbix-max-alert-bot
-cd zabbix-max-alert-bot
+git clone <repository-url> zyablik-bot
+cd zyablik-bot
 npm install
 npm test
 ```

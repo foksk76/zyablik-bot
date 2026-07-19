@@ -43,7 +43,7 @@ test('bot platform scaffold modules can be imported', () => {
 test('bot platform app scaffold wires placeholder modules', () => {
   const app = createBotPlatformApp();
 
-  assert.equal(app.name, 'max-identity-bot-platform');
+  assert.equal(app.name, 'zyablik-bot-platform');
   assert.equal(app.status, 'scaffold');
   assert.equal(app.core.config.maxTransportMode, 'long_polling');
   assert.equal(app.core.moduleName, 'core');

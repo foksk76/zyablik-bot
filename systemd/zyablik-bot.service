@@ -1,0 +1,16 @@
+[Unit]
+Description=Zyablik Bot safe test service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/zyablik-bot
+EnvironmentFile=-/root/zyablik-bot/.env
+ExecStart=/root/.nvm/versions/node/v24.16.0/bin/node /root/zyablik-bot/src/bot-platform/app.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
