@@ -153,7 +153,7 @@ src/bot-platform/ingress/              — Ingress pipeline:
   │   ├── zabbix.js                    — Zabbix normalizer (legacy, не используется)
   │   └── index.js                     — Normalizer registry
   └── index.js                         — Ingress facade
-src/bot-platform/bot-platform-ingest.js — Standalone Zabbix скрипт (替代 max-webhook.js на production)
+src/zabbix-media-type/bot-platform-ingest.js — Zabbix 7.4 webhook + standalone CLI
 src/bot-platform/app.js                — Wiring: ingress + queue в одном процессе
 src/shared/zabbix-message.js           — Shared buildAlertMessage (DRY)
 ```

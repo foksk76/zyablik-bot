@@ -234,7 +234,7 @@ max-webhook.js → bot-platform POST /ingest → queue (ADR-0028) → outbound �
 - ✅ Ingress pipeline: JWT auth, normalizers, HTTP server (ADR-0023, ADR-0024)
 - ✅ App wiring: ingress + queue in one process
 - ✅ Backward compatibility: direct path still works by default
-- ✅ bot-platform-ingest.js — standalone скрипт для Zabbix Media type
+- ✅ bot-platform-ingest.js — Zabbix 7.4 webhook + standalone CLI (src/zabbix-media-type/)
 
 В процессе:
 - Live test-run ingest path (требует IdP на стенде)
@@ -243,19 +243,21 @@ max-webhook.js → bot-platform POST /ingest → queue (ADR-0028) → outbound �
 
 ### bot-platform-ingest.js
 
-Standalone скрипт-заменитель `max-webhook.js` для работы через bot-platform ingress.
+Zabbix 7.4 webhook-скрипт для работы через bot-platform ingress. Совместим с Zabbix Media type webhook interface.
+
+**Совместимость с Zabbix 7.4:** чтение параметров из глобальной переменной `value`, `Zabbix.log()`, `HttpRequest`, `return 'OK'` / `throw 'string'`.
 
 #### Режимы работы
 
 ```bash
-# Dry-run — показать что будет отправлено
-node src/bot-platform/bot-platform-ingest.js --dry-run --user-id=123 --message="Test"
+# Zabbix webhook mode (автоматически при запуске в Zabbix sandbox)
+# Параметры передаются через value переменную — скрипт парсит JSON.parse(value)
 
-# Live test — отправить тестовое сообщение через ingress
-node src/bot-platform/bot-platform-ingest.js --test --secret=<IDP_CLIENT_SECRET> --user-id=123 --message="Test alert"
+# Standalone dry-run — показать что будет отправлено
+node src/zabbix-media-type/bot-platform-ingest.js --dry-run --user-id=123 --message="Test"
 
-# Zabbix webhook mode — читает параметры из stdin
-echo '{"Token":"...","To":"123",...}' | node src/bot-platform/bot-platform-ingest.js --zabbix
+# Standalone live test — отправить тестовое сообщение через ingress
+node src/zabbix-media-type/bot-platform-ingest.js --test --secret=<IDP_CLIENT_SECRET> --user-id=123 --message="Test alert"
 ```
 
 #### Параметры для Zabbix Media type
