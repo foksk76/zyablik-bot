@@ -172,8 +172,9 @@ function createIngressHttpServer(options = {}) {
   }
 
   function start() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       server = http.createServer(handleIngest);
+      server.on('error', reject);
       server.listen(port, () => {
         logger.info(`[${MODULE_NAME}] Listening on port ${port}`);
         resolve();

@@ -130,6 +130,8 @@ async function startIngressAndQueue(config, options, io) {
       verifierFactory: createIssuerVerifierFactory(config.idpIssuer),
       outboundClient,
       queueStore,
+      logAudit: config.logAudit,
+      logTrace: config.logTrace,
       logger: options.logger || console
     });
 
@@ -144,6 +146,8 @@ async function startIngressAndQueue(config, options, io) {
       batchSize: config.queueBatchSize,
       intervalMs: config.queueIntervalMs,
       maxAttempts: config.queueMaxAttempts,
+      logAudit: config.logAudit,
+      logTrace: config.logTrace,
       logger: options.logger || console
     });
 
