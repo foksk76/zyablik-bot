@@ -57,13 +57,15 @@ function createQueueWorker(options = {}) {
           queueStore.ack(item.id);
 
           if (logAudit || logTrace) {
-            logger.info(formatLogLine({
+            const action = logTrace ? 'delivered' : 'message delivered';
+            const entry = {
               level: 'info',
               module: MODULE_NAME,
-              reqId: item.reqId,
-              action: 'delivered',
+              action,
               context: { id: item.id, duration_ms: durationMs }
-            }));
+            };
+            if (logTrace) entry.reqId = item.reqId;
+            logger.info(formatLogLine(entry));
           }
 
           processed++;
@@ -72,13 +74,15 @@ function createQueueWorker(options = {}) {
           const maxAttempts = options.maxAttempts || 5;
 
           if (logAudit || logTrace) {
-            logger.info(formatLogLine({
+            const action = logTrace ? 'failed' : 'message failed';
+            const entry = {
               level: 'info',
               module: MODULE_NAME,
-              reqId: item.reqId,
-              action: 'failed',
+              action,
               context: { id: item.id, reason: error.message, attempts }
-            }));
+            };
+            if (logTrace) entry.reqId = item.reqId;
+            logger.info(formatLogLine(entry));
           }
 
           try {

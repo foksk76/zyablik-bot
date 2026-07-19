@@ -166,7 +166,7 @@ test('start does not create duplicate intervals', () => {
   worker.stop();
 });
 
-test('successful delivery logs audit message delivered with duration_ms', async () => {
+test('successful delivery logs delivered with duration_ms', async () => {
   const logEntries = [];
   const items = [{ id: 10, payload: { text: 'test' }, attempts: 0, reqId: 'req-abc' }];
   const store = createMockQueueStore([items]);
@@ -185,7 +185,7 @@ test('successful delivery logs audit message delivered with duration_ms', async 
   assert.ok(deliveredLog.includes('"duration_ms"'), 'should include duration_ms');
 });
 
-test('failed delivery logs audit message failed with reason', async () => {
+test('failed delivery logs failed with reason', async () => {
   const logEntries = [];
   const items = [{ id: 11, payload: { text: 'fail' }, attempts: 2, reqId: 'req-def' }];
   const store = createMockQueueStore([items]);
@@ -221,6 +221,47 @@ test('dequeued trace log includes reqId', async () => {
   const dequeuedLog = logEntries.find((e) => typeof e === 'string' && e.includes('dequeued'));
   assert.ok(dequeuedLog, 'should have dequeued trace log');
   assert.ok(dequeuedLog.includes('req-ghi'), 'should include reqId');
+});
+
+test('audit-only delivery logs action message delivered without reqId', async () => {
+  const logEntries = [];
+  const items = [{ id: 20, payload: { text: 'test' }, attempts: 0, reqId: 'req-audit1' }];
+  const store = createMockQueueStore([items]);
+  const outbound = createMockOutboundClient();
+  const worker = createQueueWorker({
+    queueStore: store,
+    outboundClient: outbound,
+    logAudit: true,
+    logTrace: false,
+    logger: { info: (msg) => logEntries.push(msg), error: () => {} }
+  });
+
+  await worker.poll();
+
+  const deliveredLog = logEntries.find((e) => typeof e === 'string' && e.includes('message delivered'));
+  assert.ok(deliveredLog, 'should have "message delivered" audit log');
+  assert.ok(!deliveredLog.includes('req-audit1'), 'audit log should not include reqId');
+});
+
+test('audit-only failed delivery logs action message failed without reqId', async () => {
+  const logEntries = [];
+  const items = [{ id: 21, payload: { text: 'fail' }, attempts: 2, reqId: 'req-audit2' }];
+  const store = createMockQueueStore([items]);
+  const outbound = createMockOutboundClient(true);
+  const worker = createQueueWorker({
+    queueStore: store,
+    outboundClient: outbound,
+    maxAttempts: 5,
+    logAudit: true,
+    logTrace: false,
+    logger: { info: (msg) => logEntries.push(msg), error: () => {} }
+  });
+
+  await worker.poll();
+
+  const failedLog = logEntries.find((e) => typeof e === 'string' && e.includes('message failed'));
+  assert.ok(failedLog, 'should have "message failed" audit log');
+  assert.ok(!failedLog.includes('req-audit2'), 'audit log should not include reqId');
 });
 
 test('worker without logger works without errors', async () => {
