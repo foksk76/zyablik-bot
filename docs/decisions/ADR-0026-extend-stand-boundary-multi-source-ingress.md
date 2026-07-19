@@ -23,10 +23,10 @@ ADR-0007/0008 фиксируют текущий LXC как outbound-only:
 - **Исходящий HTTP к Okta** — JWKS-fetch, token-endpoint для client-credentials flow;
 - **Исходящий HTTP к MAX Bot API** — доставка уведомлений (уже есть);
 - **DNS-имя** для ingress-endpoint;
-- **TLS-терминирование** (reverse-proxy илиterminated TLS);
+- **TLS-терминирование** (reverse-proxy или terminated TLS);
 - **Порт** для входящих подключений.
 
-ADR-0006 описывает callback-path для MAX webhook, но multi-source ingress — другая задача: источники шлют запросы к боту, а неMAX шлёт callback. Требования к сети пересекаются, но не идентичны.
+ADR-0006 описывает callback-path для MAX webhook, но multi-source ingress — другая задача: источники шлют запросы к боту, а не MAX шлёт callback. Требования к сети пересекаются, но не идентичны.
 
 ## Решение
 

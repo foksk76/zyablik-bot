@@ -85,7 +85,7 @@ SELECT * FROM delivery_queue WHERE req_id = 'abc123-def456';
 - Prometheus метрики — отдельный ADR, когда появится monitoring stack
 - Immutable storage / hash chain — не требуется для current scope
 - Централизованный logstash — MVP, описание в docs для будущей интеграции
-- Structured JSON в每一行 — компромисс: текст + JSON-хвост
+- Structured JSON в каждой строке — компромисс: текст + JSON-хвост
 
 ## Not Doing (and Why)
 

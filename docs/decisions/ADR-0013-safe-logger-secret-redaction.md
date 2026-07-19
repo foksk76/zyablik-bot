@@ -78,6 +78,6 @@ logger.info('response received', { body: response.body });
 
 Минус: не маскирует объекты, не защищает от циклических ссылок, легко пропустить ключ.
 
-### Interceptor pattern (перехват所有 console方法)
+### Interceptor pattern (перехват всех console方法)
 
 Минус: неявный, сложно тестировать, не гарантированно покрывает все вызовы.

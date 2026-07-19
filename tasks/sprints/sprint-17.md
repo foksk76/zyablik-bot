@@ -113,7 +113,7 @@
 
 **Status:** Planned
 
-**Description:** Расширить `authenticate(authorizationHeader)` → `authenticate(authorizationHeader, options = {})` для接受 `{ reqId, ip }`. Добавить audit-логи: (1) auth success — `[audit] auth success sub=... source=... ip=...`; (2) auth failed — `[audit] auth failed reason=... ip=...`. Использовать `formatLogLine()`. IP не верифицируется (приходит из http-server).
+**Description:** Расширить `authenticate(authorizationHeader)` → `authenticate(authorizationHeader, options = {})` для принятия `{ reqId, ip }`. Добавить audit-логи: (1) auth success — `[audit] auth success sub=... source=... ip=...`; (2) auth failed — `[audit] auth failed reason=... ip=...`. Использовать `formatLogLine()`. IP не верифицируется (приходит из http-server).
 
 **Acceptance criteria:**
 - [ ] `authenticate(header, { reqId, ip })` → audit-лог success с sub, source, ip
@@ -319,7 +319,7 @@
 ## Checkpoint: After Tasks 11-12 (Complete)
 
 - [ ] Полный lifecycle trace от ingress до delivery
-- [ ] `journalctl -u max-identity-bot-live | grep '\[audit\]'` работает
+- [ ] `journalctl -u zyablik-bot-live | grep '\[audit\]'` работает
 - [ ] `npm test` — все тесты проходят
 - [ ] Документация обновлена
 - [ ] Готово к ревью
