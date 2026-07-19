@@ -1,0 +1,27 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+oauth:
+  issuer: "http://localhost:8000"
+  audience: "bot-platform"
+  token_expiry_minutes: 60
+  refresh_token_rotation: false
+  clients:
+    - client_id: "zabbix-bot"
+      client_secret: "zabbix-bot-secret-2024"
+      description: "Zabbix to MAX bot-platform M2M client"
+
+saml:
+  entity_id: "http://localhost:8000/saml"
+  sso_url: "http://localhost:8000/saml/sso"
+  default_acs_url: "http://localhost:8080/login/saml2/sso/nanoidp"
+  sign_responses: true
+
+authority_prefixes:
+  roles: "ROLE_"
+  identity_class: "IDENTITY_"
+  entitlements: "ENT_"
+
+logging:
+  verbose_logging: true

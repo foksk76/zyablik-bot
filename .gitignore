@@ -9,6 +9,9 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# Runtime databases
+delivery-queue.db*
+
 # Node / tooling
 node_modules/
 dist/

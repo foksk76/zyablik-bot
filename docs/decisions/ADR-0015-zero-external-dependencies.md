@@ -41,6 +41,8 @@ Bot-platform — компонент, который:
 - Zabbix webhook обрабатывается отдельным скриптом (`src/zabbix-media-type/`)
 - HTTP-фреймворк = лишние зависимости и attack surface
 
+> **Обновлено (ADR-0023):** Bot-platform теперь принимает входящие HTTP через `http.createServer` (stdlib) — ADR-0023. Данная формулировка устарела для ingress-пути; stdlib-only сервер принят как исключение. Express/fastify/koa по-прежнему отклонены.
+
 ## Почему не dotenv
 
 - Конфигурация через `process.env` + `createLiveRuntimeConfig()`
@@ -73,3 +75,19 @@ Bot-platform — компонент, который:
 ### Bundling (esbuild/rollup)
 
 Минус: добавляет dev-зависимости и build step. CommonJS модули не требуют bundling.
+
+## Исключения из ADR-0015
+
+Ниже перечислены принятые исключения из политики нулевых зависимостей:
+
+| Исключение | ADR | Граница |
+|---|---|---|
+| `http.createServer` (stdlib) — ingress-сервер | ADR-0023 | Входящие HTTP, stdlib only |
+| `@okta/jwt-verifier` — JWT-проверка | ADR-0024 | Auth-слой `JwtSourceAuth` |
+| `better-sqlite3` — delivery-log | ADR-0025 | Слой `LogStore` |
+
+Каждое исключение:
+
+- ограничено конкретным слоем (ingress, auth, storage);
+- не распространяется на остальную кодовую базу;
+- требует явного ADR-обоснования.

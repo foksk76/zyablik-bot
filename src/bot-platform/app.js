@@ -6,6 +6,10 @@ const path = require('node:path');
 
 const { createCore, createPluginLoader, runMaxIdentityDryRun } = require('./core');
 const { createMaxTransport } = require('./transports/max');
+const { createIngressPipeline } = require('./ingress');
+const { createOidcVerifierFactory } = require('./ingress/oidc-verifier');
+const { createQueueStore } = require('./queue/store');
+const { createQueueWorker } = require('./queue/worker');
 const {
   createSyntheticLongPollingSource,
   createLongPollingService,
@@ -13,6 +17,13 @@ const {
   createLiveBotPlatformService,
   createLiveServiceShutdownHandlers
 } = require('./runtime');
+
+function createIssuerVerifierFactory(issuer) {
+  if (issuer && issuer.startsWith('http://')) {
+    return createOidcVerifierFactory();
+  }
+  return null;
+}
 
 function createBotPlatformApp(environment = process.env) {
   const core = createCore(environment);
@@ -86,13 +97,76 @@ function runBotPlatformLongPollingOnce(environment = process.env, options = {}) 
   });
 }
 
+async function startIngressAndQueue(config, options, io) {
+  const { createMaxOutboundClient } = require('./transports/max/outbound-client');
+  const { createNativeFetchHttpClient, buildLiveMessagesApiUrl } = require('./runtime');
+
+  const httpClient = options.httpClient || createNativeFetchHttpClient();
+  const outboundApiUrl = buildLiveMessagesApiUrl(config.maxApiUrl);
+  const outboundClient = options.outboundClient || createMaxOutboundClient({
+    apiUrl: outboundApiUrl,
+    token: config.maxBotToken,
+    httpClient,
+    networkEnabled: true,
+    logger: options.logger || console
+  });
+
+  let queueStore = null;
+  if (config.queueEnabled) {
+    queueStore = options.queueStore || createQueueStore({
+      dbPath: options.queueDbPath || 'delivery-queue.db',
+      backoffBase: config.queueBackoffBase,
+      backoffMax: config.queueBackoffMax
+    });
+  }
+
+  if (config.ingressEnabled) {
+    const ingress = createIngressPipeline({
+      port: config.ingressPort,
+      issuer: config.idpIssuer,
+      audience: config.idpAudience,
+      claimName: config.jwtClaimName,
+      claimValue: config.jwtClaimValue,
+      verifierFactory: createIssuerVerifierFactory(config.idpIssuer),
+      outboundClient,
+      queueStore,
+      logAudit: config.logAudit,
+      logTrace: config.logTrace,
+      logger: options.logger || console
+    });
+
+    await ingress.start();
+    io.stdout.write(`HTTP-ingress server started on port ${config.ingressPort}\n`);
+  }
+
+  if (config.queueEnabled) {
+    const worker = createQueueWorker({
+      queueStore,
+      outboundClient,
+      batchSize: config.queueBatchSize,
+      intervalMs: config.queueIntervalMs,
+      maxAttempts: config.queueMaxAttempts,
+      logAudit: config.logAudit,
+      logTrace: config.logTrace,
+      logger: options.logger || console
+    });
+
+    worker.start();
+    io.stdout.write('Queue worker started\n');
+  }
+}
+
 async function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
   const environment = options.environment || process.env;
   const app = createBotPlatformApp(environment);
+  const config = app.core.config;
 
   if (argv.length === 0) {
-    if (app.core.config.maxTransportMode === 'long_polling') {
+    if (config.maxTransportMode === 'long_polling') {
       startBotPlatformService(environment);
+
+      await startIngressAndQueue(config, options, io);
+
       io.stdout.write('MAX bot-platform safe test service started in long_polling mode with synthetic updates\n');
       return 0;
     }
@@ -103,6 +177,8 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
   if (isLiveCommand(argv)) {
     try {
+      await startIngressAndQueue(config, options, io);
+
       const startLiveService = typeof options.startLiveBotPlatformService === 'function'
         ? options.startLiveBotPlatformService
         : startLiveBotPlatformService;

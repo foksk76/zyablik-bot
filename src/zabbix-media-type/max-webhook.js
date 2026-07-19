@@ -72,9 +72,10 @@ var Max = {
     }
 };
 
+var buildAlertMessage = require('../shared/zabbix-message').buildAlertMessage;
+
 try {
     var params = JSON.parse(value);
-    var icon;
 
     if (typeof params.Token === 'undefined' || params.Token === '') {
         throw 'Incorrect value is given for parameter "Token": parameter is missing';
@@ -114,33 +115,12 @@ try {
         }
     }
 
-    if (params.Severity === 'Warning') {
-        icon = '⚠️';
-        Max.notify = false;
-    } else if (params.Severity === 'Average') {
-        icon = String.fromCodePoint('0x2622');
-    } else if (params.Severity === 'High') {
-        icon = '⛔';
-    } else if (params.Severity === 'Disaster') {
-        icon = String.fromCodePoint('0x1F525');
-    } else {
-        icon = String.fromCodePoint('0x2139');
-        Max.notify = false;
-    }
-
-    if (params.Trigger_status === 'OK') {
-        icon = '✅';
-        Max.notify = false;
-    }
-
-    Max.message = icon + ' ' + params.Subject + '\n' + params.Message;
+    var alert = buildAlertMessage(params);
+    Max.message = alert.text;
+    Max.notify = alert.notify;
 
     if (params.ParseMode === 'markdown') {
         Max.message = Max.escapeMarkup(Max.message, params.ParseMode);
-    }
-
-    if (Max.message.length > 4000) {
-        Max.message = Max.message.substring(0, 3990) + '\n...';
     }
 
     Max.sendMessage();

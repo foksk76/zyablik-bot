@@ -7,9 +7,17 @@
 ```text
 Node.js >= 20
 npm
+make, g++ (для сборки better-sqlite3)
 доступ к Zabbix с правами на Media type
 токен MAX Bot API
 user_id или chat_id получателя в МАХ
+```
+
+Для multi-source ingest (HTTP-ingress):
+
+```text
+IdP (NanoIDP для MVP / Keycloak для продакшна)
+JWT-токен с claim source (например, entitlements: ["zabbix"])
 ```
 
 Токены и реальные идентификаторы не хранить в репозитории.
@@ -19,11 +27,24 @@ user_id или chat_id получателя в МАХ
 ```bash
 git clone <repository-url> zabbix-max-alert-bot
 cd zabbix-max-alert-bot
-npm install --package-lock=false
+npm install
 npm test
 ```
 
-Если в вашей среде используется lock-файл, вместо `npm install --package-lock=false` можно выполнить `npm ci`.
+Если `better-sqlite3` не собрался, установить build tools:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install make g++
+
+# RHEL/CentOS
+sudo yum groupinstall "Development Tools"
+
+# macOS
+xcode-select --install
+```
+
+Затем повторить `npm install`.
 
 ## 2. Создать Media type в Zabbix
 
@@ -87,3 +108,119 @@ docs/runbooks/live-identity-bot.md
 ```
 
 Локальный `.env`, токен бота и реальные идентификаторы должны оставаться вне git.
+
+## 6. Очередь доставки (опционально)
+
+Очередь обеспечивает at-least-once доставку сообщений. По умолчанию отключена.
+
+### 6.1 Включить очередь
+
+```bash
+export QUEUE_ENABLED=true
+```
+
+### 6.2 Настроить параметры (опционально)
+
+```text
+QUEUE_MAX_ATTEMPTS=5        — макс. попыток доставки (по умолчанию 5)
+QUEUE_INTERVAL_MS=5000      — интервал polling (мс, по умолчанию 5000)
+QUEUE_BATCH_SIZE=10         — размер батча (по умолчанию 10)
+QUEUE_BACKOFF_BASE=2        — основание экспоненциальной задержки (по умолчанию 2)
+QUEUE_BACKOFF_MAX=300       — макс. задержка между попытками (сек, по умолчанию 300)
+```
+
+### 6.3 Запустить
+
+```bash
+node src/bot-platform/app.js
+```
+
+Очередь работает в фоне. Если outbound-отправка не удалась, сообщение будет повторно отправлено с экспоненциальной задержкой.
+
+## 7. HTTP-ingress (опционально)
+
+HTTP-ingress принимает входящие запросы от внешних источников (Zabbix, SIEM и др.) через `POST /ingest`.
+
+### 7.1 Требования
+
+```text
+IdP с настроенным OIDC (NanoIDP, Keycloak или Authentik)
+JWT-токен с claim source (entitlements или bot_source)
+```
+
+Подробнее: `docs/nanoidp-setup.md`
+
+### 7.2 Установить IdP (NanoIDP для MVP)
+
+```bash
+cd infra/nanoidp
+docker compose up -d
+```
+
+### 7.3 Настроить переменные окружения
+
+```bash
+export INGRESS_ENABLED=true
+export INGRESS_PORT=8443
+export IDP_ISSUER=http://localhost:8000
+export IDP_AUDIENCE=bot-platform
+export JWT_CLAIM_NAME=entitlements
+export JWT_CLAIM_VALUE=zabbix
+```
+
+### 7.4 Запустить
+
+```bash
+node src/bot-platform/app.js
+```
+
+Сервер запустится на указанном порту. Запросы принимаются на `POST /ingest`.
+
+### 7.5 Формат запроса
+
+```bash
+# Получить токен от NanoIDP
+TOKEN=$(curl -s -X POST http://localhost:8000/token \
+  -u 'zabbix-bot:zabbix-bot-secret-2024' \
+  -d 'grant_type=client_credentials' | jq -r '.access_token')
+
+# Отправить событие
+curl -X POST http://localhost:8443/ingest \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient": { "kind": "user", "value": "<MAX_USER_ID>" },
+    "message": "Test alert from Zabbix"
+  }'
+```
+
+### 7.6 Нормализаторы
+
+Поддерживаемые источники:
+
+```text
+zabbix — Zabbix alerts (по умолчанию)
+```
+
+Для добавления нового источника создать нормализатор в `src/bot-platform/ingress/normalizers/` и зарегистрировать в `index.js`.
+
+## 8. Запуск с очередью и ingress
+
+Для запуска с обеими функциями:
+
+```bash
+export QUEUE_ENABLED=true
+export INGRESS_ENABLED=true
+export INGRESS_PORT=8443
+export IDP_ISSUER=http://localhost:8000
+export IDP_AUDIENCE=bot-platform
+export JWT_CLAIM_NAME=entitlements
+export JWT_CLAIM_VALUE=zabbix
+
+node src/bot-platform/app.js
+```
+
+Сервер будет:
+1. Принимать входящие запросы через HTTP-ingress
+2. Ставить сообщения в очередь
+3. Отправлять сообщения через MAX Bot API с retry

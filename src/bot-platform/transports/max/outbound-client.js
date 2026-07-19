@@ -3,6 +3,7 @@
 const { buildSafeTransportErrorDetails } = require('./error-details');
 const { normalizeHttpResponse, createLogger } = require('./shared-helpers');
 const { RECIPIENT_TYPE_MAP } = require('../../core/pipeline-constants');
+const { formatLogLine } = require('../../core/logger');
 
 const moduleName = 'max-outbound-client';
 const MAX_API_ERROR_CODE = 'MAX_API_ERROR';
@@ -26,6 +27,7 @@ function createMaxOutboundClient(options = {}) {
     networkEnabled,
     async send(response) {
       const payload = buildMaxOutboundPayload(response);
+      const reqId = response && response.reqId || null;
       const dryRunRequest = {
         method: 'POST',
         url: apiUrl,
@@ -35,10 +37,12 @@ function createMaxOutboundClient(options = {}) {
         body: payload
       };
 
-      logger.info('prepared MAX outbound request', {
-        recipientType: payload.recipientType,
-        networkEnabled
-      });
+      logger.info(formatLogLine({
+        level: 'info',
+        module: moduleName,
+        action: 'prepared request',
+        context: { recipientType: payload.recipientType, networkEnabled }
+      }));
 
       if (!networkEnabled) {
         return {
@@ -54,18 +58,42 @@ function createMaxOutboundClient(options = {}) {
           apiUrl,
           token
         });
+
+        if (reqId) {
+          logger.info(formatLogLine({
+            level: 'info',
+            module: moduleName,
+            reqId,
+            action: 'outbound',
+            context: { url: request.url, method: request.method }
+          }));
+        }
+
         const httpResponse = await httpClient.post(request);
         const normalizedResponse = normalizeHttpResponse(httpResponse);
 
         if (normalizedResponse.statusCode < 200 || normalizedResponse.statusCode >= 300) {
-          throw createMaxApiError(normalizedResponse.statusCode);
+          throw createMaxApiError(normalizedResponse.statusCode, {
+            responseBody: normalizedResponse.body
+          });
         }
 
-        logger.info('sent MAX outbound response', {
-          statusCode: normalizedResponse.statusCode,
-          recipientType: payload.recipientType,
-          networkEnabled: true
-        });
+        if (reqId) {
+          logger.info(formatLogLine({
+            level: 'info',
+            module: moduleName,
+            reqId,
+            action: 'outbound done',
+            context: { statusCode: normalizedResponse.statusCode }
+          }));
+        }
+
+        logger.info(formatLogLine({
+          level: 'info',
+          module: moduleName,
+          action: 'sent response',
+          context: { statusCode: normalizedResponse.statusCode, recipientType: payload.recipientType, networkEnabled: true }
+        }));
 
         return {
           mode: 'live',
@@ -142,14 +170,17 @@ function normalizeMaxApiError(error) {
   }
 
   if (error && typeof error === 'object' && Number.isInteger(error.statusCode)) {
-    return createMaxApiError(error.statusCode);
+    return createMaxApiError(error.statusCode, {
+      responseBody: error.responseBody || error.body || null
+    });
   }
 
   if (error && typeof error === 'object' && error.message) {
     const normalized = new Error('MAX API request failed');
     normalized.code = MAX_API_ERROR_CODE;
     normalized.details = buildSafeTransportErrorDetails(error, {
-      reason: 'transport failure'
+      reason: 'transport failure',
+      responseBody: error.responseBody || error.body || null
     });
 
     return normalized;

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createSafeLogger } = require('../../src/bot-platform/core/logger');
+const { createSafeLogger, formatLogLine } = require('../../src/bot-platform/core/logger');
 
 test('createSafeLogger masks explicit secret values in text and nested objects', () => {
   const entries = [];
@@ -195,4 +195,95 @@ test('createSafeLogger extracts secrets from config values', () => {
   assert.equal(entries[0].message, 'sending [redacted] to transport');
   assert.equal(entries[0].context.token, '[redacted]');
   assert.equal(entries[0].context.public, 'visible');
+});
+
+test('formatLogLine produces ADR-0029 format with reqId', () => {
+  const line = formatLogLine({
+    ts: '2026-07-18T04:58:06.123Z',
+    level: 'info',
+    module: 'ingress',
+    reqId: 'abc123',
+    action: 'auth success',
+    context: { sub: 'zabbix', source: 'zabbix' }
+  });
+
+  assert.equal(
+    line,
+    '[2026-07-18T04:58:06.123Z] [info] [ingress:abc123] auth success {"sub":"zabbix","source":"zabbix"}'
+  );
+});
+
+test('formatLogLine produces format without reqId', () => {
+  const line = formatLogLine({
+    ts: '2026-07-18T04:58:06.123Z',
+    level: 'info',
+    module: 'worker',
+    action: 'delivered',
+    context: { id: 13 }
+  });
+
+  assert.equal(
+    line,
+    '[2026-07-18T04:58:06.123Z] [info] [worker] delivered {"id":13}'
+  );
+});
+
+test('formatLogLine omits context when empty', () => {
+  const line = formatLogLine({
+    ts: '2026-07-18T04:58:06.123Z',
+    level: 'info',
+    module: 'ingress',
+    reqId: 'abc',
+    action: 'ingress',
+    context: null
+  });
+
+  assert.equal(
+    line,
+    '[2026-07-18T04:58:06.123Z] [info] [ingress:abc] ingress'
+  );
+});
+
+test('formatLogLine omits context when empty object', () => {
+  const line = formatLogLine({
+    ts: '2026-07-18T04:58:06.123Z',
+    level: 'warn',
+    module: 'store',
+    action: 'enqueued',
+    context: {}
+  });
+
+  assert.equal(
+    line,
+    '[2026-07-18T04:58:06.123Z] [warn] [store] enqueued'
+  );
+});
+
+test('formatLogLine omits timestamp when ts is not provided', () => {
+  const line = formatLogLine({
+    level: 'info',
+    module: 'ingress',
+    reqId: 'abc123',
+    action: 'ingress',
+    context: { method: 'POST', path: '/ingest' }
+  });
+
+  assert.equal(
+    line,
+    '[info] [ingress:abc123] ingress {"method":"POST","path":"/ingest"}'
+  );
+});
+
+test('formatLogLine without ts omits timestamp even with context', () => {
+  const line = formatLogLine({
+    level: 'info',
+    module: 'worker',
+    action: 'delivered',
+    context: { id: 13, duration_ms: 42 }
+  });
+
+  assert.equal(
+    line,
+    '[info] [worker] delivered {"id":13,"duration_ms":42}'
+  );
 });

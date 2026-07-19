@@ -101,12 +101,15 @@ test('legacy docs/specs and docs/test-runs task-18 files are removed', () => {
   assert.equal(exists('docs/test-runs/task-18-8-live-runtime-security-review.md'), false, 'old test-run must be moved to identity-plugin');
 });
 
-test('package.json has no runtime dependencies (ADR-0015)', () => {
+test('package.json runtime dependencies follow ADR-0015 with approved exceptions', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.equal(
-    pkg.dependencies === undefined || Object.keys(pkg.dependencies).length === 0,
-    true,
-    'package.json must not have runtime dependencies — bot-platform uses only Node.js stdlib'
+  const allowed = new Set(['better-sqlite3', '@okta/jwt-verifier']);
+  const deps = pkg.dependencies ? Object.keys(pkg.dependencies) : [];
+  const violations = deps.filter((name) => !allowed.has(name));
+  assert.deepEqual(
+    violations,
+    [],
+    `package.json has unapproved runtime dependencies: ${violations.join(', ')} — add ADR before adding new dependencies`
   );
 });
 

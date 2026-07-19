@@ -77,14 +77,25 @@ Live-сценарий с реальным входящим сообщением 
 - доставка Problem и Recovery;
 - документация по настройке и сопровождению.
 
-Не входит без отдельного ADR:
+По ADR-0022 граница проекта расширена на multi-source ingest + журналы:
+
+Входит (ADR-0022):
+
+- HTTP-ingress (`POST /ingest`) для входящих запросов от внешних источников;
+- аутентификация источников через JWT (`@okta/jwt-verifier` — ADR-0024, совместим с OIDC-провайдерами);
+- delivery-log в SQLite (`better-sqlite3` — ADR-0025) за абстракцией `LogStore`;
+- connection-log и audit-trail в syslog;
+- deprecation прямого пути `max-webhook.js → MAX Bot API`;
+- расширение стенда outbound-only → inbound-capable (ADR-0026);
+- IdP на MVP стенде (NanoIDP для quickstart, Keycloak/Authentik для продакшна);
+- очередь доставки сообщений для at-least-once guarantee (ADR-0028).
+
+Не входит без отдельного ADR (без изменений):
 
 - промышленный bot-service;
-- очередь сообщений;
-- база данных;
-- журнал доставки;
 - автоматическая повторная отправка;
-- маршрутизация уведомлений вне Zabbix;
+- маршрутизация «на боте» (каналы и подписки);
+- дедупликация, агрегация, приоритизация уведомлений;
 - обработка инцидентов из МАХ;
 - управление событиями Zabbix из мессенджера;
 - автоматическое реагирование.
@@ -102,7 +113,15 @@ Live-сценарий с реальным входящим сообщением 
 - хранить project-level критерии в `docs/project-acceptance.md`;
 - по ADR-0005 использовать Hubot как основной вариант MVP `MAX Identity Bot`, а Node-RED только как fallback-прототип;
 - по ADR-0010 требовать live evidence для приемки MAX Identity Bot;
-- не реализовывать очередь, базу данных, журнал доставки, автоматическую повторную отправку или маршрутизацию вне Zabbix без отдельного ADR.
+- по ADR-0022 расширить scope на multi-source ingress + журналы;
+- по ADR-0023 принять входящие HTTP в bot-platform (stdlib only);
+- по ADR-0024 принять `@okta/jwt-verifier` как исключение из ADR-0015 (совместим с OIDC-провайдерами);
+- по ADR-0025 принять `better-sqlite3` как исключение из ADR-0015;
+- по ADR-0026 расширить границу стенда под multi-source ingress (outbound-only → inbound-capable);
+- по ADR-0027 установить и настроить IdP на MVP стенде (NanoIDP для quickstart);
+- по ADR-0028 ввести очередь доставки сообщений (delivery queue) для at-least-once guarantee;
+- по ADR-0029 ввести lifecycle audit trail (audit + trace) для расследования инцидентов;
+- не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основной артефакт первого этапа
 
@@ -116,6 +135,52 @@ src/zabbix-media-type/max-webhook.js
 docs/zabbix-media-type.md
 CHANGELOG.md
 docs/decisions/
+```
+
+## Статус реализации multi-source ingest
+
+Реализовано (sprint 14-16):
+
+```text
+src/bot-platform/queue/store.js        — SQLite-based queue store (ADR-0025)
+src/bot-platform/queue/worker.js       — Queue worker с retry + backoff (ADR-0028)
+src/bot-platform/ingress/              — Ingress pipeline:
+  ├── jwt-source-auth.js               — JWT-аутентификация (ADR-0024)
+  ├── http-server.js                   — HTTP-сервер POST /ingest (ADR-0023)
+  ├── oidc-verifier.js                 — OIDC-верификатор для HTTP-issuer
+  ├── normalizers/                     — Per-source нормализаторы
+  │   ├── ingest.js                    — Generic ingest normalizer
+  │   ├── zabbix.js                    — Zabbix normalizer (legacy, не используется)
+  │   └── index.js                     — Normalizer registry
+  └── index.js                         — Ingress facade
+src/bot-platform/bot-platform-ingest.js — Standalone Zabbix скрипт (替代 max-webhook.js на production)
+src/bot-platform/app.js                — Wiring: ingress + queue в одном процессе
+src/shared/zabbix-message.js           — Shared buildAlertMessage (DRY)
+```
+
+Конфигурация (переменные окружения):
+
+```text
+QUEUE_ENABLED=false         — включение очереди (по умолчанию false)
+QUEUE_MAX_ATTEMPTS=5        — максимальное количество попыток доставки
+QUEUE_INTERVAL_MS=5000      — интервал polling очереди
+QUEUE_BATCH_SIZE=10         — размер батча для dequeue
+INGRESS_ENABLED=false       — включение HTTP-ingress (по умолчанию false)
+INGRESS_PORT=8443           — порт HTTP-ingress сервера
+IDP_ISSUER=                 — URL Identity Provider (NanoIDP/Keycloak)
+IDP_AUDIENCE=               — аудиенция для JWT verification
+JWT_CLAIM_NAME=             — имя claim для source identification
+JWT_CLAIM_VALUE=            — значение claim для source identification
+LOG_AUDIT=false              — включить audit trail (ADR-0029)
+LOG_TRACE=true              — включить lifecycle trace (ADR-0029)
+```
+
+Реализовано:
+
+```text
+- NanoIDP на MVP стенде (docker compose, порт 8000)
+- Live test-run ingest path: zabbix → /ingest → queue → outbound → MAX API 200 → user 219338126
+- Keycloak/Authentik для продакшн (документация: docs/nanoidp-setup.md)
 ```
 
 ## Правило для агентов

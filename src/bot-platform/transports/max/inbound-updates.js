@@ -4,6 +4,7 @@ const { CONFIG_VALIDATION_ERROR_CODE } = require('../../core/config');
 const { MAX_API_ERROR_CODE } = require('./outbound-client');
 const { buildSafeTransportErrorDetails } = require('./error-details');
 const { normalizeHttpResponse, createLogger } = require('./shared-helpers');
+const { formatLogLine } = require('../../core/logger');
 
 const moduleName = 'max-inbound-updates-client';
 const DEFAULT_API_URL = 'https://platform-api2.max.ru';
@@ -70,12 +71,12 @@ function createMaxInboundUpdatesClient(options = {}) {
         const result = normalizeUpdatesResponse(response.body);
 
         if (result.updates.length > 0) {
-          logger.info('received MAX inbound updates', {
-            statusCode: response.statusCode,
-            updatesCount: result.updates.length,
-            marker: result.marker,
-            networkEnabled: true
-          });
+          logger.info(formatLogLine({
+            level: 'info',
+            module: moduleName,
+            action: 'received updates',
+            context: { statusCode: response.statusCode, updatesCount: result.updates.length, marker: result.marker, networkEnabled: true }
+          }));
         }
 
         return {

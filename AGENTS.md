@@ -10,7 +10,9 @@
 Zabbix -> MAX Bot API -> пользователь или чат в МАХ
 ```
 
-Не расширять до SIEM, AI-аналитики, автоматического реагирования, очередей сообщений или управления событиями Zabbix из мессенджера без ADR.
+Не расширять до AI-аналитики, автоматического реагирования или управления событиями Zabbix из мессенджера без ADR.
+
+Очередь доставки (ADR-0028) и multi-source ingress (ADR-0022) — в scope проекта.
 
 ## Стек и особенности
 
@@ -49,12 +51,20 @@ docs/identity-plugin/
 Если меняется bot-platform (архитектура):
 
 ```text
+ADR-0012  convention-based plugin loader
 ADR-0013  safe logger / secret redaction
 ADR-0014  async HTTP через child_process.spawn
 ADR-0015  нулевые внешние зависимости
 ADR-0016  инъекция зависимостей через options
 ADR-0017  внутренний контракт событий
-ADR-0012  convention-based plugin loader
+ADR-0022  расширение scope под multi-source ingress + журналы
+ADR-0023  входящие HTTP в bot-platform (изменение посылки ADR-0015)
+ADR-0024  @okta/jwt-verifier как исключение из ADR-0015
+ADR-0025  better-sqlite3 как исключение из ADR-0015
+ADR-0026  расширение scope стенда под multi-source ingress
+ADR-0027  установка и настройка Okta IdP на MVP стенде
+ADR-0028  очередь доставки сообщений (delivery queue)
+ADR-0029  lifecycle audit trail (audit + trace)
 ```
 
 ## Каноничные источники

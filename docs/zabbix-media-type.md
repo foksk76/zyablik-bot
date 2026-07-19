@@ -143,3 +143,144 @@ Trigger_status: PROBLEM
 ⛔ TEST Zabbix -> MAX
 Тестовое уведомление из Zabbix
 ```
+
+## Ограничения MAX Bot API
+
+### Лимит длины сообщения
+
+MAХ Bot API жёстко ограничивает длину поля `text` в теле запроса: **не более 4000 байт**.
+
+Ошибка при превышении:
+
+```json
+{"code":"proto.payload","message":"Field 'text' size (4001) must be at most 4000"}
+```
+
+**Валидация в bot-platform:**
+
+- HTTP-ingress (`POST /ingest`) отклоняет сообщения > 4000 символов с HTTP 413 до постановки в очередь.
+- HTTP-ingress не возвращает тело ошибки MAX API в ответ клиенту — Reject происходит до обращения к MAX API.
+
+**Валидация в max-webhook.js:**
+
+- Прямой путь `max-webhook.js → MAX Bot API` не имеет валидации длины — ошибка возвращается от MAX API напрямую.
+
+### Рекомендации
+
+| Сценарий | Рекомендация |
+|---|---|
+| Длинные уведомления Zabbix | Обрезать `{ALERT.MESSAGE}` на стороне Zabbix (Macro `{ALERT.MESSAGE:0,3900}`) или в Media type параметрах |
+| Кастомные ingest-сообщения | Контролировать длину `message` перед отправкой в `POST /ingest` |
+| Диагностика ошибок MAX API | `outbound-client` логирует `responseBody` из ответа MAX API для диагностики |
+
+### Другие ограничения
+
+| Параметр | Значение | Описание |
+|---|---|---|
+| `text` (MAX API) | ≤ 4000 байт | Жёсткое ограничение protobuf-валидации |
+| Request body (ingress) | ≤ 1 МБ | Лимит `maxBodyBytes` в `http-server.js` |
+| Retry attempts (queue) | 5 попыток | Настраивается через `QUEUE_MAX_ATTEMPTS` |
+| Retry interval | 5 сек (base) | Настраивается через `QUEUE_INTERVAL_MS` |
+
+---
+
+## Planned changes (multi-source ingest)
+
+ADR-0022 расширяет scope проекта на multi-source HTTP-ingress. ADR-0027 определяет интеграцию `max-webhook.js` с IdP (NanoIDP для MVP, Keycloak/Authentik для продакшна). ADR-0028 вводит очередь доставки сообщений для at-least-once guarantee. Ниже — Planned изменения, которые войдут при реализации multi-source ingest:
+
+### Новый путь доставки
+
+Текущий прямой путь (`max-webhook.js → MAX Bot API`) объявляется **deprecated** (ADR-0022). Новый путь:
+
+```text
+max-webhook.js → bot-platform POST /ingest → queue (ADR-0028) → outbound → MAX Bot API
+```
+
+### Изменения параметров Media type
+
+| Параметр | Было | Стало | Описание |
+|---|---|---|---|
+| `Token` | Токен бота MAX | `ClientSecret` (IdP) | IdP client-credentials secret |
+| `APIUrl` | `https://platform-api2.max.ru/messages` | `https://<bot-platform>/ingest` | Endpoint bot-platform |
+| — | — | `ClientId` (новый) | IdP client ID |
+
+Тело запроса меняется на контракт inbound-API (ADR-0022):
+
+```json
+{
+  "recipient": { "kind": "user|chat", "value": "<id>" },
+  "message": "{ALERT.MESSAGE}"
+}
+```
+
+### OAuth client-credentials flow
+
+Перед каждым alert `max-webhook.js` выполняет:
+
+1. `POST <okta-token-endpoint>` с `grant_type=client_credentials`, `client_id`, `client_secret`, `audience=bot-platform`;
+2. Получает `access_token` (JWT) с TTL;
+3. Кэширует токен до `expires_in`;
+4. Отправляет `POST /ingest` с `Authorization: Bearer <jwt>`.
+
+### Deprecation прямого пути
+
+Прямой путь (`max-webhook.js → MAX Bot API`) удаляется после live-evidence нового ingest-пути (по образцу ADR-0010). Между доказательством и удалением — controlled deprecation period.
+
+### Статус
+
+```text
+Реализовано (sprint 14-16):
+- ✅ Queue infrastructure: SQLite store, worker, pipeline integration (ADR-0025, ADR-0028)
+- ✅ Ingress pipeline: JWT auth, normalizers, HTTP server (ADR-0023, ADR-0024)
+- ✅ App wiring: ingress + queue in one process
+- ✅ Backward compatibility: direct path still works by default
+- ✅ bot-platform-ingest.js — standalone скрипт для Zabbix Media type
+
+В процессе:
+- Live test-run ingest path (требует IdP на стенде)
+- Deprecation direct path после live-evidence
+```
+
+### bot-platform-ingest.js
+
+Standalone скрипт-заменитель `max-webhook.js` для работы через bot-platform ingress.
+
+#### Режимы работы
+
+```bash
+# Dry-run — показать что будет отправлено
+node src/bot-platform/bot-platform-ingest.js --dry-run --user-id=123 --message="Test"
+
+# Live test — отправить тестовое сообщение через ingress
+node src/bot-platform/bot-platform-ingest.js --test --secret=<IDP_CLIENT_SECRET> --user-id=123 --message="Test alert"
+
+# Zabbix webhook mode — читает параметры из stdin
+echo '{"Token":"...","To":"123",...}' | node src/bot-platform/bot-platform-ingest.js --zabbix
+```
+
+#### Параметры для Zabbix Media type
+
+| Параметр | Описание | Пример |
+|---|---|---|
+| `Token` | IdP client-credentials secret | `zabbix-bot-secret-2024` |
+| `To` | user_id или chat_id в MAX | `123456` |
+| `RecipientType` | `user_id` или `chat_id` | `user_id` |
+| `Subject` | Тема уведомления | `Host is down` |
+| `Message` | Тело уведомления | `{ALERT.MESSAGE}` |
+| `Severity` | Уровень важности | `High` |
+| `Trigger_status` | Статус триггера | `PROBLEM` |
+| `APIUrl` | URL IdP для получения токена | `http://localhost:8000` |
+| `ClientId` | IdP client ID | `zabbix-bot` |
+| `IngestUrl` | URL bot-platform ingress | `http://localhost:8443/ingest` |
+
+#### Логирование
+
+Скрипт логирует каждый шаг:
+
+```text
+[2026-07-18T04:25:00.751Z] [bot-platform-ingest] [INFO] Step 1: Getting token from http://localhost:8000/token
+[2026-07-18T04:25:00.846Z] [bot-platform-ingest] [INFO] Step 1: Token received (expires in 3600s)
+[2026-07-18T04:25:00.846Z] [bot-platform-ingest] [INFO] Step 2: Sending to http://localhost:8443/ingest
+[2026-07-18T04:25:00.849Z] [bot-platform-ingest] [INFO] Step 2: Response status: 200
+[2026-07-18T04:25:00.849Z] [bot-platform-ingest] [INFO] Step 2: Response body: {"status":"queued"}
+```

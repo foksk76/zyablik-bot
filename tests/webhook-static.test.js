@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const webhook = fs.readFileSync(path.join(root, 'src/zabbix-media-type/max-webhook.js'), 'utf8');
+const shared = fs.readFileSync(path.join(root, 'src/shared/zabbix-message.js'), 'utf8');
 
 test('webhook validates Token parameter', () => {
   assert.ok(
@@ -59,11 +60,11 @@ test('webhook supports only chat_id and user_id recipient types', () => {
 
 test('webhook limits message length to 4000 characters', () => {
   assert.ok(
-    webhook.includes('4000'),
+    webhook.includes('4000') || shared.includes('4000'),
     'webhook must enforce a 4000 character message limit'
   );
   assert.ok(
-    webhook.includes('.substring(0, 3990)'),
+    webhook.includes('.substring(0, 3990)') || shared.includes('MAX_MESSAGE_LENGTH - 10'),
     'webhook must truncate long messages at 3990 characters'
   );
 });

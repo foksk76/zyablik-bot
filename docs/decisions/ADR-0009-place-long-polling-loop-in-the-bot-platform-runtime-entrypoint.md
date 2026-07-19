@@ -1,56 +1,64 @@
-# ADR-0009: Place the long-polling loop in the bot-platform runtime entrypoint
+# ADR-0009: Разместить long polling loop в runtime entrypoint bot-platform
 
-## Status
-Accepted
+## Статус
 
-## Date
+Принято.
+
+## Дата
+
 2026-07-08
 
-## Context
-Task 14.1 will add a safe test bot that runs in the current outbound-only LXC. That runtime uses `long_polling` for development and testing, while `webhook` remains a separate ingress-only path for production.
+## Контекст
 
-The remaining architectural question is where the long-polling loop should live:
+Task 14.1 добавляет safe test bot в текущий outbound-only LXC. Runtime использует `long_polling` для разработки и тестирования, `webhook` остаётся отдельным ingress-only путём для production.
 
-- inside the existing bot-platform runtime entrypoint;
-- or in a separate adapter/process boundary.
+Ключевой архитектурный вопрос: где должен находиться long-polling loop:
 
-The current codebase already has a single bot-platform runtime entrypoint and a transport-mode switch. Adding a second runtime boundary for long polling would introduce unnecessary process and dependency split for a mode that does not need inbound ingress.
+- в существующем runtime entrypoint bot-platform;
+- или в отдельном adapter/process boundary.
 
-## Decision
-Keep the long-polling loop in the existing bot-platform runtime entrypoint path, not in a separate adapter process.
+Текущий кодовая база уже имеет единый runtime entrypoint и transport-mode switch. Добавление второго runtime boundary для long polling вводит ненужное разделение процессов и зависимостей для режима, который не требует inbound ingress.
 
-The implementation may split internal logic into helpers or runner modules, but the operational boundary remains one bot-platform runtime that chooses `long_polling` or `webhook` from configuration.
+## Решение
 
-## Minimal Runtime Flow
+Разместить long-polling loop в существующем runtime entrypoint path, не в отдельном adapter-процессе.
 
-For `Task 14.1`, the minimal live flow is:
+Реализация может разделять внутреннюю логику на helper-модули или runner-модули, но операционная граница остаётся одним runtime bot-platform, который выбирает `long_polling` или `webhook` из конфигурации.
 
-1. Read `MAX_TRANSPORT_MODE` from environment.
-2. Start the existing bot-platform entrypoint in `long_polling` mode.
-3. Receive MAX updates through outbound polling only.
-4. Normalize the payload with `normalizeMaxEvent()`.
-5. Route the internal event through `event-router`.
-6. Handle the event with the identity plugin.
-7. Build the synthetic outbound payload.
-8. Keep the flow inside the same runtime process and do not introduce a separate polling adapter or process boundary.
+## Минимальный Runtime Flow
 
-## Alternatives Considered
+Для `Task 14.1` минимальный live flow:
 
-### Separate long-polling adapter/process
+1. Считать `MAX_TRANSPORT_MODE` из окружения.
+2. Запустить текущий entrypoint в режиме `long_polling`.
+3. Получать MAX updates через outbound polling.
+4. Нормализовать payload через `normalizeMaxEvent()`.
+5. Маршрутизировать internal event через `pipeline-dispatch.js` (ADR-0018 заменил `event-router.js`).
+6. Обработать event через identity plugin.
+7. Сформировать outbound payload.
+8. Сохранять flow в одном процессе, не вводить отдельный polling adapter или process boundary.
 
-- Pros: isolates transport-specific logic.
-- Cons: adds another runtime boundary, more wiring, and a second place for mode selection.
-- Rejected: unnecessary complexity for the safe test-bot path.
+## Рассмотренные альтернативы
 
-### Separate service for long polling
+### Отдельный long-polling adapter/process
 
-- Pros: strong isolation.
-- Cons: duplicates service lifecycle management and fragments the runtime model.
-- Rejected: the bot-platform already has a shared runtime entrypoint and a clear mode switch.
+Плюсы: изоляция transport-specific логики.
 
-## Consequences
+Минусы: добавляет runtime boundary, больше wiring, второе место для выбора режима.
 
-- `Task 14.1` should extend the existing runtime path instead of creating a new adapter layer.
-- `systemd` can manage one service for the safe test bot.
-- `webhook` remains a separate ingress concern and does not inherit the long-polling loop boundary.
-- Future refactoring may extract helper modules, but not a second runtime/process boundary unless a new ADR justifies it.
+Решение: отклонено — ненужная сложность для safe test-bot path.
+
+### Отдельный сервис под long polling
+
+Плюсы: сильная изоляция.
+
+Минусы: дублирует lifecycle management, фрагментирует модель runtime.
+
+Решение: отклонено — bot-platform уже имеет общий entrypoint и чёткий mode switch.
+
+## Последствия
+
+- `Task 14.1` должен расширять существующий runtime path вместо создания нового adapter layer.
+- `systemd` может управлять одним сервисом для safe test bot.
+- `webhook` остаётся отдельным ingress concern и не наследует long-polling loop boundary.
+- Будущий рефакторинг может извлекать helper-модули, но не второй runtime/process boundary без нового ADR.

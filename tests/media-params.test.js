@@ -54,9 +54,10 @@ test('documented Media type parameters match example parameters', () => {
 test('webhook reads only documented Media type parameters', () => {
   const docs = read('docs/zabbix-media-type.md');
   const webhook = read('src/zabbix-media-type/max-webhook.js');
+  const shared = read('src/shared/zabbix-message.js');
 
   const docsParams = extractParameterNamesFromBlock(extractCodeBlockAfterHeading(docs, '## Параметры'));
-  const scriptParams = extractWebhookParameterNames(webhook);
+  const scriptParams = extractWebhookParameterNames(webhook + '\n' + shared);
 
   assert.deepEqual(scriptParams, docsParams);
 });

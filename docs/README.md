@@ -15,6 +15,7 @@
 
 - [`runbooks/bot-platform-stand.md`](runbooks/bot-platform-stand.md) — WSL/LXC стенд, dry-run pipeline и ограничения ingress.
 - [`runbooks/live-identity-bot.md`](runbooks/live-identity-bot.md) — live MAX Identity Bot, foreground запуск, systemd и rollback.
+- [`nanoidp-setup.md`](nanoidp-setup.md) — установка и настройка NanoIDP/Keycloak/Authentik.
 
 ## Планы
 

@@ -10,6 +10,7 @@ const {
   createLiveServiceShutdownHandlers,
   createNativeFetchHttpClient,
   runFetchRequest,
+  buildLiveMessagesApiUrl,
   DEFAULT_HTTP_TIMEOUT_MS
 } = require('./live-service');
 const {
@@ -25,6 +26,7 @@ module.exports = {
   createLiveServiceShutdownHandlers,
   createNativeFetchHttpClient,
   runFetchRequest,
+  buildLiveMessagesApiUrl,
   DEFAULT_HTTP_TIMEOUT_MS,
   createConsoleRuntimeLogger,
   formatRuntimeLogLine

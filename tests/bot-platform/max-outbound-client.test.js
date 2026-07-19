@@ -162,7 +162,10 @@ test('createMaxOutboundClient normalizes live HTTP failures safely', async () =>
     (error) => {
       assert.equal(error.code, MAX_API_ERROR_CODE);
       assert.equal(error.message, 'MAX API request failed');
-      assert.deepEqual(error.details, { statusCode: 503 });
+      assert.deepEqual(error.details, {
+        statusCode: 503,
+        responseBody: { error: 'synthetic failure' }
+      });
       return true;
     }
   );
@@ -239,9 +242,43 @@ test('createMaxOutboundClient keeps safe transport failure diagnostics', async (
       assert.equal(error.message, 'MAX API request failed');
       assert.deepEqual(error.details, {
         reason: 'transport failure',
+        responseBody: null,
         causeCode: 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
         causeMessage: 'unable to get local issuer certificate',
         causeHost: 'platform-api2.max.ru'
+      });
+      return true;
+    }
+  );
+});
+
+test('createMaxOutboundClient includes response body from MAX API validation error', async () => {
+  const client = createMaxOutboundClient({
+    apiUrl: 'https://synthetic.example/messages',
+    token: 'synthetic-secret-token',
+    httpClient: {
+      post() {
+        return {
+          statusCode: 400,
+          body: {
+            code: 'proto.payload',
+            message: "Field 'text' size (4001) must be at most 4000"
+          }
+        };
+      }
+    },
+    networkEnabled: true
+  });
+
+  await assert.rejects(
+    client.send(createTextResponse()),
+    (error) => {
+      assert.equal(error.code, MAX_API_ERROR_CODE);
+      assert.equal(error.message, 'MAX API request failed');
+      assert.equal(error.details.statusCode, 400);
+      assert.deepEqual(error.details.responseBody, {
+        code: 'proto.payload',
+        message: "Field 'text' size (4001) must be at most 4000"
       });
       return true;
     }

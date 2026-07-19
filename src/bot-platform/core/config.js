@@ -6,6 +6,12 @@ const DEFAULT_MAX_TRANSPORT_MODE = 'long_polling';
 const DEFAULT_MAX_POLL_LIMIT = 100;
 const DEFAULT_MAX_POLL_TIMEOUT_SECONDS = 30;
 const DEFAULT_MAX_POLL_TYPES = Object.freeze(['message_created', 'bot_started', 'bot_added']);
+const DEFAULT_QUEUE_MAX_ATTEMPTS = 5;
+const DEFAULT_QUEUE_INTERVAL_MS = 5000;
+const DEFAULT_QUEUE_BATCH_SIZE = 10;
+const DEFAULT_QUEUE_BACKOFF_BASE = 2;
+const DEFAULT_QUEUE_BACKOFF_MAX = 300;
+const DEFAULT_INGRESS_PORT = 8443;
 const MAX_TRANSPORT_MODES = new Set(['long_polling', 'webhook']);
 const CONFIG_VALIDATION_ERROR_CODE = 'CONFIG_VALIDATION_ERROR';
 const TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE = 'TRANSPORT_NOT_IMPLEMENTED';
@@ -31,7 +37,21 @@ function createBotPlatformConfig(environment = process.env) {
       0,
       90
     ),
-    maxPollTypes: readListEnvValue(environment, 'MAX_POLL_TYPES', DEFAULT_MAX_POLL_TYPES)
+    maxPollTypes: readListEnvValue(environment, 'MAX_POLL_TYPES', DEFAULT_MAX_POLL_TYPES),
+    queueEnabled: readBoolEnvValue(environment, 'QUEUE_ENABLED', false),
+    queueMaxAttempts: readIntegerEnvValue(environment, 'QUEUE_MAX_ATTEMPTS', DEFAULT_QUEUE_MAX_ATTEMPTS, 1, 100),
+    queueIntervalMs: readIntegerEnvValue(environment, 'QUEUE_INTERVAL_MS', DEFAULT_QUEUE_INTERVAL_MS, 100, 60000),
+    queueBatchSize: readIntegerEnvValue(environment, 'QUEUE_BATCH_SIZE', DEFAULT_QUEUE_BATCH_SIZE, 1, 1000),
+    queueBackoffBase: readIntegerEnvValue(environment, 'QUEUE_BACKOFF_BASE', DEFAULT_QUEUE_BACKOFF_BASE, 2, 10),
+    queueBackoffMax: readIntegerEnvValue(environment, 'QUEUE_BACKOFF_MAX', DEFAULT_QUEUE_BACKOFF_MAX, 10, 3600),
+    ingressEnabled: readBoolEnvValue(environment, 'INGRESS_ENABLED', false),
+    ingressPort: readIntegerEnvValue(environment, 'INGRESS_PORT', DEFAULT_INGRESS_PORT, 1, 65535),
+    idpIssuer: readEnvValue(environment, 'IDP_ISSUER'),
+    idpAudience: readEnvValue(environment, 'IDP_AUDIENCE'),
+    jwtClaimName: readEnvValue(environment, 'JWT_CLAIM_NAME'),
+    jwtClaimValue: readEnvValue(environment, 'JWT_CLAIM_VALUE'),
+    logAudit: readBoolEnvValue(environment, 'LOG_AUDIT', false),
+    logTrace: readBoolEnvValue(environment, 'LOG_TRACE', true)
   };
 }
 
@@ -76,6 +96,16 @@ function createLiveRuntimeConfig(environment = process.env) {
     maxPollTimeoutSeconds: config.maxPollTimeoutSeconds,
     maxPollTypes: config.maxPollTypes
   };
+}
+
+function readBoolEnvValue(environment, key, fallback = false) {
+  const rawValue = readEnvValue(environment, key);
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  return rawValue.toLowerCase() === 'true';
 }
 
 function readEnvValue(environment, key, fallback = '') {
@@ -150,6 +180,12 @@ module.exports = {
   DEFAULT_MAX_POLL_LIMIT,
   DEFAULT_MAX_POLL_TIMEOUT_SECONDS,
   DEFAULT_MAX_POLL_TYPES,
+  DEFAULT_QUEUE_MAX_ATTEMPTS,
+  DEFAULT_QUEUE_INTERVAL_MS,
+  DEFAULT_QUEUE_BATCH_SIZE,
+  DEFAULT_QUEUE_BACKOFF_BASE,
+  DEFAULT_QUEUE_BACKOFF_MAX,
+  DEFAULT_INGRESS_PORT,
   MAX_TRANSPORT_MODES,
   CONFIG_VALIDATION_ERROR_CODE,
   TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE,
