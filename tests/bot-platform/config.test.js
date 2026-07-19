@@ -124,6 +124,7 @@ test('env.example stays synthetic and secret-free', () => {
   assert.match(envExample, /MAX_BOT_TOKEN=<synthetic-bot-token>/);
   assert.match(envExample, /MAX_LOG_LEVEL=info/);
   assert.match(envExample, /MAX_TRANSPORT_MODE=long_polling/);
+  assert.match(envExample, /RATE_LIMIT_ENABLED=true/);
   assert.doesNotMatch(envExample, /https?:\/\//i);
   assert.doesNotMatch(envExample, /Bearer\s+/i);
 });
@@ -221,4 +222,35 @@ test('createBotPlatformConfig reads audit/trace environment overrides', () => {
 
   assert.equal(config.logAudit, false);
   assert.equal(config.logTrace, false);
+});
+
+test('createBotPlatformConfig returns rate limit defaults when env is empty', () => {
+  const config = createBotPlatformConfig({});
+
+  assert.equal(config.rateLimitEnabled, true);
+  assert.equal(config.rateLimitGlobal, 25);
+  assert.equal(config.rateLimitRecipient, 5);
+});
+
+test('createBotPlatformConfig reads rate limit environment overrides', () => {
+  const config = createBotPlatformConfig({
+    RATE_LIMIT_ENABLED: 'false',
+    RATE_LIMIT_GLOBAL: '50',
+    RATE_LIMIT_RECIPIENT: '10'
+  });
+
+  assert.equal(config.rateLimitEnabled, false);
+  assert.equal(config.rateLimitGlobal, 50);
+  assert.equal(config.rateLimitRecipient, 10);
+});
+
+test('createBotPlatformConfig rejects invalid rate limit values', () => {
+  assert.throws(
+    () => createBotPlatformConfig({ RATE_LIMIT_GLOBAL: '0' }),
+    /Invalid RATE_LIMIT_GLOBAL value: 0/
+  );
+  assert.throws(
+    () => createBotPlatformConfig({ RATE_LIMIT_RECIPIENT: '0' }),
+    /Invalid RATE_LIMIT_RECIPIENT value: 0/
+  );
 });

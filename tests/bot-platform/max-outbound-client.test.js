@@ -284,3 +284,63 @@ test('createMaxOutboundClient includes response body from MAX API validation err
     }
   );
 });
+
+test('createMaxOutboundClient calls rate limiter acquire before sending', async () => {
+  const acquireCalls = [];
+  const requests = [];
+  const rateLimiter = {
+    acquire(key) {
+      acquireCalls.push(key);
+      return Promise.resolve({ allowed: true, waitMs: 0, reason: null });
+    }
+  };
+
+  const client = createMaxOutboundClient({
+    apiUrl: 'https://synthetic.example/messages',
+    token: 'synthetic-secret-token',
+    httpClient: {
+      post(request) {
+        requests.push(request);
+        return { statusCode: 200, body: { message: { id: 'id-1' } } };
+      }
+    },
+    networkEnabled: true,
+    rateLimiter
+  });
+
+  await client.send(createTextResponse());
+
+  assert.equal(acquireCalls.length, 1);
+  assert.equal(acquireCalls[0], 'user_id:<synthetic-user-id>');
+  assert.equal(requests.length, 1);
+});
+
+test('createMaxOutboundClient propagates rate limiter timeout error', async () => {
+  const rateLimiter = {
+    acquire() {
+      const error = new Error('Rate limiter wait timeout exceeded');
+      error.code = 'RATE_LIMIT_TIMEOUT';
+      throw error;
+    }
+  };
+
+  const client = createMaxOutboundClient({
+    apiUrl: 'https://synthetic.example/messages',
+    token: 'synthetic-secret-token',
+    httpClient: {
+      post() {
+        return { statusCode: 200, body: { message: { id: 'id-1' } } };
+      }
+    },
+    networkEnabled: true,
+    rateLimiter
+  });
+
+  await assert.rejects(
+    client.send(createTextResponse()),
+    (error) => {
+      assert.equal(error.code, 'RATE_LIMIT_TIMEOUT');
+      return true;
+    }
+  );
+});

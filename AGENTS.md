@@ -65,6 +65,7 @@ ADR-0026  расширение scope стенда под multi-source ingress
 ADR-0027  установка и настройка Okta IdP на MVP стенде
 ADR-0028  очередь доставки сообщений (delivery queue)
 ADR-0029  lifecycle audit trail (audit + trace)
+ADR-0030  outbound rate limiter для защиты от 429 MAX API
 ```
 
 ## Каноничные источники

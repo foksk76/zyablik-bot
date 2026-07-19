@@ -10,6 +10,7 @@ const { createIngressPipeline } = require('./ingress');
 const { createOidcVerifierFactory } = require('./ingress/oidc-verifier');
 const { createQueueStore } = require('./queue/store');
 const { createQueueWorker } = require('./queue/worker');
+const { createRateLimiter } = require('./core/rate-limiter');
 const {
   createSyntheticLongPollingSource,
   createLongPollingService,
@@ -103,11 +104,21 @@ async function startIngressAndQueue(config, options, io) {
 
   const httpClient = options.httpClient || createNativeFetchHttpClient();
   const outboundApiUrl = buildLiveMessagesApiUrl(config.maxApiUrl);
+
+  const rateLimiter = config.rateLimitEnabled
+    ? (options.rateLimiter || createRateLimiter({
+      globalLimit: config.rateLimitGlobal,
+      recipientLimit: config.rateLimitRecipient,
+      logger: options.logger || console
+    }))
+    : null;
+
   const outboundClient = options.outboundClient || createMaxOutboundClient({
     apiUrl: outboundApiUrl,
     token: config.maxBotToken,
     httpClient,
     networkEnabled: true,
+    rateLimiter,
     logger: options.logger || console
   });
 

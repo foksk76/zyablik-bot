@@ -11,6 +11,8 @@ const DEFAULT_QUEUE_INTERVAL_MS = 5000;
 const DEFAULT_QUEUE_BATCH_SIZE = 10;
 const DEFAULT_QUEUE_BACKOFF_BASE = 2;
 const DEFAULT_QUEUE_BACKOFF_MAX = 300;
+const DEFAULT_RATE_LIMIT_GLOBAL = 25;
+const DEFAULT_RATE_LIMIT_RECIPIENT = 5;
 const DEFAULT_INGRESS_PORT = 8443;
 const MAX_TRANSPORT_MODES = new Set(['long_polling', 'webhook']);
 const CONFIG_VALIDATION_ERROR_CODE = 'CONFIG_VALIDATION_ERROR';
@@ -44,6 +46,9 @@ function createBotPlatformConfig(environment = process.env) {
     queueBatchSize: readIntegerEnvValue(environment, 'QUEUE_BATCH_SIZE', DEFAULT_QUEUE_BATCH_SIZE, 1, 1000),
     queueBackoffBase: readIntegerEnvValue(environment, 'QUEUE_BACKOFF_BASE', DEFAULT_QUEUE_BACKOFF_BASE, 2, 10),
     queueBackoffMax: readIntegerEnvValue(environment, 'QUEUE_BACKOFF_MAX', DEFAULT_QUEUE_BACKOFF_MAX, 10, 3600),
+    rateLimitEnabled: readBoolEnvValue(environment, 'RATE_LIMIT_ENABLED', true),
+    rateLimitGlobal: readIntegerEnvValue(environment, 'RATE_LIMIT_GLOBAL', DEFAULT_RATE_LIMIT_GLOBAL, 1, 1000),
+    rateLimitRecipient: readIntegerEnvValue(environment, 'RATE_LIMIT_RECIPIENT', DEFAULT_RATE_LIMIT_RECIPIENT, 1, 100),
     ingressEnabled: readBoolEnvValue(environment, 'INGRESS_ENABLED', false),
     ingressPort: readIntegerEnvValue(environment, 'INGRESS_PORT', DEFAULT_INGRESS_PORT, 1, 65535),
     idpIssuer: readEnvValue(environment, 'IDP_ISSUER'),
@@ -185,6 +190,8 @@ module.exports = {
   DEFAULT_QUEUE_BATCH_SIZE,
   DEFAULT_QUEUE_BACKOFF_BASE,
   DEFAULT_QUEUE_BACKOFF_MAX,
+  DEFAULT_RATE_LIMIT_GLOBAL,
+  DEFAULT_RATE_LIMIT_RECIPIENT,
   DEFAULT_INGRESS_PORT,
   MAX_TRANSPORT_MODES,
   CONFIG_VALIDATION_ERROR_CODE,

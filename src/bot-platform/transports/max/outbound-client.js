@@ -20,6 +20,7 @@ function createMaxOutboundClient(options = {}) {
     : '';
   const httpClient = createHttpClient(options.httpClient);
   const networkEnabled = options.networkEnabled === true && httpClient !== null;
+  const rateLimiter = options.rateLimiter || null;
 
   return {
     moduleName,
@@ -54,6 +55,11 @@ function createMaxOutboundClient(options = {}) {
       }
 
       try {
+        if (rateLimiter) {
+          const recipientKey = `${payload.recipientType}:${payload.to}`;
+          await rateLimiter.acquire(recipientKey);
+        }
+
         const request = buildMaxOutboundRequest(response, payload, {
           apiUrl,
           token
@@ -103,6 +109,9 @@ function createMaxOutboundClient(options = {}) {
           payload
         };
       } catch (error) {
+        if (error && error.code === 'RATE_LIMIT_TIMEOUT') {
+          throw error;
+        }
         throw normalizeMaxApiError(error);
       }
     }
