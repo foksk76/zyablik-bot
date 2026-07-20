@@ -1,6 +1,7 @@
 # Зяблик / Zyablik
 
 ![Zyablik](docs/assets/zyablik-logo.png)
+![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
 ![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)
 
 Небольшой проект для доставки уведомлений из Zabbix в корпоративный мессенджер МАХ.
@@ -11,21 +12,39 @@
 
 ## Что внутри
 
+Проект поддерживает два пути доставки:
+
+**Прямой путь** (Zabbix → MAX Bot API, для простых сценариев):
+
 ```text
 Zabbix Action
   ├─ Telegram Webhook
-  └─ MAX Webhook
+  └─ MAX Webhook (max-webhook.js)
        └─ MAX Bot API
             └─ чат или пользователь в МАХ
 ```
 
-Основной webhook-скрипт:
+**Путь через bot-platform** (Zabbix → HTTP-ingress → очередь → MAX Bot API, для multi-source):
 
 ```text
-src/zabbix-media-type/max-webhook.js
+Zabbix Action
+  └─ MAX Webhook (bot-platform-ingest.js)
+       └─ POST /ingest (JWT auth)
+            └─ Queue (at-least-once)
+                 └─ Outbound → MAX Bot API
+                      └─ чат или пользователь в МАХ
+
+Другие источники (SIEM, API) → POST /ingest → Queue → MAX Bot API
 ```
 
-Его можно вставить в поле `Скрипт` при создании Media type `MAX` в Zabbix.
+Webhook-скрипты:
+
+```text
+src/zabbix-media-type/max-webhook.js         — прямой путь (Zabbix → MAX Bot API)
+src/zabbix-media-type/bot-platform-ingest.js — через bot-platform (Zabbix → ingress → очередь → MAX)
+```
+
+Любой из скриптов можно вставить в поле `Скрипт` при создании Media type `MAX` в Zabbix.
 
 ## Быстрый старт
 
@@ -57,15 +76,25 @@ tests/            Node.js policy tests и unit tests
 
 ```text
 Zabbix Media type (Webhook)
-  └─ src/zabbix-media-type/max-webhook.js
-       └─ MAX Bot API
-            └─ чат или пользователь в МАХ
+  ├─ src/zabbix-media-type/max-webhook.js
+  │    └─ MAX Bot API → чат/пользователь в МАХ
+  └─ src/zabbix-media-type/bot-platform-ingest.js
+       └─ POST /ingest → Queue → Outbound → MAX Bot API → чат/пользователь
 
-Bot-platform (identity bot)
+Bot-platform (identity bot + ingress)
   └─ src/bot-platform/app.js
-       ├─ core/live-pipeline.js    обработка updates
-       ├─ plugins/identity/        identity-сценарий
-       └─ transports/max/          транспорт MAX API
+       ├─ core/live-pipeline.js       обработка updates
+       ├─ core/dry-run-pipeline.js    тестовый pipeline
+       ├─ plugins/identity/           identity-сценарий
+       ├─ transports/max/             транспорт MAX API
+       ├─ ingress/                    HTTP-ingress (JWT auth, normalizers)
+       │   ├── http-server.js         POST /ingest
+       │   ├── jwt-source-auth.js     JWT-аутентификация
+       │   ├── oidc-verifier.js       OIDC-верификатор
+       │   └── normalizers/           нормализаторы источников
+       └── queue/                     очередь доставки (SQLite)
+            ├── store.js              SQLite store
+            └── worker.js             retry + backoff
 ```
 
 Ключевые архитектурные решения зафиксированы в ADR (`docs/decisions/`):
@@ -78,6 +107,14 @@ Bot-platform (identity bot)
 - ADR-0019: outbound response shape extensibility (text-only ответы)
 - ADR-0020: обработка bot_added событий
 - ADR-0021: обработка bot_started событий
+- ADR-0022: multi-source ingress + журналы
+- ADR-0023: входящие HTTP в bot-platform (stdlib only)
+- ADR-0024: @okta/jwt-verifier как исключение из ADR-0015
+- ADR-0025: better-sqlite3 как исключение из ADR-0015
+- ADR-0028: очередь доставки сообщений (delivery queue)
+- ADR-0029: lifecycle audit trail (audit + trace)
+- ADR-0030: outbound rate limiter для защиты от 429 MAX API
+- ADR-0031: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot
 
 ## Документация
 

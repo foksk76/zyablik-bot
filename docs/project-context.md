@@ -8,9 +8,9 @@
 
 Существующий Telegram-канал не заменяется. МАХ добавляется как второй независимый канал доставки.
 
-## Принятый scope
+## Реализованный scope
 
-Zabbix -> МАХ доставка принята по `docs/project-acceptance.md`. Финальная фиксация доставки хранится в:
+Проект завершён и выпущен как версия 1.0.0. Финальное принятие доставки зафиксировано:
 
 ```text
 docs/test-runs/final-acceptance-run.md
@@ -19,26 +19,12 @@ docs/test-runs/final-acceptance-run.md
 Подтверждено:
 
 - Zabbix отправляет уведомления в МАХ через Zabbix Media type `Webhook`;
+- bot-platform принимает входящие запросы через HTTP-ingress с JWT-аутентификацией
+- очередь доставки обеспечивает at-least-once гарантию доставки
+- live MAX Identity Bot принимает реальные входящие сообщения и отвечает с `user_id` / `chat_id`
 - существующий Telegram-канал продолжает работать;
-- МАХ дублирует Telegram;
 - GitHub Actions green;
 - проект не выходит за согласованные границы.
-
-По ADR-0010 live-сценарий MAX Identity Bot требует отдельного обезличенного live test-run: реальное входящее сообщение в МАХ и реальный ответ бота через MAX Bot API с `user_id` / `chat_id`. Dry-run, synthetic fixtures и safe test bot подтверждают только готовность кода и формата ответа.
-
-## Post-acceptance follow-up
-
-Открытые follow-up:
-
-```text
-Task 18: live MAX Identity Bot for user_id / chat_id
-```
-
-Task 13 выполнена и подтверждена (промежуточный прогон удалён из репозитория).
-
-Task 14 уже выполнен и относится к поддерживающим работам bot-platform.
-
-Task 18 входит в актуальную live-приемку MAX Identity Bot по ADR-0010 и требует отдельного обезличенного live test-run.
 
 ## Bot-platform
 
@@ -104,7 +90,7 @@ Live-сценарий с реальным входящим сообщением 
 
 История решений хранится в `docs/decisions/`.
 
-На текущий момент приняты решения:
+На текущий момент приняты решения (полный список в `docs/decisions/`):
 
 - использовать явный AI-assisted каркас разработки;
 - использовать внешний `agent-skills` без git submodule;
@@ -121,15 +107,19 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0027 установить и настроить IdP на MVP стенде (NanoIDP для quickstart);
 - по ADR-0028 ввести очередь доставки сообщений (delivery queue) для at-least-once guarantee;
 - по ADR-0029 ввести lifecycle audit trail (audit + trace) для расследования инцидентов;
+- по ADR-0030 ввести outbound rate limiter для защиты от 429 MAX API;
+- по ADR-0031 лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot;
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
-## Основной артефакт первого этапа
+## Основные артефакты
 
 ```text
-src/zabbix-media-type/max-webhook.js
+src/zabbix-media-type/max-webhook.js              — прямой webhook (Zabbix → MAX Bot API)
+src/zabbix-media-type/bot-platform-ingest.js       — webhook через ingress (Zabbix → bot-platform)
+src/bot-platform/                                  — bot-platform (ingress, queue, transports, plugins)
 ```
 
-Если меняется логика этого файла, нужно проверить и при необходимости обновить:
+Если меняется логика webhook-файлов, нужно проверить и при необходимости обновить:
 
 ```text
 docs/zabbix-media-type.md
@@ -139,7 +129,7 @@ docs/decisions/
 
 ## Статус реализации multi-source ingest
 
-Реализовано (sprint 14-16):
+Стабильно (1.0.0):
 
 ```text
 src/bot-platform/queue/store.js        — SQLite-based queue store (ADR-0025)
@@ -174,11 +164,13 @@ LOG_AUDIT=false              — включить audit trail (ADR-0029)
 LOG_TRACE=true              — включить lifecycle trace (ADR-0029)
 ```
 
-Реализовано:
+Реализовано и подтверждено:
 
 ```text
 - NanoIDP на MVP стенде (docker compose, порт 8000)
-- Live test-run ingest path: zabbix → /ingest → queue → outbound → MAX API 200 → user 219338126
+- Live test-run ingest path: zabbix → /ingest → queue → outbound → MAX API 200
+- Live test-run direct path: zabbix → max-webhook.js → MAX API 200
+- Live MAX Identity Bot: входящие сообщения → ответ с user_id / chat_id
 - Keycloak/Authentik для продакшн (документация: docs/nanoidp-setup.md)
 ```
 

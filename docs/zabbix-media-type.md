@@ -184,61 +184,60 @@ MAХ Bot API жёстко ограничивает длину поля `text` в
 
 ---
 
-## Planned changes (multi-source ingest)
+## Multi-source ingest (v1.0.0)
 
-ADR-0022 расширяет scope проекта на multi-source HTTP-ingress. ADR-0027 определяет интеграцию `max-webhook.js` с IdP (NanoIDP для MVP, Keycloak/Authentik для продакшна). ADR-0028 вводит очередь доставки сообщений для at-least-once guarantee. Ниже — Planned изменения, которые войдут при реализации multi-source ingest:
+Multi-source HTTP-ingress реализован и стабилен (ADR-0022—ADR-0029). Проект поддерживает два пути доставки, которые работают одновременно.
 
-### Новый путь доставки
+### Пути доставки
 
-Текущий прямой путь (`max-webhook.js → MAX Bot API`) объявляется **deprecated** (ADR-0022). Новый путь:
+**Прямой путь** (`src/zabbix-media-type/max-webhook.js`):
 
 ```text
-max-webhook.js → bot-platform POST /ingest → queue (ADR-0028) → outbound → MAX Bot API
+Zabbix → max-webhook.js → MAX Bot API → чат/пользователь
 ```
 
-### Изменения параметров Media type
+Путь без дополнительной инфраструктуры. Параметры: `Token` (токен бота MAX), `APIUrl` (`https://platform-api2.max.ru/messages`).
 
-| Параметр | Было | Стало | Описание |
-|---|---|---|---|
-| `Token` | Токен бота MAX | `ClientSecret` (IdP) | IdP client-credentials secret |
-| `APIUrl` | `https://platform-api2.max.ru/messages` | `https://<bot-platform>/ingest` | Endpoint bot-platform |
-| — | — | `ClientId` (новый) | IdP client ID |
+**Путь через bot-platform** (`src/zabbix-media-type/bot-platform-ingest.js`):
 
-Тело запроса меняется на контракт inbound-API (ADR-0022):
-
-```json
-{
-  "recipient": { "kind": "user|chat", "value": "<id>" },
-  "message": "{ALERT.MESSAGE}"
-}
+```text
+Zabbix → bot-platform-ingest.js → POST /ingest (JWT) → Queue → Outbound → MAX Bot API
 ```
 
-### OAuth client-credentials flow
+Путь с IdP, JWT-аутентификацией и очередью доставки. Параметры: `Token` (IdP client secret), `ClientId`, `Audience`, `APIUrl` (IdP token endpoint), `IngestUrl` (bot-platform endpoint).
 
-Перед каждым alert `max-webhook.js` выполняет:
+### Сравнение параметров Media type
 
-1. `POST <okta-token-endpoint>` с `grant_type=client_credentials`, `client_id`, `client_secret`, `audience=bot-platform`;
+| Параметр | max-webhook.js (прямой) | bot-platform-ingest.js (через bot-platform) |
+|---|---|---|
+| `Token` | Токен бота MAX | IdP client-credentials secret |
+| `APIUrl` | `https://platform-api2.max.ru/messages` | URL IdP для получения токена |
+| `ClientId` | — | IdP client ID |
+| `Audience` | — | IdP audience claim |
+| `IngestUrl` | — | URL bot-platform ingress |
+| Очередь | Нет | Да (at-least-once) |
+| Аутентификация | Bearer token (MAX) | JWT (IdP) |
+
+### OAuth client-credentials flow (bot-platform-ingest)
+
+Перед каждым alert `bot-platform-ingest.js` выполняет:
+
+1. `POST <APIUrl>/token` с `grant_type=client_credentials`, `client_id`, `client_secret`, `audience=bot-platform`;
 2. Получает `access_token` (JWT) с TTL;
 3. Кэширует токен до `expires_in`;
-4. Отправляет `POST /ingest` с `Authorization: Bearer <jwt>`.
-
-### Deprecation прямого пути
-
-Прямой путь (`max-webhook.js → MAX Bot API`) удаляется после live-evidence нового ingest-пути (по образцу ADR-0010). Между доказательством и удалением — controlled deprecation period.
+4. Отправляет `POST <IngestUrl>` с `Authorization: Bearer <jwt>`.
 
 ### Статус
 
 ```text
-Реализовано (sprint 14-16):
+Реализовано и стабильно (1.0.0):
+- ✅ max-webhook.js — прямой путь (Zabbix → MAX Bot API)
+- ✅ bot-platform-ingest.js — путь через bot-platform (Zabbix → ingress → queue → MAX)
 - ✅ Queue infrastructure: SQLite store, worker, pipeline integration (ADR-0025, ADR-0028)
 - ✅ Ingress pipeline: JWT auth, normalizers, HTTP server (ADR-0023, ADR-0024)
 - ✅ App wiring: ingress + queue in one process
-- ✅ Backward compatibility: direct path still works by default
-- ✅ bot-platform-ingest.js — Zabbix 7.2 webhook для bot-platform ingress (src/zabbix-media-type/)
-
-В процессе:
-- Live test-run ingest path (требует IdP на стенде)
-- Deprecation direct path после live-evidence
+- ✅ Live test-run обоих путей подтверждён
+- ✅ NanoIDP на MVP стенде (docker compose, порт 8000)
 ```
 
 ### bot-platform-ingest.js
