@@ -85,6 +85,7 @@ Trigger_status: {TRIGGER.STATUS}
 
 `HTTPProxy` заполняется только если Zabbix должен ходить в МАХ через HTTP-прокси.
 
+`RecipientType` — необязательный, по умолчанию `chat_id`. Если нужна личная отправка, укажите `user_id`.  
 `RecipientType` и `To` должны соответствовать друг другу:
 
 ```text
