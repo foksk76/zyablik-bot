@@ -80,7 +80,7 @@ function createQueueWorker(options = {}) {
               level: 'info',
               module: MODULE_NAME,
               action,
-              context: { id: item.id, reason: error.message, attempts }
+              context: { ...error.details, id: item.id, attempts, reason: error.message }
             };
             if (logTrace) entry.reqId = item.reqId;
             logger.info(formatLogLine(entry));
@@ -103,7 +103,7 @@ function createQueueWorker(options = {}) {
             module: MODULE_NAME,
             reqId: item.reqId,
             action: 'send failed',
-            context: { id: item.id, reason: error.message }
+            context: { ...error.details, id: item.id, reason: error.message }
           }));
         }
       }

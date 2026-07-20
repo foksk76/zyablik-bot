@@ -21,11 +21,15 @@ function createMockQueueStore(items = []) {
   };
 }
 
-function createMockOutboundClient(shouldFail = false) {
+function createMockOutboundClient(shouldFail = false, errorDetails = null) {
   return {
     send: async (payload) => {
       if (shouldFail) {
-        throw new Error('send failed');
+        const error = new Error('send failed');
+        if (errorDetails) {
+          error.details = errorDetails;
+        }
+        throw error;
       }
       return { mode: 'live' };
     }
@@ -203,6 +207,60 @@ test('failed delivery logs failed with reason', async () => {
   assert.ok(failedLog, 'should have failed log');
   assert.ok(failedLog.includes('"reason":"send failed"'), 'should include reason');
   assert.ok(failedLog.includes('"attempts":3'), 'should include attempts');
+});
+
+test('failed delivery logs error details when present', async () => {
+  const logEntries = [];
+  const items = [{ id: 14, payload: { text: 'fail' }, attempts: 0, reqId: 'req-detail' }];
+  const store = createMockQueueStore([items]);
+  const details = {
+    statusCode: 404,
+    responseBody: { code: 'chat.not.found', message: 'Chat with user 12345678 not found' }
+  };
+  const outbound = createMockOutboundClient(true, details);
+  const worker = createQueueWorker({
+    queueStore: store,
+    outboundClient: outbound,
+    maxAttempts: 5,
+    logger: { info: (msg) => logEntries.push(msg), error: () => {} }
+  });
+
+  await worker.poll();
+
+  const failedLog = logEntries.find((e) => typeof e === 'string' && e.includes('failed'));
+  assert.ok(failedLog, 'should have failed log');
+  assert.ok(failedLog.includes('"statusCode":404'), 'should include statusCode from details');
+  assert.ok(failedLog.includes('"code":"chat.not.found"'), 'should include responseBody code');
+  assert.ok(failedLog.includes('"reason":"send failed"'), 'should include reason');
+});
+
+test('failed delivery preserves error.message reason when details contains reason key', async () => {
+  const logEntries = [];
+  const items = [{ id: 15, payload: { text: 'fail' }, attempts: 0, reqId: 'req-rate' }];
+  const store = createMockQueueStore([items]);
+  const errorDetails = { reason: 'recipient', key: 'user_id:999', wait_ms: 5000 };
+  const outbound = {
+    send: async () => {
+      const error = new Error('Rate limiter wait timeout exceeded');
+      error.code = 'RATE_LIMIT_TIMEOUT';
+      error.details = errorDetails;
+      throw error;
+    }
+  };
+  const worker = createQueueWorker({
+    queueStore: store,
+    outboundClient: outbound,
+    maxAttempts: 5,
+    logger: { info: (msg) => logEntries.push(msg), error: () => {} }
+  });
+
+  await worker.poll();
+
+  const failedLog = logEntries.find((e) => typeof e === 'string' && e.includes('failed'));
+  assert.ok(failedLog, 'should have failed log');
+  assert.ok(failedLog.includes('"reason":"Rate limiter wait timeout exceeded"'), 'reason should be error.message, not details.reason');
+  assert.ok(failedLog.includes('"key":"user_id:999"'), 'should include details.key');
+  assert.ok(failedLog.includes('"wait_ms":5000'), 'should include details.wait_ms');
 });
 
 test('dequeued trace log includes reqId', async () => {
