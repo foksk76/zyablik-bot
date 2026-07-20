@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+'use strict';
+
 var Max = {
     token: null,
     to: null,
@@ -73,7 +75,41 @@ var Max = {
     }
 };
 
-var buildAlertMessage = require('../shared/zabbix-message').buildAlertMessage;
+function buildAlertMessage(params) {
+    var SEVERITY_ICONS = {
+        Warning: { icon: '⚠️', notify: false },
+        Average: { icon: '☢️', notify: true },
+        High: { icon: '⛔', notify: true },
+        Disaster: { icon: '🔥', notify: true }
+    };
+    var DEFAULT_ICON = 'ℹ️';
+    var MAX_MESSAGE_LENGTH = 4000;
+    var icon;
+    var notify = true;
+
+    if (params.Trigger_status === 'OK') {
+        icon = '✅';
+        notify = false;
+    } else {
+        var severity = SEVERITY_ICONS[params.Severity];
+        if (severity) {
+            icon = severity.icon;
+            notify = severity.notify;
+        } else {
+            icon = DEFAULT_ICON;
+            notify = false;
+        }
+    }
+
+    var text = icon + ' ' + params.Subject + '\n' + params.Message;
+
+    return {
+        text: text.length > MAX_MESSAGE_LENGTH
+            ? text.substring(0, MAX_MESSAGE_LENGTH - 10) + '\n...'
+            : text,
+        notify: notify
+    };
+}
 
 try {
     var params = JSON.parse(value);

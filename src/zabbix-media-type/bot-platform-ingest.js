@@ -1,155 +1,137 @@
 // SPDX-License-Identifier: Apache-2.0
 'use strict';
 
-var buildAlertMessage = require('../shared/zabbix-message').buildAlertMessage;
-
 var MODULE_NAME = 'bot-platform-ingest';
 
-function log(level, message) {
-    if (typeof Zabbix !== 'undefined' && typeof Zabbix.log === 'function') {
-        var prefix = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'INFO';
-        Zabbix.log(4, '[' + MODULE_NAME + '] [' + prefix + '] ' + message);
-    } else if (typeof console !== 'undefined' && console.error) {
-        var timestamp = new Date().toISOString();
-        var conPrefix = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'INFO';
-        console.error('[' + timestamp + '] [' + MODULE_NAME + '] [' + conPrefix + '] ' + message);
-    }
-}
+function buildAlertMessage(params) {
+    var SEVERITY_ICONS = {
+        Warning: { icon: '⚠️', notify: false },
+        Average: { icon: '☢️', notify: true },
+        High: { icon: '⛔', notify: true },
+        Disaster: { icon: '🔥', notify: true }
+    };
+    var DEFAULT_ICON = 'ℹ️';
+    var MAX_MESSAGE_LENGTH = 4000;
+    var icon;
+    var notify = true;
 
-function httpRequest(url, options, body) {
-    return new Promise(function (resolve, reject) {
-        if (typeof HttpRequest !== 'undefined') {
-            var request = new HttpRequest();
-
-            if (options.proxy) {
-                request.setProxy(options.proxy);
-            }
-
-            var headerKeys = Object.keys(options.headers || {});
-            for (var i = 0; i < headerKeys.length; i++) {
-                request.addHeader(headerKeys[i] + ': ' + options.headers[headerKeys[i]]);
-            }
-
-            var response;
-            var method = (options.method || 'POST').toUpperCase();
-
-            if (method === 'POST') {
-                response = request.post(url, body || '');
-            } else if (method === 'GET') {
-                response = request.get(url);
-            } else {
-                response = request.post(url, body || '');
-            }
-
-            var statusCode = request.getStatus();
-            resolve({
-                status: statusCode,
-                body: response || ''
-            });
+    if (params.Trigger_status === 'OK') {
+        icon = '✅';
+        notify = false;
+    } else {
+        var severity = SEVERITY_ICONS[params.Severity];
+        if (severity) {
+            icon = severity.icon;
+            notify = severity.notify;
         } else {
-            var http = require('node:http');
-            var https = require('node:https');
-            var parsedUrl = new URL(url);
-            var client = parsedUrl.protocol === 'https:' ? https : http;
-
-            var req = client.request(url, {
-                method: options.method || 'POST',
-                headers: options.headers || {},
-                timeout: options.timeout || 30000
-            }, function (res) {
-                var data = '';
-                res.on('data', function (chunk) { data += chunk; });
-                res.on('end', function () {
-                    resolve({
-                        status: res.statusCode,
-                        body: data
-                    });
-                });
-            });
-
-            req.on('error', reject);
-            req.on('timeout', function () {
-                req.destroy();
-                reject(new Error('Request timeout'));
-            });
-
-            if (body) {
-                req.write(body);
-            }
-            req.end();
-        }
-    });
-}
-
-function parseArgs(argv) {
-    var args = {};
-    for (var i = 2; i < argv.length; i++) {
-        var arg = argv[i];
-        if (arg.indexOf('--') === 0) {
-            var raw = arg.slice(2);
-            var eqIndex = raw.indexOf('=');
-            if (eqIndex === -1) {
-                args[raw] = true;
-            } else {
-                args[raw.slice(0, eqIndex)] = raw.slice(eqIndex + 1);
-            }
+            icon = DEFAULT_ICON;
+            notify = false;
         }
     }
-    return args;
-}
 
-function resolveConfig(options) {
-    options = options || {};
-    var env = typeof process !== 'undefined' ? (process.env || {}) : {};
+    var text = icon + ' ' + params.Subject + '\n' + params.Message;
+
     return {
-        idpIssuer: options.idpIssuer || env.IDP_ISSUER || 'http://localhost:8000',
-        idpClientId: options.idpClientId || env.IDP_CLIENT_ID || 'zabbix-bot',
-        idpClientSecret: options.idpClientSecret || env.IDP_CLIENT_SECRET,
-        idpAudience: options.idpAudience || env.IDP_AUDIENCE || 'bot-platform',
-        ingestUrl: options.ingestUrl || env.INGRESS_URL || 'http://localhost:8443/ingest'
+        text: text.length > MAX_MESSAGE_LENGTH
+            ? text.substring(0, MAX_MESSAGE_LENGTH - 10) + '\n...'
+            : text,
+        notify: notify
     };
 }
 
-async function getToken(idpIssuer, idpClientId, idpClientSecret, idpAudience) {
+function log(level, message) {
+    if (typeof Zabbix === 'undefined' || typeof Zabbix.log !== 'function') {
+        return;
+    }
+    var prefix = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'INFO';
+    Zabbix.log(4, '[' + MODULE_NAME + '] [' + prefix + '] ' + message);
+}
+
+function base64Encode(str) {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var result = '';
+    var i = 0;
+    var c1, c2, c3, e1, e2, e3, e4;
+
+    while (i < str.length) {
+        c1 = str.charCodeAt(i++) & 0xff;
+        c2 = i < str.length ? str.charCodeAt(i++) & 0xff : void 0;
+        c3 = i < str.length ? str.charCodeAt(i++) & 0xff : void 0;
+
+        e1 = c1 >> 2;
+        e2 = ((c1 & 0x3) << 4) | ((c2 || 0) >> 4);
+        e3 = ((c2 || 0) & 0xf) << 2 | ((c3 || 0) >> 6);
+        e4 = c3 & 0x3f;
+
+        result += chars.charAt(e1) + chars.charAt(e2)
+            + (c2 == null ? '=' : chars.charAt(e3))
+            + (c3 == null ? '=' : chars.charAt(e4));
+    }
+
+    return result;
+}
+
+function httpRequest(url, headers, body) {
+    var request = new HttpRequest();
+
+    var headerKeys = Object.keys(headers || {});
+    for (var i = 0; i < headerKeys.length; i++) {
+        request.addHeader(headerKeys[i] + ': ' + headers[headerKeys[i]]);
+    }
+
+    var response = request.post(url, body || '');
+
+    return {
+        status: request.getStatus(),
+        body: response || ''
+    };
+}
+
+function getToken(idpIssuer, idpClientId, idpClientSecret, idpAudience) {
     var tokenUrl = idpIssuer + '/token';
-    var body = 'grant_type=client_credentials&audience=' + encodeURIComponent(idpAudience);
+    var body = 'grant_type=client_credentials'
+        + '&client_id=' + encodeURIComponent(idpClientId)
+        + '&client_secret=' + encodeURIComponent(idpClientSecret)
+        + '&audience=' + encodeURIComponent(idpAudience);
 
     log('info', 'Step 1: Getting token from ' + tokenUrl);
 
-    var authHeader = 'Basic ' + Buffer.from(idpClientId + ':' + idpClientSecret).toString('base64');
+    var authHeader = 'Basic ' + base64Encode(idpClientId + ':' + idpClientSecret);
 
-    var response = await httpRequest(tokenUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': authHeader
-        }
+    var response = httpRequest(tokenUrl, {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': authHeader
     }, body);
 
     if (response.status !== 200) {
         throw 'Token request failed: ' + response.status + ' ' + response.body;
     }
 
-    var tokenResponse = JSON.parse(response.body);
+    var tokenResponse;
+    try {
+        tokenResponse = JSON.parse(response.body);
+    } catch (e) {
+        throw 'Token response is not valid JSON: ' + response.body;
+    }
     log('info', 'Step 1: Token received (expires in ' + tokenResponse.expires_in + 's)');
     return tokenResponse.access_token;
 }
 
-async function sendToIngress(ingestUrl, token, recipient, message) {
+function sendToIngress(ingestUrl, token, recipient, message, format) {
     var payload = {
         recipient: recipient,
         message: message
     };
+    if (format) {
+        payload.format = format;
+    }
 
     log('info', 'Step 2: Sending to ' + ingestUrl);
     log('info', 'Step 2: Payload: ' + JSON.stringify({ recipient: recipient, messageLength: message.length }));
 
-    var response = await httpRequest(ingestUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        }
+    var response = httpRequest(ingestUrl, {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
     }, JSON.stringify(payload));
 
     log('info', 'Step 2: Response status: ' + response.status);
@@ -159,13 +141,17 @@ async function sendToIngress(ingestUrl, token, recipient, message) {
         throw 'Ingest request failed: ' + response.status + ' ' + response.body;
     }
 
-    return JSON.parse(response.body);
+    var result;
+    try {
+        result = JSON.parse(response.body);
+    } catch (e) {
+        throw 'Ingest response is not valid JSON: ' + response.body;
+    }
+    return result;
 }
 
-async function runZabbixWebhook(params) {
-    var startTime = Date.now();
-
-    log('info', '=== Zabbix Webhook Started ===');
+try {
+    var params = JSON.parse(value);
 
     if (!params.Token) {
         throw 'Incorrect value is given for parameter "Token": parameter is missing';
@@ -176,138 +162,38 @@ async function runZabbixWebhook(params) {
     }
 
     var alert = buildAlertMessage(params);
-    log('info', 'Step 1: Message built (length: ' + alert.text.length + ', notify: ' + alert.notify + ')');
+    log('info', 'Message built (length: ' + alert.text.length + ', notify: ' + alert.notify + ')');
 
     var recipientType = (params.RecipientType || 'chat_id').toLowerCase();
     var recipient = {
         kind: recipientType === 'user_id' ? 'user' : 'chat',
         value: params.To
     };
-    log('info', 'Step 2: Recipient parsed: ' + JSON.stringify(recipient));
+    log('info', 'Recipient: ' + JSON.stringify(recipient));
 
-    var config = resolveConfig({
-        idpIssuer: params.APIUrl,
-        idpClientId: params.ClientId,
-        idpClientSecret: params.Token,
-        idpAudience: params.Audience,
-        ingestUrl: params.IngestUrl
-    });
+    var idpIssuer = (params.APIUrl || 'http://localhost:8000').replace(/\/+$/, '');
+    var idpClientId = params.ClientId || 'zabbix-bot';
+    var idpAudience = params.Audience || 'bot-platform';
+    var ingestUrl = params.IngestUrl || 'http://localhost:8443/ingest';
 
-    var token = await getToken(config.idpIssuer, config.idpClientId, config.idpClientSecret, config.idpAudience);
+    var token = getToken(idpIssuer, idpClientId, params.Token, idpAudience);
 
-    var result = await sendToIngress(config.ingestUrl, token, recipient, alert.text);
-    log('info', 'Step 3: Ingest response: ' + JSON.stringify(result));
+    var format = '';
+    if (params.ParseMode) {
+        format = params.ParseMode.toLowerCase();
+        if (['markdown', 'html'].indexOf(format) === -1) {
+            format = '';
+        }
+    }
 
-    log('info', '=== Zabbix Webhook Completed Successfully ===');
-    log('info', 'Total duration: ' + (Date.now() - startTime) + 'ms');
+    var result = sendToIngress(ingestUrl, token, recipient, alert.text, format);
+    log('info', 'Ingest response: ' + JSON.stringify(result));
 
     return 'OK';
 }
-
-async function runLiveTest(options) {
-    options = options || {};
-    var startTime = Date.now();
-    var results = { steps: [], success: false };
-
-    try {
-        var config = resolveConfig(options);
-        var recipient = options.recipient || { kind: 'user', value: options.userId || '123' };
-        var message = options.message || 'Test message from bot-platform-ingest.js';
-
-        if (!config.idpClientSecret) {
-            throw 'IDP_CLIENT_SECRET is required (set via options or env)';
-        }
-
-        log('info', '=== Live Run Test Started ===');
-        log('info', 'Config: IDP=' + config.idpIssuer + ', INGEST=' + config.ingestUrl);
-        log('info', 'Recipient: ' + JSON.stringify(recipient));
-
-        var token = await getToken(config.idpIssuer, config.idpClientId, config.idpClientSecret, config.idpAudience);
-        results.steps.push({ step: 1, name: 'getToken', status: 'ok', duration: Date.now() - startTime });
-
-        var step2Start = Date.now();
-        var ingestResponse = await sendToIngress(config.ingestUrl, token, recipient, message);
-        results.steps.push({ step: 2, name: 'sendToIngress', status: 'ok', duration: Date.now() - step2Start, response: ingestResponse });
-
-        results.success = true;
-        log('info', '=== Live Run Test Completed Successfully ===');
-        log('info', 'Total duration: ' + (Date.now() - startTime) + 'ms');
-
-    } catch (error) {
-        results.error = typeof error === 'string' ? error : error.message || String(error);
-        log('error', '=== Live Run Test Failed: ' + results.error + ' ===');
+catch (error) {
+    if (typeof Zabbix !== 'undefined') {
+        Zabbix.log(4, '[' + MODULE_NAME + '] notification failed: ' + error);
     }
-
-    return results;
-}
-
-function isZabbixEnvironment() {
-    return typeof value !== 'undefined' && typeof Zabbix !== 'undefined';
-}
-
-if (isZabbixEnvironment()) {
-    (async function () {
-        try {
-            var params = JSON.parse(value);
-            var result = await runZabbixWebhook(params);
-            return result;
-        } catch (error) {
-            Zabbix.log(4, '[' + MODULE_NAME + '] notification failed: ' + error);
-            throw 'Sending failed: ' + error + '.';
-        }
-    })();
-} else if (typeof process !== 'undefined' && process.argv && require.main === module) {
-    var args = parseArgs(process.argv);
-
-    if (args.test) {
-        var userId = args['user-id'] || '123';
-        var recipientKind = args.kind;
-        if (!recipientKind || recipientKind === 'auto') {
-            recipientKind = userId.indexOf('-') === 0 ? 'chat' : 'user';
-        }
-        runLiveTest({
-            idpClientSecret: args.secret,
-            recipient: { kind: recipientKind, value: userId },
-            message: args.message || 'Test message from bot-platform-ingest.js'
-        }).then(function (results) {
-            console.log(JSON.stringify(results, null, 2));
-            process.exit(results.success ? 0 : 1);
-        }).catch(function (error) {
-            log('error', error.message || error);
-            process.exit(1);
-        });
-
-    } else if (args['dry-run']) {
-        var dryParams = {
-            Token: '<from --secret or IDP_CLIENT_SECRET>',
-            To: args['user-id'] || '123',
-            Subject: args['subject'] || 'Test Alert',
-            Message: args['message'] || 'Test message',
-            Severity: args['severity'] || 'High',
-            Trigger_status: args['status'] || 'PROBLEM',
-            RecipientType: args['recipient-type'] || 'user_id'
-        };
-
-        var alert = buildAlertMessage(dryParams);
-        var dryRecipientType = (dryParams.RecipientType || 'chat_id').toLowerCase();
-
-        console.log('=== Dry Run ===');
-        console.log('Recipient: { kind: "' + (dryRecipientType === 'user_id' ? 'user' : 'chat') + '", value: "' + dryParams.To + '" }');
-        console.log('Message: ' + alert.text.substring(0, 100) + '...');
-        console.log('Would send to: ' + (typeof process !== 'undefined' ? (process.env || {}).INGRESS_URL || 'http://localhost:8443/ingest' : 'http://localhost:8443/ingest'));
-        console.log('Would authenticate via: ' + (typeof process !== 'undefined' ? (process.env || {}).IDP_ISSUER || 'http://localhost:8000' : 'http://localhost:8000'));
-
-    } else {
-        console.log('Usage:');
-        console.log('  node bot-platform-ingest.js --test --secret=<IDP_CLIENT_SECRET> [--user-id=123] [--message="test"]');
-        console.log('  node bot-platform-ingest.js --dry-run [--user-id=123] [--message="test"]');
-        console.log('');
-        console.log('Options:');
-        console.log('  --test              Run live test against ingress');
-        console.log('  --secret=<secret>   IdP client secret (required for --test)');
-        console.log('  --dry-run           Show what would be sent');
-        console.log('  --user-id=<id>      Recipient user ID');
-        console.log('  --message=<text>    Message text');
-        process.exit(1);
-    }
+    throw 'Sending failed: ' + error + '.';
 }

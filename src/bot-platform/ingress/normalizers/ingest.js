@@ -32,11 +32,15 @@ function normalizeIngestEvent(body, source) {
   }
 
   const message = body.message || '';
+  const format = typeof body.format === 'string' ? body.format.trim().toLowerCase() : '';
 
   return createInternalEvent({
     source: source || 'ingest',
     recipient: { kind, value },
-    message: { text: typeof message === 'string' ? message : JSON.stringify(message) },
+    message: {
+      text: typeof message === 'string' ? message : JSON.stringify(message),
+      format: ['markdown', 'html'].indexOf(format) !== -1 ? format : ''
+    },
     raw: {
       kind: 'reference',
       value: `<event-${Date.now()}>`
