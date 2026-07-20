@@ -259,11 +259,17 @@ function buildTextPayload(response) {
     throw new Error('Invalid text response: unknown recipient kind');
   }
 
-  return {
+  const result = {
     recipientType,
     to: response.recipient.value,
     text: typeof response.text === 'string' ? response.text : ''
   };
+
+  if (response.format) {
+    result.format = response.format;
+  }
+
+  return result;
 }
 
 module.exports = {

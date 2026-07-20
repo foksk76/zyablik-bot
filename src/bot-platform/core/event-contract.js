@@ -31,7 +31,8 @@ function createInternalEvent(input = {}) {
       value: recipient.value || '<recipient-value>'
     },
     message: {
-      text: message.text || ''
+      text: message.text || '',
+      format: message.format || ''
     },
     raw: {
       kind: raw.kind || 'reference',

@@ -142,7 +142,8 @@ function createIngressHttpServer(options = {}) {
         const outboundResponse = {
           kind: 'text',
           recipient: event.recipient,
-          text
+          text,
+          format: event.message && event.message.format || undefined
         };
         const { id } = queueStore.enqueue({ payload: outboundResponse, source, reqId });
 
