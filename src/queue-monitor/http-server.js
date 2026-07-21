@@ -38,7 +38,15 @@ function createMonitorHttpServer(options = {}) {
   async function handleRequest(req, res) {
     const reqId = crypto.randomUUID();
     const urlPath = req.url.split('?')[0];
-    const query = parseQuery(req.url);
+
+    let query;
+    try {
+      query = parseQuery(req.url);
+    } catch {
+      sendJson(res, 400, { error: 'Malformed query string' });
+      return;
+    }
+
     const method = req.method;
 
     const routeKey = `${method} ${urlPath}`;
