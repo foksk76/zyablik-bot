@@ -167,7 +167,7 @@ test('live service passes poll config and acknowledges marker after successful p
   liveService.stop();
 });
 
-test('live service does not acknowledge marker when processing fails', async () => {
+test('live service acks marker even when processing fails (poison-loop prevention, ADR-0033)', async () => {
   const ackedMarkers = [];
   const liveService = createLiveBotPlatformService({
     MAX_TRANSPORT_MODE: 'long_polling',
@@ -203,7 +203,10 @@ test('live service does not acknowledge marker when processing fails', async () 
   liveService.start();
   await liveService.loopPromise;
 
-  assert.deepEqual(ackedMarkers, []);
+  // ADR-0033: marker ОБЯЗАТЕЛЬНО ack-ается даже при сбое processUpdate,
+  // иначе ядовитое сообщение зацикливало бы long-polling навсегда.
+  assert.deepEqual(ackedMarkers, [77]);
+  // Сбойное update не засчитывается в updates/results.
   assert.equal(liveService.state.updates, 0);
   assert.equal(liveService.state.results.length, 0);
 
