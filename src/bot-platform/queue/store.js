@@ -24,19 +24,28 @@ const MIGRATION_SQL = [
   'CREATE INDEX IF NOT EXISTS idx_queue_req_id ON delivery_queue(req_id)',
   // ADR-0033: метка времени взятия строки в обработку для reclaim
   // stale processing-строк после краша процесса.
-  'ALTER TABLE delivery_queue ADD COLUMN processing_since INTEGER'
+  'ALTER TABLE delivery_queue ADD COLUMN processing_since INTEGER',
+  // ADR-0028:59 специфицирует composite index для selectPending
+  // (WHERE status='pending' AND next_retry_at <= ? ORDER BY id ASC).
+  // `IF NOT EXISTS` делает миграцию идемпотентной.
+  'CREATE INDEX IF NOT EXISTS idx_queue_pending ON delivery_queue(status, next_retry_at)'
 ];
 
 const DEFAULT_PROCESSING_TTL_SECONDS = 300;
 
 function createQueueStore(options = {}) {
   const dbPath = options.dbPath || DEFAULT_DB_PATH;
-  const backoffBase = options.backoffBase || 2;
-  const backoffMax = options.backoffMax || 300;
+  // Числовые опции: `!= null` вместо `||`, иначе значение 0 молча подменялось
+  // дефолтом (falsy). Config валидирует min/max для env, но программные
+  // вызывающие стороны (тесты, embed) могут передать 0 осознанно.
+  const backoffBase = options.backoffBase != null ? options.backoffBase : 2;
+  const backoffMax = options.backoffMax != null ? options.backoffMax : 300;
   // Сколько секунд строка может быть в status='processing' до reclaim.
   // Покрывает типичный send + MAX API timeout (90с по умолчанию в live-service)
   // с запасом. См. ADR-0033.
-  const processingTtlSeconds = options.processingTtlSeconds || DEFAULT_PROCESSING_TTL_SECONDS;
+  const processingTtlSeconds = options.processingTtlSeconds != null
+    ? options.processingTtlSeconds
+    : DEFAULT_PROCESSING_TTL_SECONDS;
   const logger = options.logger || null;
   const Database = require('better-sqlite3');
   const db = new Database(dbPath);

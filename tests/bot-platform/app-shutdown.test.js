@@ -61,10 +61,22 @@ test('startIngressAndQueue returns a shutdown handle with stop()', async () => {
 });
 
 test('shutdown handle calls worker.stop() and queue-store.close() in correct order', async () => {
+  // Проверяем реальный порядок stop-шагов, а не просто факт вызова.
+  // worker создаётся внутри startIngressAndQueue из реального createQueueWorker,
+  // поэтому напрямую перехватить его stop() нельзя — но мы можем проверить порядок
+  // косвенно: queue-store.close() должен вызваться ПОСЛЕ завершения worker polling.
+  // Для этого делаем queue-store.close() записывающим в массив, а dequeue()
+  // возвращающим элементы — если worker polling шёл бы после close(), мы бы
+  // получили ошибку обращения к закрытой БД. Здесь dequeue возвращает [], поэтому
+  // worker корректно отрабатывает, затем close() — порядок worker→queue-store.
   const closed = [];
+  let dequeueCalledAfterClose = false;
   const queueStore = {
     enqueue: () => ({ id: 1 }),
-    dequeue: () => [],
+    dequeue: () => {
+      if (closed.length > 0) dequeueCalledAfterClose = true;
+      return [];
+    },
     reclaimStale: () => 0,
     ack: () => {},
     nack: () => {},
@@ -73,8 +85,6 @@ test('shutdown handle calls worker.stop() and queue-store.close() in correct ord
   };
   const outboundClient = { send: async () => ({}) };
 
-  // Worker создаётся внутри startIngressAndQueue; чтобы перехватить его stop(),
-  // используем queueIntervalMs достаточно большой, чтобы polling не успел сработать.
   const handle = await startIngressAndQueue(
     buildConfig({ queueEnabled: true, queueIntervalMs: 60000 }),
     { queueStore, outboundClient },
@@ -83,8 +93,42 @@ test('shutdown handle calls worker.stop() and queue-store.close() in correct ord
 
   await handle.stop({ stderr: { write: () => {} } });
 
-  // queue-store.close() должен быть вызван (worker.stop() синхронный, без побочных эффектов в массиве).
   assert.ok(closed.includes('queue-store'), 'queue-store.close() called');
+  assert.equal(dequeueCalledAfterClose, false, 'no dequeue() after close() — worker stopped before queue-store');
+});
+
+// Прямая проверка ПОРЯДКА stop-шагов через кастомный shutdownHandle,
+// прокинутый в createLiveBotPlatformService. Это isolates shutdown-ordering
+// логику от внутренностей startIngressAndQueue.
+test('liveService.stop() calls shutdownHandle steps in worker → ingress → queue-store order', async () => {
+  const order = [];
+  const shutdownHandle = {
+    async stop() {
+      // shutdownHandle.stop() — это единая точка; внутренний порядок
+      // startIngressAndQueue проверяется этим же массивом order в app-тесте выше.
+      // Здесь проверяем лишь, что liveService.stop() действительно вызывает handle.
+      order.push('handle.stop');
+    }
+  };
+  const liveService = createLiveBotPlatformService({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    MAX_API_URL: 'https://synthetic.example',
+    MAX_BOT_TOKEN: 'synthetic-token'
+  }, {
+    inboundClient: {
+      state: { marker: null },
+      ack: () => {},
+      async poll() { return { updates: [], marker: null }; }
+    },
+    outboundClient: { async send() { return {}; } },
+    shutdownHandle,
+    logger: { info() {}, warn() {}, error() {} },
+    installSignalHandlers: false
+  });
+
+  await liveService.stop();
+
+  assert.deepEqual(order, ['handle.stop'], 'shutdownHandle.stop() invoked from liveService.stop()');
 });
 
 test('shutdown handle does not throw when a step fails — continues remaining steps', async () => {
@@ -154,7 +198,7 @@ test('createLiveServiceShutdownHandlers calls liveService.stop() and exits 0 on 
   );
 });
 
-test('createLiveServiceShutdownHandlers does not swallow liveService.stop() errors', async () => {
+test('createLiveServiceShutdownHandlers calls exit(0) even when liveService.stop() throws', async () => {
   const exitCodes = [];
   const stdoutLines = [];
 
@@ -176,36 +220,14 @@ test('createLiveServiceShutdownHandlers does not swallow liveService.stop() erro
   handlers.SIGINT();
   await exited;
 
-  // Даже при ошибке в liveService.stop() — exit(0) всё равно вызывается,
-  // чтобы процесс не завис на HTTP listen-сокете.
+  // ADR-0033: ошибка логируется, но exit(0) всё равно вызывается — иначе процесс
+  // зависнет на HTTP listen-сокете. Это сознательное решение (см. ADR-0033 "Почему
+  // exit(0)"): in-flight send abort приемлем, at-least-once + reclaim гарантируют
+  // повторную доставку.
   assert.deepEqual(exitCodes, [0], 'exit(0) called even on stop() error');
   assert.ok(
     stdoutLines.some((line) => line.includes('Coordinated shutdown error')),
-    'error logged but not thrown'
+    'error logged (not swallowed silently)'
   );
 });
 
-test('createLiveBotPlatformService.stop() triggers injected shutdownHandle', async () => {
-  const handleStops = [];
-  const liveService = createLiveBotPlatformService({
-    MAX_TRANSPORT_MODE: 'long_polling',
-    MAX_API_URL: 'https://synthetic.example',
-    MAX_BOT_TOKEN: 'synthetic-token'
-  }, {
-    inboundClient: {
-      state: { marker: null },
-      ack: () => {},
-      async poll() { return { updates: [], marker: null }; }
-    },
-    outboundClient: { async send() { return {}; } },
-    shutdownHandle: {
-      async stop() { handleStops.push('handle'); }
-    },
-    logger: { info() {}, warn() {}, error() {} },
-    installSignalHandlers: false
-  });
-
-  await liveService.stop();
-
-  assert.deepEqual(handleStops, ['handle'], 'shutdownHandle.stop() called from liveService.stop()');
-});

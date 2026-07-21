@@ -354,7 +354,6 @@ function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.s
   // process.exit нужен, чтобы закрыть HTTP listen-сокет ingress, который иначе
   // удерживает event loop. exitFn инжектируется для тестируемости.
   const exitFn = typeof hooks.exitFn === 'function' ? hooks.exitFn : (code) => process.exit(code);
-  const pending = [];
 
   const stop = async (signal) => {
     io.stdout.write(`Coordinated shutdown after ${signal}: live-service + ingress + worker + queue-store\n`);
@@ -369,11 +368,11 @@ function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.s
   const handlers = {
     SIGINT() {
       io.stdout.write('Stopping live MAX Identity Bot after SIGINT\n');
-      pending.push(stop('SIGINT'));
+      stop('SIGINT');
     },
     SIGTERM() {
       io.stdout.write('Stopping live MAX Identity Bot after SIGTERM\n');
-      pending.push(stop('SIGTERM'));
+      stop('SIGTERM');
     }
   };
 

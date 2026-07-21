@@ -243,24 +243,45 @@ test('reclaimStale does not touch processing rows within TTL', () => {
 });
 
 test('reclaimStale treats NULL processing_since as stale', () => {
-  // Покрывает строки от кода до миграции ADR-0033 (processing_since IS NULL).
-  // Такие строки гарантированно stalled — текущий код всегда ставит processing_since.
-  const store = createQueueStore({ dbPath: ':memory:', processingTtlSeconds: 300 });
-  store.enqueue(makeEntry());
-  store.dequeue(10); // processing_since = now (не NULL)
+  // Напрямую тестируем NULL-ветку условия `processing_since IS NULL OR ...`.
+  // NULL processing_since встречается у строк, оставшихся от кода до миграции
+  // ADR-0033 (current код всегда ставит processing_since = now при dequeue).
+  // Такие строки гарантированно stalled и должны reclaim-иться при ЛЮБОМ ts.
+  //
+  // Используем файловую БД во временном файле, чтобы открыть второй connection
+  // и вставить processing-строку с processing_since = NULL через raw SQL
+  // (минуя dequeue, который выставил бы processing_since = now).
+  const Database = require('better-sqlite3');
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const tmpPath = path.join(os.tmpdir(), `queue-null-test-${process.pid}-${Date.now()}.db`);
+  try {
+    const store = createQueueStore({ dbPath: tmpPath, processingTtlSeconds: 300 });
+    store.enqueue(makeEntry());
 
-  // Проверяем что само условие `processing_since IS NULL OR ...` работает:
-  // даже при ts = сейчас (когда non-NULL строка не stale), NULL-строка была бы reclaim-нута.
-  // Здесь non-NULL строка при now не reclaim-ится — подтверждаем что non-NULL путь работает.
-  const now = Math.floor(Date.now() / 1000);
-  const reclaimed = store.reclaimStale(now);
-  assert.equal(reclaimed, 0, 'non-NULL fresh row is not reclaimed at now');
+    // Второй connection в ту же файловую БД: помечаем строку processing с NULL.
+    const rawDb = new Database(tmpPath);
+    rawDb.prepare(
+      "UPDATE delivery_queue SET status = 'processing', processing_since = NULL"
+    ).run();
+    rawDb.close();
 
-  // А при будущем ts — reclaim-ится (включая потенциальные NULL-строки).
-  const futureTs = now + 10000;
-  const reclaimedFuture = store.reclaimStale(futureTs);
-  assert.equal(reclaimedFuture, 1, 'any row becomes stale at far-future ts');
-  store.close();
+    // При ts = СЕЙЧАС non-NULL fresh строка не была бы stale (now - 300 < now).
+    // Но NULL-строка reclaim-ится при любом ts — это и есть суть NULL-ветки.
+    const now = Math.floor(Date.now() / 1000);
+    const reclaimed = store.reclaimStale(now);
+    assert.equal(reclaimed, 1, 'NULL processing_since reclaimed even at current ts');
+
+    const stats = store.stats();
+    assert.equal(stats.processing, 0, 'row moved out of processing');
+    assert.equal(stats.pending, 1, 'row returned to pending');
+    store.close();
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
+    try { fs.unlinkSync(`${tmpPath}-wal`); } catch (e) { /* ignore */ }
+    try { fs.unlinkSync(`${tmpPath}-shm`); } catch (e) { /* ignore */ }
+  }
 });
 
 test('dequeue reclaims stale rows before selecting pending', () => {
