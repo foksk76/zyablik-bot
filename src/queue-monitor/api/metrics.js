@@ -61,9 +61,57 @@ function createMetricsRoutes(options = {}) {
     };
   }
 
+  function timeseries(ctx) {
+    const windowSeconds = parseInt(ctx.query.window, 10) || 3600;
+    const data = reader.timeseries(windowSeconds);
+    return {
+      statusCode: 200,
+      body: {
+        status: 'ok',
+        window: windowSeconds,
+        data
+      }
+    };
+  }
+
+  function top(ctx) {
+    const by = ctx.query.by || 'source';
+    const limit = parseInt(ctx.query.limit, 10) || 5;
+
+    if (by === 'recipient') {
+      const data = reader.topRecipient(limit);
+      return {
+        statusCode: 200,
+        body: { status: 'ok', by, limit, data }
+      };
+    }
+
+    const data = reader.topSource(limit);
+    return {
+      statusCode: 200,
+      body: { status: 'ok', by, limit, data }
+    };
+  }
+
+  function errors(ctx) {
+    const limit = parseInt(ctx.query.limit, 10) || 20;
+    const data = reader.errors(limit);
+    return {
+      statusCode: 200,
+      body: {
+        status: 'ok',
+        limit,
+        data
+      }
+    };
+  }
+
   return {
     summary,
-    discovery
+    discovery,
+    timeseries,
+    top,
+    errors
   };
 }
 

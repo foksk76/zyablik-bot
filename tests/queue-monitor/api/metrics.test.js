@@ -117,3 +117,131 @@ test('discovery returns LLD format with all metrics', () => {
   reader.close();
   fs.unlinkSync(dbPath);
 });
+
+test('timeseries returns 200 with bucket data', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  seedRow(db, { status: 'delivered' });
+  seedRow(db, { status: 'failed' });
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.timeseries({ query: { window: '3600' } });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, 'ok');
+  assert.equal(result.body.window, 3600);
+  assert.ok(Array.isArray(result.body.data));
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
+
+test('timeseries defaults to 3600 seconds', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.timeseries({ query: {} });
+
+  assert.equal(result.body.window, 3600);
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
+
+test('top returns source data by default', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  seedRow(db, { source: 'zabbix' });
+  seedRow(db, { source: 'zabbix' });
+  seedRow(db, { source: 'grafana' });
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.top({ query: {} });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.by, 'source');
+  assert.equal(result.body.limit, 5);
+  assert.ok(Array.isArray(result.body.data));
+  assert.equal(result.body.data[0].source, 'zabbix');
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
+
+test('top returns recipient data when by=recipient', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  seedRow(db, { status: 'delivered' });
+  seedRow(db, { status: 'delivered' });
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.top({ query: { by: 'recipient', limit: '10' } });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.by, 'recipient');
+  assert.equal(result.body.limit, 10);
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
+
+test('errors returns 200 with failed messages', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  seedRow(db, { status: 'delivered' });
+  seedRow(db, { status: 'failed' });
+  seedRow(db, { status: 'failed' });
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.errors({ query: {} });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, 'ok');
+  assert.equal(result.body.limit, 20);
+  assert.equal(result.body.data.length, 2);
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
+
+test('errors respects limit query param', () => {
+  const dbPath = tmpDb();
+  const db = new Database(dbPath);
+  initSchema(db);
+  seedRow(db, { status: 'failed' });
+  seedRow(db, { status: 'failed' });
+  seedRow(db, { status: 'failed' });
+  db.close();
+
+  const reader = createQueueReader({ dbPath });
+  const routes = createMetricsRoutes({ reader });
+
+  const result = routes.errors({ query: { limit: '1' } });
+
+  assert.equal(result.body.limit, 1);
+  assert.equal(result.body.data.length, 1);
+
+  reader.close();
+  fs.unlinkSync(dbPath);
+});
