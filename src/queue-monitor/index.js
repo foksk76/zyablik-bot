@@ -23,6 +23,10 @@ function createQueueMonitor(options = {}) {
     };
   }
 
+  if (!config.metricsApiKey) {
+    throw new Error('MONITOR_ENABLED=true requires METRICS_API_KEY to be set');
+  }
+
   const dbPath = options.dbPath || 'delivery-queue.db';
   const reader = options.reader || createQueueReader({ dbPath, logger });
 

@@ -140,7 +140,7 @@ test('timeseries returns 200 with bucket data', () => {
   fs.unlinkSync(dbPath);
 });
 
-test('timeseries defaults to 3600 seconds', () => {
+test('timeseries defaults to 0 (all data) when window is not specified', () => {
   const dbPath = tmpDb();
   const db = new Database(dbPath);
   initSchema(db);
@@ -151,7 +151,7 @@ test('timeseries defaults to 3600 seconds', () => {
 
   const result = routes.timeseries({ query: {} });
 
-  assert.equal(result.body.window, 3600);
+  assert.equal(result.body.window, 0);
 
   reader.close();
   fs.unlinkSync(dbPath);

@@ -25,6 +25,17 @@ test('createQueueMonitor returns no-op when MONITOR_ENABLED is not set', async (
   assert.equal(monitor.ready(), true);
 });
 
+test('createQueueMonitor throws when MONITOR_ENABLED=true but METRICS_API_KEY is empty', () => {
+  assert.throws(
+    () => createQueueMonitor({
+      environment: { MONITOR_ENABLED: 'true' },
+      reader: { ready: () => true, close: () => {} },
+      httpServer: { start: async () => {}, stop: async () => {}, registerRoute: () => {} }
+    }),
+    /MONITOR_ENABLED=true requires METRICS_API_KEY/
+  );
+});
+
 test('createQueueMonitor with injected dependencies', async () => {
   const fakeReader = {
     ready: () => true,
@@ -44,7 +55,7 @@ test('createQueueMonitor with injected dependencies', async () => {
   };
 
   const monitor = createQueueMonitor({
-    environment: { MONITOR_ENABLED: 'true', MONITOR_PORT: '19100' },
+    environment: { MONITOR_ENABLED: 'true', MONITOR_PORT: '19100', METRICS_API_KEY: 'test-key' },
     reader: fakeReader,
     httpServer: fakeHttpServer
   });
@@ -80,7 +91,7 @@ test('createQueueMonitor shutdown closes reader', async () => {
   };
 
   const monitor = createQueueMonitor({
-    environment: { MONITOR_ENABLED: 'true' },
+    environment: { MONITOR_ENABLED: 'true', METRICS_API_KEY: 'test-key' },
     reader: fakeReader,
     httpServer: fakeHttpServer
   });

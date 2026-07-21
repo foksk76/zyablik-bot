@@ -35,27 +35,27 @@ function createMetricsRoutes(options = {}) {
         data: [
           {
             '{#METRIC}': 'queue.pending',
-            '{#METRIC_LABEL}': 'Ожидают отправки'
+            '{#LABEL}': 'Ожидают отправки'
           },
           {
             '{#METRIC}': 'queue.processing',
-            '{#METRIC_LABEL}': 'В обработке'
+            '{#LABEL}': 'В обработке'
           },
           {
             '{#METRIC}': 'queue.delivered',
-            '{#METRIC_LABEL}': 'Доставлено'
+            '{#LABEL}': 'Доставлено'
           },
           {
             '{#METRIC}': 'queue.failed',
-            '{#METRIC_LABEL}': 'Ошибки'
+            '{#LABEL}': 'Ошибки'
           },
           {
             '{#METRIC}': 'queue.total',
-            '{#METRIC_LABEL}': 'Всего сообщений'
+            '{#LABEL}': 'Всего сообщений'
           },
           {
             '{#METRIC}': 'queue.totalAttempts',
-            '{#METRIC_LABEL}': 'Всего попыток'
+            '{#LABEL}': 'Всего попыток'
           }
         ]
       }
@@ -63,7 +63,7 @@ function createMetricsRoutes(options = {}) {
   }
 
   function timeseries(ctx) {
-    const windowSeconds = parseInt(ctx.query.window, 10) || 3600;
+    const windowSeconds = parseInt(ctx.query.window, 10) || 0;
     const data = reader.timeseries(windowSeconds);
     return {
       statusCode: 200,

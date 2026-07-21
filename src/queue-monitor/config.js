@@ -3,7 +3,6 @@
 
 const MODULE_NAME = 'queue-monitor-config';
 const DEFAULT_MONITOR_PORT = 9000;
-const DEFAULT_RATE_LIMIT_RECIPIENT = 5;
 
 function createQueueMonitorConfig(environment = process.env) {
   return {
@@ -56,6 +55,5 @@ function readIntegerEnvValue(environment, key, fallback, min, max) {
 module.exports = {
   MODULE_NAME,
   DEFAULT_MONITOR_PORT,
-  DEFAULT_RATE_LIMIT_RECIPIENT,
   createQueueMonitorConfig
 };

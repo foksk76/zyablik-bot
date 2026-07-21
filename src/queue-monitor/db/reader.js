@@ -87,9 +87,8 @@ function createQueueReader(options = {}) {
   }
 
   function timeseries(windowSeconds) {
-    const window = windowSeconds || 3600;
     const now = Math.floor(Date.now() / 1000);
-    const since = now - window;
+    const since = windowSeconds ? now - windowSeconds : 0;
     const rows = stmts.timeseries.all(since);
 
     return rows.map((row) => ({
