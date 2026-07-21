@@ -12,6 +12,7 @@ const { createOidcVerifierFactory } = require('./ingress/oidc-verifier');
 const { createQueueStore } = require('./queue/store');
 const { createQueueWorker } = require('./queue/worker');
 const { createRateLimiter } = require('./core/rate-limiter');
+const { createQueueMonitor } = require('../queue-monitor');
 const {
   createSyntheticLongPollingSource,
   createLongPollingService,
@@ -128,6 +129,8 @@ async function startIngressAndQueue(config, options, io) {
   // порядок остановки. Worker добавляется через unshift (первым), ingress и
   // queue-store — через push. Итоговый порядок остановки: worker → ingress →
   // queue-store (сначала polling, затем HTTP listen, затем БД).
+  // ADR-0034: queue-monitor HTTP останавливается ПЕРЕД worker (внешний HTTP
+  // не зависит от queue-store, но завершается раньше внутренних компонентов).
   const stopHandles = [];
 
   let queueStore = null;
@@ -161,6 +164,21 @@ async function startIngressAndQueue(config, options, io) {
     stopHandles.push({ name: 'ingress', stop: () => ingress.stop() });
   }
 
+  // ADR-0034: queue monitor dashboard — readonly replica + HTTP server.
+  // Запускается после queue-store (нужен dbPath), останавливается ПЕРЕД worker.
+  if (config.monitorEnabled) {
+    const monitorDbPath = options.monitorDbPath || options.queueDbPath || 'delivery-queue.db';
+    const monitor = options.monitor || createQueueMonitor({
+      environment,
+      dbPath: monitorDbPath,
+      logger: options.logger || console
+    });
+
+    await monitor.start();
+    io.stdout.write(`Queue monitor dashboard started on port ${config.monitorPort}\n`);
+    stopHandles.unshift({ name: 'queue-monitor', stop: () => monitor.stop() });
+  }
+
   if (config.queueEnabled) {
     stopHandles.push({ name: 'queue-store', stop: () => queueStore.close() });
 
@@ -183,8 +201,8 @@ async function startIngressAndQueue(config, options, io) {
 
   // ADR-0033: единый shutdown handle для signal handlers. Цикл ниже
   // итерирует stopHandles forward, поэтому порядок остановки = порядок в
-  // массиве: worker → ingress → queue-store. Любая ошибка логируется,
-  // но не прерывает остальные shutdown-шаги.
+  // массиве: queue-monitor → worker → ingress → queue-store. Любая ошибка
+  // логируется, но не прерывает остальные shutdown-шаги.
   return {
     stop: async (shutdownIo) => {
       for (const handle of stopHandles) {
