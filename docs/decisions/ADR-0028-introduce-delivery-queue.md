@@ -80,6 +80,11 @@ Exponential backoff: `delay = min(base^attempts * 60, max)` секунд.
 - `delivered` — успешно доставлено (финальный)
 - `failed` — ошибка после max_attempts (финальный)
 
+> **ADR-0033 (crash recovery):** статус `processing` дополняется меткой
+> времени `processing_since`; строки, зависшие в `processing` дольше
+> `QUEUE_PROCESSING_TTL_SECONDS` (default 300), возвращаются в `pending`
+> без инкремента `attempts`. См. ADR-0033.
+
 ### Integration с текущим кодом
 
 **Изменения в существующих модулях:**

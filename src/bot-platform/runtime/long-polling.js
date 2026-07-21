@@ -79,24 +79,44 @@ function createLongPollingService(options = {}) {
 
       state.polls += 1;
 
+      // ADR-0033: per-update try/catch. Одно сбойное update не должно блокировать
+      // ack marker для всего batch — иначе ядовитое сообщение зацикливало бы
+      // long-polling навсегда (poison-message loop). Сбойное update логируется,
+      // цикл продолжается для остальных, onCycleSuccess вызывается всегда, а
+      // первая ошибка пробрасывается наверх в loop() для recovery-лога.
+      let firstError = null;
+
       for (const update of updates) {
-        const result = await processUpdate(update);
+        try {
+          const result = await processUpdate(update);
 
-        state.updates += 1;
-        state.results.push(result);
-        logger.info('long polling update processed', {
-          mode: result && result.mode,
-          networkEnabled: Boolean(result && result.networkEnabled),
-          updates: state.updates
-        });
+          state.updates += 1;
+          state.results.push(result);
+          logger.info('long polling update processed', {
+            mode: result && result.mode,
+            networkEnabled: Boolean(result && result.networkEnabled),
+            updates: state.updates
+          });
 
-        if (onUpdate) {
-          onUpdate(result);
+          if (onUpdate) {
+            onUpdate(result);
+          }
+        } catch (error) {
+          if (!firstError) firstError = error;
+          logger.error('long polling update failed', {
+            error: error && error.message ? error.message : 'unknown error',
+            updatesProcessed: state.updates,
+            updatesInBatch: updates.length
+          });
         }
       }
 
       if (onCycleSuccess) {
         onCycleSuccess(state);
+      }
+
+      if (firstError) {
+        throw firstError;
       }
 
       return state;

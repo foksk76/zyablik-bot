@@ -21,13 +21,31 @@ CREATE TABLE IF NOT EXISTS delivery_queue (
 
 const MIGRATION_SQL = [
   'ALTER TABLE delivery_queue ADD COLUMN req_id TEXT',
-  'CREATE INDEX IF NOT EXISTS idx_queue_req_id ON delivery_queue(req_id)'
+  'CREATE INDEX IF NOT EXISTS idx_queue_req_id ON delivery_queue(req_id)',
+  // ADR-0033: метка времени взятия строки в обработку для reclaim
+  // stale processing-строк после краша процесса.
+  'ALTER TABLE delivery_queue ADD COLUMN processing_since INTEGER',
+  // ADR-0028:59 специфицирует composite index для selectPending
+  // (WHERE status='pending' AND next_retry_at <= ? ORDER BY id ASC).
+  // `IF NOT EXISTS` делает миграцию идемпотентной.
+  'CREATE INDEX IF NOT EXISTS idx_queue_pending ON delivery_queue(status, next_retry_at)'
 ];
+
+const DEFAULT_PROCESSING_TTL_SECONDS = 300;
 
 function createQueueStore(options = {}) {
   const dbPath = options.dbPath || DEFAULT_DB_PATH;
-  const backoffBase = options.backoffBase || 2;
-  const backoffMax = options.backoffMax || 300;
+  // Числовые опции: `!= null` вместо `||`, иначе значение 0 молча подменялось
+  // дефолтом (falsy). Config валидирует min/max для env, но программные
+  // вызывающие стороны (тесты, embed) могут передать 0 осознанно.
+  const backoffBase = options.backoffBase != null ? options.backoffBase : 2;
+  const backoffMax = options.backoffMax != null ? options.backoffMax : 300;
+  // Сколько секунд строка может быть в status='processing' до reclaim.
+  // Покрывает типичный send + MAX API timeout (90с по умолчанию в live-service)
+  // с запасом. См. ADR-0033.
+  const processingTtlSeconds = options.processingTtlSeconds != null
+    ? options.processingTtlSeconds
+    : DEFAULT_PROCESSING_TTL_SECONDS;
   const logger = options.logger || null;
   const Database = require('better-sqlite3');
   const db = new Database(dbPath);
@@ -58,14 +76,26 @@ function createQueueStore(options = {}) {
         LIMIT ?
     `),
     updateStatusProcessing: db.prepare(`
-        UPDATE delivery_queue SET status = 'processing', updated_at = ? WHERE id = ?
+        UPDATE delivery_queue
+        SET status = 'processing', processing_since = ?, updated_at = ?
+        WHERE id = ?
     `),
     updateStatusDelivered: db.prepare(`
         UPDATE delivery_queue SET status = 'delivered', updated_at = ? WHERE id = ?
     `),
+    // ADR-0033: reclaim строк, зависших в 'processing' после краша процесса.
+    // NULL трактуется как stale — покрывает строки от старого кода до миграции
+    // (они гарантированно stalled, т.к. текущий код всегда ставит processing_since).
+    reclaimStaleProcessing: db.prepare(`
+        UPDATE delivery_queue
+        SET status = 'pending', processing_since = NULL, updated_at = ?
+        WHERE status = 'processing'
+          AND (processing_since IS NULL OR processing_since <= ?)
+    `),
     nackPending: db.prepare(`
         UPDATE delivery_queue
-        SET status = 'pending', attempts = ?, next_retry_at = ?, updated_at = ?
+        SET status = 'pending', processing_since = NULL,
+            attempts = ?, next_retry_at = ?, updated_at = ?
         WHERE id = ?
     `),
     nackFailed: db.prepare(`
@@ -102,12 +132,23 @@ function createQueueStore(options = {}) {
     return { id };
   }
 
+  // ADR-0033: вернуть зависшие 'processing' строки в 'pending'.
+  // Вызывается в начале каждого dequeue-цикла (crash recovery между итерациями)
+  // и может вызываться явно при старте процесса. Не инкрементирует attempts —
+  // reclaim трактуется как crash-recovery (at-least-once), а не failed-delivery.
+  function reclaimStale(now) {
+    const ts = now != null ? now : Math.floor(Date.now() / 1000);
+    return stmts.reclaimStaleProcessing.run(ts, ts - processingTtlSeconds).changes;
+  }
+
   function dequeue(batchSize) {
     const now = Math.floor(Date.now() / 1000);
+    reclaimStale(now);
+
     const rows = stmts.selectPending.all(now, batchSize);
 
     for (const row of rows) {
-      stmts.updateStatusProcessing.run(now, row.id);
+      stmts.updateStatusProcessing.run(now, now, row.id);
     }
 
     return rows.map((row) => ({
@@ -163,6 +204,7 @@ function createQueueStore(options = {}) {
   return {
     enqueue,
     dequeue,
+    reclaimStale,
     ack,
     nack,
     stats,
@@ -173,5 +215,6 @@ function createQueueStore(options = {}) {
 module.exports = {
   MODULE_NAME,
   DEFAULT_DB_PATH,
+  DEFAULT_PROCESSING_TTL_SECONDS,
   createQueueStore
 };

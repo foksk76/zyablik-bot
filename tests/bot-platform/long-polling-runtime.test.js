@@ -158,3 +158,55 @@ test('long polling service recovers from polling errors without crashing the loo
   assert.equal(logEntries[0].context.error, 'synthetic polling failure');
   assert.ok(logEntries.some((entry) => entry.message === 'long polling loop recovered from error'));
 });
+
+// ADR-0033: одно сбойное update не должно блокировать ack marker для всего batch.
+// Раньше throw в processUpdate прерывал цикл, onCycleSuccess (ack marker)
+// пропускался, и тот же batch опрашивался бесконечно (poison-message loop).
+test('long polling cycle acks marker and processes other updates when one update fails', async () => {
+  const processed = [];
+  const errored = [];
+  let cycleSuccessCalled = false;
+
+  const service = createLongPollingService({
+    autoStart: false,
+    pollUpdates: async () => [
+      { id: 'ok-1', synthetic: true },
+      { id: 'poison', synthetic: true },
+      { id: 'ok-2', synthetic: true }
+    ],
+    processUpdate: async (update) => {
+      if (update.id === 'poison') {
+        throw new Error('poison update failure');
+      }
+      processed.push(update.id);
+      return { mode: 'dry-run', update };
+    },
+    onCycleSuccess: () => {
+      cycleSuccessCalled = true;
+    },
+    logger: {
+      info() {},
+      warn() {},
+      error(message, context) {
+        errored.push({ message, context });
+      }
+    },
+    sleep: async () => {}
+  });
+
+  // tick должен пробросить первую ошибку наверх (для loop recovery-лога),
+  // НО только после того, как обработал остальные update и вызвал onCycleSuccess.
+  await assert.rejects(() => service.tick(), /poison update failure/);
+
+  // Два «хороших» update обработаны, ядовитое — пропущено.
+  assert.deepEqual(processed, ['ok-1', 'ok-2']);
+
+  // marker ack-нулся по всему batch — poison-loop предотвращён.
+  assert.equal(cycleSuccessCalled, true, 'onCycleSuccess must be called even when one update fails');
+
+  // Сбойное update залогировано на error.
+  assert.ok(errored.some((e) => e.message === 'long polling update failed'));
+  assert.ok(errored.some((e) => e.context && e.context.error === 'poison update failure'));
+
+  service.stop();
+});

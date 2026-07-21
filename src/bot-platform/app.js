@@ -123,17 +123,26 @@ async function startIngressAndQueue(config, options, io) {
     logger: options.logger || console
   });
 
+  // ADR-0033: ресурсы, требующие coordinated shutdown при SIGTERM/SIGINT.
+  // stopHandles итерируется forward в stop() — порядок в массиве задаёт
+  // порядок остановки. Worker добавляется через unshift (первым), ingress и
+  // queue-store — через push. Итоговый порядок остановки: worker → ingress →
+  // queue-store (сначала polling, затем HTTP listen, затем БД).
+  const stopHandles = [];
+
   let queueStore = null;
   if (config.queueEnabled) {
     queueStore = options.queueStore || createQueueStore({
       dbPath: options.queueDbPath || 'delivery-queue.db',
       backoffBase: config.queueBackoffBase,
-      backoffMax: config.queueBackoffMax
+      backoffMax: config.queueBackoffMax,
+      processingTtlSeconds: config.queueProcessingTtlSeconds
     });
   }
 
+  let ingress = null;
   if (config.ingressEnabled) {
-    const ingress = createIngressPipeline({
+    ingress = createIngressPipeline({
       port: config.ingressPort,
       issuer: config.idpIssuer,
       audience: config.idpAudience,
@@ -149,9 +158,12 @@ async function startIngressAndQueue(config, options, io) {
 
     await ingress.start();
     io.stdout.write(`HTTP-ingress server started on port ${config.ingressPort}\n`);
+    stopHandles.push({ name: 'ingress', stop: () => ingress.stop() });
   }
 
   if (config.queueEnabled) {
+    stopHandles.push({ name: 'queue-store', stop: () => queueStore.close() });
+
     const worker = createQueueWorker({
       queueStore,
       outboundClient,
@@ -165,7 +177,27 @@ async function startIngressAndQueue(config, options, io) {
 
     worker.start();
     io.stdout.write('Queue worker started\n');
+    // Worker первым в очереди остановки (завершаем polling до закрытия ingress/БД).
+    stopHandles.unshift({ name: 'queue-worker', stop: () => worker.stop() });
   }
+
+  // ADR-0033: единый shutdown handle для signal handlers. Цикл ниже
+  // итерирует stopHandles forward, поэтому порядок остановки = порядок в
+  // массиве: worker → ingress → queue-store. Любая ошибка логируется,
+  // но не прерывает остальные shutdown-шаги.
+  return {
+    stop: async (shutdownIo) => {
+      for (const handle of stopHandles) {
+        try {
+          await handle.stop();
+        } catch (error) {
+          if (shutdownIo && shutdownIo.stderr) {
+            shutdownIo.stderr.write(`shutdown step '${handle.name}' failed: ${error.message}\n`);
+          }
+        }
+      }
+    }
+  };
 }
 
 async function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
@@ -177,7 +209,15 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
     if (config.maxTransportMode === 'long_polling') {
       startBotPlatformService(environment);
 
-      await startIngressAndQueue(config, options, io);
+      const shutdownHandle = await startIngressAndQueue(config, options, io);
+
+      const shutdownIo = options.io || io;
+      const onSignal = async () => {
+        shutdownIo.stdout.write('Synthetic mode: coordinated shutdown\n');
+        await shutdownHandle.stop(shutdownIo);
+      };
+      process.on('SIGTERM', onSignal);
+      process.on('SIGINT', onSignal);
 
       io.stdout.write('MAX bot-platform safe test service started in long_polling mode with synthetic updates\n');
       return 0;
@@ -189,7 +229,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
   if (isLiveCommand(argv)) {
     try {
-      await startIngressAndQueue(config, options, io);
+      const shutdownHandle = await startIngressAndQueue(config, options, io);
 
       const startLiveService = typeof options.startLiveBotPlatformService === 'function'
         ? options.startLiveBotPlatformService
@@ -198,6 +238,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
       startLiveService(environment, {
         ...options.liveOptions,
         identityHandler: options.liveOptions && options.liveOptions.identityHandler || app.routes.identity,
+        shutdownHandle,
         io
       });
       io.stdout.write('MAX bot-platform live service started in long_polling mode\n');
@@ -241,6 +282,7 @@ module.exports = {
   runBotPlatformLongPollingOnce,
   startBotPlatformService,
   startLiveBotPlatformService,
+  startIngressAndQueue,
   runMaxIdentityDryRun,
   runBotPlatformDryRun,
   main

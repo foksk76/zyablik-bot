@@ -47,6 +47,10 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
   const processUpdate = typeof options.processUpdate === 'function'
     ? options.processUpdate
     : createIdentityUpdateProcessor({ outboundClient, identityHandler: options.identityHandler });
+  // ADR-0033: handle для coordinated shutdown ingress/worker/queue-store.
+  // Live-service — единственный компонент с signal handlers, поэтому через
+  // него прокидывается остановка всех ресурсов app.startIngressAndQueue.
+  const shutdownHandle = options.shutdownHandle || null;
   const pollUpdates = typeof options.pollUpdates === 'function'
     ? options.pollUpdates
     : async () => {
@@ -92,7 +96,7 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
       });
       return liveService;
     },
-    stop() {
+    async stop() {
       const state = service.stop();
       logger.info('live MAX Identity Bot service stopped', {
         mode: 'long_polling',
@@ -100,6 +104,16 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
         updates: state.updates,
         results: state.results.length
       });
+      // ADR-0033: coordinated shutdown ingress/worker/queue-store.
+      if (shutdownHandle) {
+        try {
+          await shutdownHandle.stop();
+        } catch (error) {
+          logger.error('coordinated shutdown failed', {
+            error: error && error.message ? error.message : 'unknown error'
+          });
+        }
+      }
       return state;
     },
     get loopPromise() {
@@ -334,19 +348,31 @@ function ensureTrailingSlash(apiUrl) {
   return apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`;
 }
 
-function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.stdout }) {
-  const stop = () => {
-    liveService.stop();
+function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.stdout }, hooks = {}) {
+  // ADR-0033: coordinated shutdown останавливает worker/ingress/queue-store
+  // (через shutdownHandle внутри liveService.stop()) перед завершением процесса.
+  // process.exit нужен, чтобы закрыть HTTP listen-сокет ingress, который иначе
+  // удерживает event loop. exitFn инжектируется для тестируемости.
+  const exitFn = typeof hooks.exitFn === 'function' ? hooks.exitFn : (code) => process.exit(code);
+
+  const stop = async (signal) => {
+    io.stdout.write(`Coordinated shutdown after ${signal}: live-service + ingress + worker + queue-store\n`);
+    try {
+      await liveService.stop();
+    } catch (error) {
+      io.stdout.write(`Coordinated shutdown error: ${error && error.message ? error.message : 'unknown error'}\n`);
+    }
+    exitFn(0);
   };
 
   const handlers = {
     SIGINT() {
       io.stdout.write('Stopping live MAX Identity Bot after SIGINT\n');
-      stop();
+      stop('SIGINT');
     },
     SIGTERM() {
       io.stdout.write('Stopping live MAX Identity Bot after SIGTERM\n');
-      stop();
+      stop('SIGTERM');
     }
   };
 

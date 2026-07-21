@@ -18,9 +18,11 @@ function createQueueWorker(options = {}) {
 
   let intervalId = null;
   let busy = false;
+  let stopped = false;
+  let pollInProgress = null;
 
   async function poll() {
-    if (!queueStore || !outboundClient) {
+    if (stopped || !queueStore || !outboundClient) {
       return { processed: 0 };
     }
 
@@ -29,6 +31,7 @@ function createQueueWorker(options = {}) {
     }
 
     busy = true;
+    const p = (async () => {
 
     try {
       const batch = queueStore.dequeue(batchSize);
@@ -111,7 +114,12 @@ function createQueueWorker(options = {}) {
       return { processed };
     } finally {
       busy = false;
+      pollInProgress = null;
     }
+    })();
+
+    pollInProgress = p;
+    return p;
   }
 
   function start() {
@@ -120,6 +128,9 @@ function createQueueWorker(options = {}) {
     }
 
     function scheduleNext() {
+      if (stopped) {
+        return;
+      }
       intervalId = setTimeout(async () => {
         try {
           await poll();
@@ -139,10 +150,12 @@ function createQueueWorker(options = {}) {
   }
 
   function stop() {
+    stopped = true;
     if (intervalId !== null) {
       clearTimeout(intervalId);
       intervalId = null;
     }
+    return pollInProgress || Promise.resolve();
   }
 
   return {
