@@ -17,6 +17,7 @@ const DEFAULT_QUEUE_PROCESSING_TTL_SECONDS = 300;
 const DEFAULT_RATE_LIMIT_GLOBAL = 25;
 const DEFAULT_RATE_LIMIT_RECIPIENT = 5;
 const DEFAULT_INGRESS_PORT = 8443;
+const DEFAULT_MONITOR_PORT = 9000;
 const MAX_TRANSPORT_MODES = new Set(['long_polling', 'webhook']);
 const CONFIG_VALIDATION_ERROR_CODE = 'CONFIG_VALIDATION_ERROR';
 const TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE = 'TRANSPORT_NOT_IMPLEMENTED';
@@ -66,7 +67,9 @@ function createBotPlatformConfig(environment = process.env) {
     jwtClaimName: readEnvValue(environment, 'JWT_CLAIM_NAME'),
     jwtClaimValue: readEnvValue(environment, 'JWT_CLAIM_VALUE'),
     logAudit: readBoolEnvValue(environment, 'LOG_AUDIT', false),
-    logTrace: readBoolEnvValue(environment, 'LOG_TRACE', true)
+    logTrace: readBoolEnvValue(environment, 'LOG_TRACE', true),
+    monitorEnabled: readBoolEnvValue(environment, 'MONITOR_ENABLED', false),
+    monitorPort: readIntegerEnvValue(environment, 'MONITOR_PORT', DEFAULT_MONITOR_PORT, 1, 65535)
   };
 }
 
@@ -204,6 +207,7 @@ module.exports = {
   DEFAULT_RATE_LIMIT_GLOBAL,
   DEFAULT_RATE_LIMIT_RECIPIENT,
   DEFAULT_INGRESS_PORT,
+  DEFAULT_MONITOR_PORT,
   MAX_TRANSPORT_MODES,
   CONFIG_VALIDATION_ERROR_CODE,
   TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE,

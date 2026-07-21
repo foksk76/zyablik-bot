@@ -126,11 +126,8 @@ async function startIngressAndQueue(config, options, io) {
 
   // ADR-0033: ресурсы, требующие coordinated shutdown при SIGTERM/SIGINT.
   // stopHandles итерируется forward в stop() — порядок в массиве задаёт
-  // порядок остановки. Worker добавляется через unshift (первым), ingress и
-  // queue-store — через push. Итоговый порядок остановки: worker → ingress →
-  // queue-store (сначала polling, затем HTTP listen, затем БД).
-  // ADR-0034: queue-monitor HTTP останавливается ПЕРЕД worker (внешний HTTP
-  // не зависит от queue-store, но завершается раньше внутренних компонентов).
+  // порядок остановки. Итоговый порядок остановки (после всех unshift/push):
+  // queue-worker → queue-monitor → ingress → queue-store.
   const stopHandles = [];
 
   let queueStore = null;
@@ -201,8 +198,8 @@ async function startIngressAndQueue(config, options, io) {
 
   // ADR-0033: единый shutdown handle для signal handlers. Цикл ниже
   // итерирует stopHandles forward, поэтому порядок остановки = порядок в
-  // массиве: queue-monitor → worker → ingress → queue-store. Любая ошибка
-  // логируется, но не прерывает остальные shutdown-шаги.
+  // массиве: queue-worker → queue-monitor → ingress → queue-store. Любая
+  // ошибка логируется, но не прерывает остальные shutdown-шаги.
   return {
     stop: async (shutdownIo) => {
       for (const handle of stopHandles) {

@@ -254,3 +254,31 @@ test('createBotPlatformConfig rejects invalid rate limit values', () => {
     /Invalid RATE_LIMIT_RECIPIENT value: 0/
   );
 });
+
+test('createBotPlatformConfig returns monitor defaults when env is empty', () => {
+  const config = createBotPlatformConfig({});
+
+  assert.equal(config.monitorEnabled, false);
+  assert.equal(config.monitorPort, 9000);
+});
+
+test('createBotPlatformConfig reads monitor environment overrides', () => {
+  const config = createBotPlatformConfig({
+    MONITOR_ENABLED: 'true',
+    MONITOR_PORT: '8080'
+  });
+
+  assert.equal(config.monitorEnabled, true);
+  assert.equal(config.monitorPort, 8080);
+});
+
+test('createBotPlatformConfig rejects invalid monitor values', () => {
+  assert.throws(
+    () => createBotPlatformConfig({ MONITOR_PORT: '0' }),
+    /Invalid MONITOR_PORT value: 0/
+  );
+  assert.throws(
+    () => createBotPlatformConfig({ MONITOR_PORT: '70000' }),
+    /Invalid MONITOR_PORT value: 70000/
+  );
+});
