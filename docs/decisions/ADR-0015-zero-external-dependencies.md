@@ -85,6 +85,8 @@ Bot-platform — компонент, который:
 | `http.createServer` (stdlib) — ingress-сервер | ADR-0023 | Входящие HTTP, stdlib only |
 | `@okta/jwt-verifier` — JWT-проверка | ADR-0024 | Auth-слой `JwtSourceAuth` |
 | `better-sqlite3` — delivery-log | ADR-0025 | Слой `LogStore` |
+| `openid-client` — OIDC-клиент | ADR-0034 | Auth-слой queue-monitor (`auth/oidc.js`) |
+| `react`, `vite`, `recharts`, `tailwindcss` | ADR-0034 | Frontend queue-monitor (`ui/`) |
 
 Каждое исключение:
 

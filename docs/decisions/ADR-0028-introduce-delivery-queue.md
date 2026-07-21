@@ -59,6 +59,10 @@ CREATE TABLE delivery_queue (
 CREATE INDEX idx_queue_pending ON delivery_queue(status, next_retry_at);
 ```
 
+> **Примечание:** В реализации колонка `idempotency_key` переименована
+> в `req_id` (миграция `ALTER TABLE ADD COLUMN req_id TEXT`).
+> См. ADR-0034 для деталей схемы reader.
+
 ### Retry strategy
 
 Exponential backoff: `delay = min(base^attempts * 60, max)` секунд.
