@@ -208,7 +208,39 @@ zabbix — Zabbix alerts (по умолчанию)
 
 Для добавления нового источника создать нормализатор в `src/bot-platform/ingress/normalizers/` и зарегистрировать в `index.js`.
 
-## 8. Запуск с очередью и ingress
+## 8. Dashboard queue-monitor (опционально)
+
+Dashboard показывает метрики очереди доставки в реальном времени: статусы, топы, ошибки, временные ряды.
+
+### 8.1 Включить dashboard
+
+```bash
+export MONITOR_ENABLED=true
+export METRICS_API_KEY=<сгенерировать-токен>
+```
+
+`METRICS_API_KEY` — обязательный токен для доступа к `/api/metrics/*`. Нужен внешним системам мониторинга (Zabbix, Prometheus, curl). UI dashboard использует session auth после OAuth2 логина — повторный ввод ключа не требуется (ADR-0035).
+
+### 8.2 Настроить OAuth2 UI login (опционально)
+
+```bash
+export IDP_CLIENT_ID=dashboard
+export IDP_CLIENT_SECRET=<client-secret>
+export IDP_REDIRECT_URI=http://localhost:9000/api/auth/callback
+export SESSION_SECRET=<сгенерировать-секрет>
+```
+
+Если OAuth2 не настроен, dashboard работает в режиме Bearer-only (без UI login).
+
+### 8.3 Запустить
+
+```bash
+node src/bot-platform/app.js
+```
+
+Dashboard доступен на `http://localhost:9000/`.
+
+## 9. Запуск с очередью и ingress
 
 Для запуска с обеими функциями:
 

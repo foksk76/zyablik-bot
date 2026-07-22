@@ -109,6 +109,10 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0029 ввести lifecycle audit trail (audit + trace) для расследования инцидентов;
 - по ADR-0030 ввести outbound rate limiter для защиты от 429 MAX API;
 - по ADR-0031 лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot;
+- по ADR-0032 логировать тело ответа внешних API в ошибках доставки;
+- по ADR-0033 crash recovery для delivery pipeline (reclaim stale, poison-loop prevention, graceful shutdown);
+- по ADR-0034 ввести Queue Monitor Dashboard (встроенный дашборд, readonly SQLite replica, API для метрик, auth через IdP);
+- по ADR-0035 session auth как альтернатива Bearer Token для dashboard metrics;
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основные артефакты
@@ -163,6 +167,21 @@ JWT_CLAIM_VALUE=            — значение claim для source identificat
 LOG_AUDIT=false              — включить audit trail (ADR-0029)
 LOG_TRACE=true              — включить lifecycle trace (ADR-0029)
 ```
+
+#### Dashboard (ADR-0034, ADR-0035)
+
+```text
+MONITOR_ENABLED=false       — включение dashboard (по умолчанию false)
+MONITOR_PORT=9000           — порт dashboard сервера (по умолчанию 9000)
+METRICS_API_KEY=            — Bearer token для внешних систем мониторинга (обязательный)
+IDP_CLIENT_ID=              — OAuth2 client ID для UI login (опциональный)
+IDP_CLIENT_SECRET=          — OAuth2 client secret (опциональный)
+IDP_REDIRECT_URI=           — OAuth2 redirect URI (опциональный)
+SESSION_SECRET=             — секрет для подписи session cookie (опциональный)
+```
+
+UI dashboard использует session auth после OAuth2 логина (ADR-0035).
+`METRICS_API_KEY` нужен только для внешних систем (Zabbix, Prometheus, curl).
 
 Реализовано и подтверждено:
 

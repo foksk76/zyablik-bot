@@ -39,7 +39,6 @@ function createQueueMonitor(options = {}) {
     const dbPath = options.dbPath || 'delivery-queue.db';
     const reader = options.reader || createQueueReader({ dbPath, logger });
 
-    const auth = createBearerAuth({ apiKey: config.metricsApiKey });
     const metrics = createMetricsRoutes({ reader });
     const readyz = createReadyzRoute({ reader });
 
@@ -77,6 +76,14 @@ function createQueueMonitor(options = {}) {
             'Set IDP_ISSUER + IDP_CLIENT_ID + IDP_REDIRECT_URI + SESSION_SECRET to enable.'
         );
     }
+
+    // ADR-0035: session-авторизация как fallback для Bearer token.
+    // Если sessionStore доступен (OAuth2 включён), protectRoute проверяет
+    // cookie-сессию после неудачной Bearer-попытки.
+    const auth = createBearerAuth({
+        apiKey: config.metricsApiKey,
+        sessionStore
+    });
 
     // staticDir для SPA. options.staticDir=null отключает static serving.
     const staticDir = options.staticDir !== undefined ? options.staticDir : DEFAULT_STATIC_DIR;

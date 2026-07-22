@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// ADR-0034: загрузка метрик с /api/metrics/* с автообновлением.
-// metricsApiKey — Bearer token для metrics endpoints (вводится оператором в UI,
-// т.к. metrics API не входит в session-auth domain).
+// ADR-0034/ADR-0035: загрузка метрик с /api/metrics/* с автообновлением.
+// Session-авторизация (ADR-0035) — session cookie отправляется автоматически
+// (credentials: 'same-origin'), Bearer token не нужен для UI.
 //
 // Возвращает { summary, timeseries, top, errors, loading, error, refresh, lastUpdated }.
-export function useMetrics({ apiKey, windowSeconds = 3600, refreshMs = 30000 }) {
+export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
     const [summary, setSummary] = useState(null);
     const [timeseries, setTimeseries] = useState(null);
     const [top, setTop] = useState(null);
@@ -18,21 +18,12 @@ export function useMetrics({ apiKey, windowSeconds = 3600, refreshMs = 30000 }) 
     const refreshRef = useRef(null);
 
     const refresh = useCallback(async () => {
-        if (!apiKey) {
-            setError('METRICS_API_KEY не задан');
-            setLoading(false);
-            return;
-        }
-        // headers конструируется ВНУТРИ refresh, а не на каждом render — иначе
-        // новый объект в deps useCallback делал бы refresh нестабильным и
-        // вызывал бесконечный re-fetch цикл (H1 из PR review).
-        const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
         try {
             const [sumRes, tsRes, topRes, errRes] = await Promise.all([
-                fetch('/api/metrics/summary', { headers }).then((r) => r.json()),
-                fetch(`/api/metrics/timeseries?window=${windowSeconds}`, { headers }).then((r) => r.json()),
-                fetch(`/api/metrics/top?by=${topBy}&limit=5`, { headers }).then((r) => r.json()),
-                fetch('/api/metrics/errors?limit=20', { headers }).then((r) => r.json())
+                fetch('/api/metrics/summary', { credentials: 'same-origin' }).then((r) => r.json()),
+                fetch(`/api/metrics/timeseries?window=${windowSeconds}`, { credentials: 'same-origin' }).then((r) => r.json()),
+                fetch(`/api/metrics/top?by=${topBy}&limit=5`, { credentials: 'same-origin' }).then((r) => r.json()),
+                fetch('/api/metrics/errors?limit=20', { credentials: 'same-origin' }).then((r) => r.json())
             ]);
             setSummary(sumRes);
             setTimeseries(tsRes);
@@ -45,7 +36,7 @@ export function useMetrics({ apiKey, windowSeconds = 3600, refreshMs = 30000 }) 
         } finally {
             setLoading(false);
         }
-    }, [apiKey, windowSeconds, topBy]);
+    }, [windowSeconds, topBy]);
 
     useEffect(() => {
         refresh();

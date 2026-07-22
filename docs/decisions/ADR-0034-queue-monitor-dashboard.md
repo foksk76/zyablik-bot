@@ -50,8 +50,9 @@ bot-platform (Node.js)
 ├── src/bot-platform/          — текущий код (writer)
 ├── src/queue-monitor/         — новый модуль (reader)
 │   ├── api/                   — REST эндпоинты
-│   │   ├── metrics.js         — /api/metrics/* (Bearer Token auth)
-│   │   └── auth.js            — /api/auth/* (OAuth2/OIDC)
+│   │   ├── metrics.js         — /api/metrics/* (Bearer Token / Session auth)
+│   │   ├── auth.js            — Bearer Token auth (protectRoute)
+│   │   └── auth-routes.js     — /api/auth/* (OAuth2/OIDC)
 │   ├── auth/                  — OAuth2/OIDC middleware
 │   │   ├── oidc.js            — IdP client (NanoIdP MVP, Okta/Keycloak prod)
 │   │   └── session.js         — session cookie management
@@ -73,17 +74,18 @@ bot-platform (Node.js)
   refresh. Совместимость: Zabbix HTTP Agent, Prometheus blackbox exporter,
   curl.
 
-`/api/metrics/*` — с Bearer Token auth. `/readyz` — без auth (health check).
+`/api/metrics/*` — с Bearer Token auth ИЛИ session cookie (ADR-0035).
+`/readyz` — без auth (health check).
 
 ### API endpoints
 
 | Endpoint | Auth | Описание |
 |----------|------|----------|
-| `GET /api/metrics/summary` | Bearer | Агрегированная статистика |
-| `GET /api/metrics/timeseries?window=1h` | Bearer | Временные ряды по статусам |
-| `GET /api/metrics/top?by=source&limit=5` | Bearer | Топ отправителей/получателей |
-| `GET /api/metrics/errors?limit=20` | Bearer | Последние ошибки |
-| `GET /api/metrics/discovery` | Bearer | LLD-совместимый формат |
+| `GET /api/metrics/summary` | Bearer / Session | Агрегированная статистика |
+| `GET /api/metrics/timeseries?window=1h` | Bearer / Session | Временные ряды по статусам |
+| `GET /api/metrics/top?by=source&limit=5` | Bearer / Session | Топ отправителей/получателей |
+| `GET /api/metrics/errors?limit=20` | Bearer / Session | Последние ошибки |
+| `GET /api/metrics/discovery` | Bearer / Session | LLD-совместимый формат |
 | `GET /readyz` | Нет | Readiness check (200/503) |
 | `GET /api/auth/login` | Нет | OAuth2 redirect |
 | `GET /api/auth/callback` | Нет | OAuth2 callback |

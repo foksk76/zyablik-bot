@@ -67,6 +67,10 @@ ADR-0028  очередь доставки сообщений (delivery queue)
 ADR-0029  lifecycle audit trail (audit + trace)
 ADR-0030  outbound rate limiter для защиты от 429 MAX API
 ADR-0031  пре-продакшн: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot
+ADR-0032  логирование тела ответа внешних API в ошибках доставки
+ADR-0033  crash recovery для delivery pipeline
+ADR-0034  Queue Monitor Dashboard (встроенный дашборд, API для метрик, auth через IdP)
+ADR-0035  session auth как альтернатива Bearer для dashboard metrics
 ```
 
 ## Каноничные источники
