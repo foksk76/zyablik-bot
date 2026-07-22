@@ -207,7 +207,7 @@ function createOidcClient(options = {}) {
         getAuthorizationUrl,
         callback,
         getUserInfo,
-        // Экспорт для тестов / сценариев预热ки:
+        // Экспорт для тестов / сценариев предзагрузки:
         _getEndpoints: getEndpoints
     };
 }

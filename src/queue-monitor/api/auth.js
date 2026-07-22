@@ -9,14 +9,7 @@ function createBearerAuth(options = {}) {
     const apiKey = options.apiKey || '';
 
     if (!apiKey) {
-        return {
-            authenticate(_req, _res) {
-                return false;
-            },
-            protectRoute(handler) {
-                return handler;
-            }
-        };
+        throw new Error('apiKey is required — configure METRICS_API_KEY');
     }
 
     function authenticate(req, res) {

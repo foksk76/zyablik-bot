@@ -18,12 +18,11 @@ function mockRes() {
     };
 }
 
-test('createBearerAuth with empty apiKey returns passthrough authenticator', () => {
-    const auth = createBearerAuth({ apiKey: '' });
-    const req = mockReq({});
-    const res = mockRes();
-
-    assert.equal(auth.authenticate(req, res), false);
+test('createBearerAuth throws when apiKey is empty', () => {
+    assert.throws(
+        () => createBearerAuth({ apiKey: '' }),
+        /apiKey is required/
+    );
 });
 
 test('authenticate returns true for valid Bearer token', () => {
@@ -98,18 +97,11 @@ test('protectRoute returns undefined when auth fails', () => {
     assert.equal(result, undefined);
 });
 
-test('protectRoute with empty apiKey always calls handler', () => {
-    const auth = createBearerAuth({ apiKey: '' });
-    const handler = (ctx) => ({ statusCode: 200, body: { ok: true } });
-    const protectedHandler = auth.protectRoute(handler);
-
-    const ctx = {
-        req: mockReq({}),
-        res: mockRes()
-    };
-
-    const result = protectedHandler(ctx);
-    assert.equal(result.body.ok, true);
+test('protectRoute throws when apiKey is empty', () => {
+    assert.throws(
+        () => createBearerAuth({ apiKey: '' }),
+        /apiKey is required/
+    );
 });
 
 test('timing-safe comparison prevents timing attacks', () => {
