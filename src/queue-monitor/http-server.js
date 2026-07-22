@@ -103,7 +103,8 @@ function createMonitorHttpServer(options = {}) {
 
     // Отдать статический файл или index.html (SPA fallback). Возвращает true, если
     // ответ записан (файл найден или fallback сработал), false — если отдавать нечего.
-    function serveStatic(req, res, urlPath) {
+    // Асинхронно (fs.promises) — не блокирует event loop при отдаче ассетов.
+    async function serveStatic(req, res, urlPath) {
         if (!staticDir) {
             return false;
         }
@@ -120,8 +121,8 @@ function createMonitorHttpServer(options = {}) {
         }
 
         for (const f of tryFiles) {
-            if (fs.existsSync(f) && fs.statSync(f).isFile()) {
-                writeStaticFile(res, f);
+            if (await fileExists(f)) {
+                await writeStaticFile(res, f);
                 return true;
             }
         }
@@ -129,18 +130,28 @@ function createMonitorHttpServer(options = {}) {
         // SPA fallback: если файл не найден и это не ассет — отдаём index.html,
         // чтобы client-side routing отработал.
         const indexPath = path.join(staticDir, 'index.html');
-        if (fs.existsSync(indexPath)) {
-            writeStaticFile(res, indexPath);
+        if (await fileExists(indexPath)) {
+            await writeStaticFile(res, indexPath);
             return true;
         }
         return false;
     }
 
-    function writeStaticFile(res, filePath) {
+    // Асинхронная проверка существования файла (без блокировки event loop).
+    async function fileExists(f) {
+        try {
+            const stat = await fs.promises.stat(f);
+            return stat.isFile();
+        } catch {
+            return false;
+        }
+    }
+
+    async function writeStaticFile(res, filePath) {
         const ext = path.extname(filePath).toLowerCase();
         const contentType = MIME_TYPES[ext] || 'application/octet-stream';
         try {
-            const data = fs.readFileSync(filePath);
+            const data = await fs.promises.readFile(filePath);
             res.writeHead(200, {
                 'Content-Type': contentType,
                 'Content-Length': data.length
@@ -198,7 +209,7 @@ function createMonitorHttpServer(options = {}) {
 
         // Нет route: пробуем static serving для GET-запросов, кроме /api/* и /readyz.
         if (method === 'GET' && !urlPath.startsWith('/api/') && urlPath !== '/readyz') {
-            if (serveStatic(req, res, urlPath)) {
+            if (await serveStatic(req, res, urlPath)) {
                 return;
             }
         }

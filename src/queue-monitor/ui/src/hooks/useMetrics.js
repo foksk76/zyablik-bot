@@ -16,14 +16,16 @@ export function useMetrics({ apiKey, windowSeconds = 3600, refreshMs = 30000 }) 
     const [lastUpdated, setLastUpdated] = useState(null);
     const refreshRef = useRef(null);
 
-    const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
-
     const refresh = useCallback(async () => {
         if (!apiKey) {
             setError('METRICS_API_KEY не задан');
             setLoading(false);
             return;
         }
+        // headers конструируется ВНУТРИ refresh, а не на каждом render — иначе
+        // новый объект в deps useCallback делал бы refresh нестабильным и
+        // вызывал бесконечный re-fetch цикл (H1 из PR review).
+        const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
         try {
             const [sumRes, tsRes, topRes, errRes] = await Promise.all([
                 fetch('/api/metrics/summary', { headers }).then((r) => r.json()),
@@ -42,7 +44,7 @@ export function useMetrics({ apiKey, windowSeconds = 3600, refreshMs = 30000 }) 
         } finally {
             setLoading(false);
         }
-    }, [apiKey, windowSeconds, topBy, headers]);
+    }, [apiKey, windowSeconds, topBy]);
 
     useEffect(() => {
         refresh();

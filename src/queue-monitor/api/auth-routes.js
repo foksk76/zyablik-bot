@@ -17,6 +17,7 @@ const {
     setStateCookie,
     readStateCookie,
     clearStateCookie,
+    safeEqual,
     STATE_COOKIE_NAME
 } = require('../auth/session');
 
@@ -109,9 +110,10 @@ function createAuthRoutes(options = {}) {
             };
         }
 
-        // CSRF: X-CSRF-Token должен совпадать с session.csrf.
+        // CSRF: X-CSRF-Token должен совпадать с session.csrf (timing-safe сравнение,
+        // как и для cookie-подписей — иначе plain !== утечёт токен по timing).
         const providedToken = ctx.req.headers['x-csrf-token'];
-        if (!providedToken || providedToken !== session.csrf) {
+        if (!providedToken || !safeEqual(providedToken, session.csrf)) {
             return {
                 statusCode: 403,
                 body: { status: 'error', error: 'CSRF token missing or invalid' }

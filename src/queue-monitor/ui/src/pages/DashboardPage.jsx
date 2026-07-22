@@ -8,9 +8,12 @@ import { useMetrics } from '../hooks/useMetrics.js';
 const API_KEY_STORAGE = 'zyablik.metricsApiKey';
 
 // Dashboard: оператор видит метрики, если ввёл METRICS_API_KEY
-// (bearer для /api/metrics/*). Ключ сохраняется в localStorage (только этого браузера).
+// (bearer для /api/metrics/*). Ключ хранится в sessionStorage (не localStorage):
+// любой XSS-скрипт может прочитать localStorage на всём origin; sessionStorage
+// ограничен текущей вкладкой, что сужает поверхность атаки. Для single-operator
+// дашборда повторный ввод ключа при новой вкладке приемлем.
 export default function DashboardPage({ user, csrf }) {
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
+    const [apiKey, setApiKey] = useState(() => sessionStorage.getItem(API_KEY_STORAGE) || '');
     const [apiKeyDraft, setApiKeyDraft] = useState(apiKey);
     const [windowSeconds, setWindowSeconds] = useState(3600);
     const [showKeyInput, setShowKeyInput] = useState(!apiKey);
@@ -23,7 +26,7 @@ export default function DashboardPage({ user, csrf }) {
 
     function saveApiKey() {
         setApiKey(apiKeyDraft.trim());
-        localStorage.setItem(API_KEY_STORAGE, apiKeyDraft.trim());
+        sessionStorage.setItem(API_KEY_STORAGE, apiKeyDraft.trim());
         setShowKeyInput(false);
     }
 

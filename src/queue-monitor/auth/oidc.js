@@ -83,11 +83,16 @@ function createOidcClient(options = {}) {
         logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
     }
 
+    // Discovery кешируется с TTL, чтобы подхватывать ротацию endpoints IdP
+    // и не залипать навсегда на fallback, если IdP был недоступен при старте.
     let endpoints = null;
+    let endpointsAt = 0;
+    const ENDPOINTS_TTL_MS = 3600_000; // 1 час
 
     async function getEndpoints() {
-        if (!endpoints) {
+        if (!endpoints || Date.now() - endpointsAt > ENDPOINTS_TTL_MS) {
             endpoints = await discoverEndpoints(issuer, fetchFn, logger);
+            endpointsAt = Date.now();
         }
         return endpoints;
     }
