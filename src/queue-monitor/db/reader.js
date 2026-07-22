@@ -138,7 +138,14 @@ function createQueueReader(options = {}) {
         try {
             stmts.ping.get();
             return true;
-        } catch {
+        } catch (error) {
+            // Симметрично с catch выше (DB-open): логируем, иначе /readyz молча
+            // держит 503 без причины, когда БД деградирует в полёте.
+            if (logger && typeof logger.error === 'function') {
+                logger.error(`[${MODULE_NAME}] readiness ping failed`, {
+                    error: error.message
+                });
+            }
             return false;
         }
     }

@@ -137,10 +137,10 @@ function createOidcClient(options = {}) {
             client_id: clientId,
             code_verifier: codeVerifier
         });
-        if (clientSecret) {
-            body.set('client_secret', clientSecret);
-        }
 
+        // RFC 6749 §2.3.1: confidential-клиент аутентифицируется ровно одним
+        // методом. Используем client_secret_basic (Basic header). client_secret
+        // в body НЕ дублируем — иначе строгие IdP (Keycloak strict mode) отклоняют.
         const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
         if (clientSecret) {
             const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');

@@ -229,9 +229,10 @@ test('callback posts to token endpoint with PKCE verifier and Basic auth', async
     assert.equal(body.get('code_verifier'), 'verifier-1');
     assert.equal(body.get('redirect_uri'), REDIRECT_URI);
     assert.equal(body.get('client_id'), CLIENT_ID);
-    assert.equal(body.get('client_secret'), CLIENT_SECRET);
+    // RFC 6749 §2.3.1: client_secret НЕ дублируется в body — только Basic auth.
+    assert.equal(body.get('client_secret'), null);
 
-    // Basic auth header присутствует.
+    // Basic auth header присутствует (единственный метод аутентификации клиента).
     const expectedBasic = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
     assert.equal(receivedInit.headers.Authorization, `Basic ${expectedBasic}`);
 });
