@@ -24,6 +24,9 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
                 if (r.status === 401) {
                     throw new Error('SESSION_EXPIRED');
                 }
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}`);
+                }
                 return r.json();
             };
             const [sumRes, tsRes, topRes, errRes] = await Promise.all([

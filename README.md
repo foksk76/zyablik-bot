@@ -92,9 +92,23 @@ Bot-platform (identity bot + ingress)
        │   ├── jwt-source-auth.js     JWT-аутентификация
        │   ├── oidc-verifier.js       OIDC-верификатор
        │   └── normalizers/           нормализаторы источников
-       └── queue/                     очередь доставки (SQLite)
-            ├── store.js              SQLite store
-            └── worker.js             retry + backoff
+        └── queue/                     очередь доставки (SQLite)
+             ├── store.js              SQLite store
+             └── worker.js             retry + backoff
+
+Queue Monitor Dashboard (ADR-0034)
+  └─ src/queue-monitor/
+       ├─ api/                        REST эндпоинты
+       │   ├── metrics.js             /api/metrics/* (Bearer + Session)
+       │   ├── auth.js                Bearer Token auth (protectRoute)
+       │   ├── auth-routes.js         /api/auth/* (OAuth2/OIDC)
+       │   └── readyz.js              /readyz health check
+       ├─ auth/                       OAuth2/OIDC middleware
+       │   ├── oidc.js                IdP client
+       │   └── session.js             session cookie management
+       ├─ db/reader.js                readonly SQLite replica
+       ├─ http-server.js              stdlib HTTP server
+       └─ ui/                         React SPA dashboard
 ```
 
 Ключевые архитектурные решения зафиксированы в ADR (`docs/decisions/`):
