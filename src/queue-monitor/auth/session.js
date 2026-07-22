@@ -213,7 +213,8 @@ function readSession(req, store) {
         return null;
     }
     // csrf из cookie должен совпадать с csrf в store (защита от подделки cookie).
-    if (session.csrf !== verified.csrf) {
+    // timing-safe сравнение — как и для HMAC-подписей, иначе plain !== утечёт токен по timing.
+    if (!safeEqual(session.csrf, verified.csrf)) {
         return null;
     }
     return { sessionId: verified.sessionId, user: session.user, csrf: session.csrf };
