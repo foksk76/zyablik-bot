@@ -28,6 +28,9 @@ function createAuthRoutes(options = {}) {
     const sessionStore = options.sessionStore;
     const secure = options.secure === true;
     const logger = options.logger || console;
+    // Sprint 23 / M2: опциональный rate limiter. Если не передан — auth-routes
+    // работают без guard (обратная совместимость, bearer-only / тесты).
+    const rateLimiter = options.rateLimiter || null;
 
     if (!oidcClient) {
         throw new Error('oidcClient is required');
@@ -36,9 +39,28 @@ function createAuthRoutes(options = {}) {
         throw new Error('sessionStore is required');
     }
 
+    // 429 Too Many Requests с Retry-After. waitMs — из sliding window (секунды).
+    function tooManyRequests(waitMs) {
+        const retryAfter = waitMs ? Math.max(1, Math.ceil(waitMs / 1000)) : 60;
+        return {
+            statusCode: 429,
+            headers: { 'Retry-After': String(retryAfter) },
+            body: { status: 'error', error: 'Too Many Requests' }
+        };
+    }
+
     // GET /api/auth/login — redirect на IdP authorization URL.
     // Генерирует state + PKCE verifier, кладёт в oauth_state cookie, 302 на IdP.
     async function login(ctx) {
+        // M2-A: global sliding window. Login дёшев (редирект), но ограничиваем
+        // частоту, чтобы не давать гонять endpoint.
+        if (rateLimiter) {
+            const result = rateLimiter.tryAcquireAuthRequest();
+            if (!result.allowed) {
+                return tooManyRequests(result.waitMs);
+            }
+        }
+
         const { codeVerifier } = generatePkce();
         const state = generateState();
 
@@ -67,12 +89,33 @@ function createAuthRoutes(options = {}) {
             return redirectWithError('/', 'missing_params');
         }
 
+        // M2-A: global sliding window — проверяем до дорогой работы.
+        if (rateLimiter) {
+            const result = rateLimiter.tryAcquireAuthRequest();
+            if (!result.allowed) {
+                return tooManyRequests(result.waitMs);
+            }
+        }
+
         // Сверяем state с подписанным oauth_state cookie (CSRF-echo).
         const stored = readStateCookie(ctx.req, sessionStore.secret);
         clearStateCookie(ctx.res, { secure }); // однократный использования
 
         if (!stored || !safeEqual(stored.state, state)) {
             return redirectWithError('/', 'state_mismatch');
+        }
+
+        // M2-C: concurrency cap — callback делает исходящие запросы к IdP
+        // (token + userinfo) и может висеть. Захватываем слот только здесь,
+        // после дешёвых проверок, и ОБЯЗАТЕЛЬНО освобождаем в finally —
+        // иначе слот зависнет при ошибке IdP и заблокирует легитимные callback'и.
+        let callbackSlot = null;
+        if (rateLimiter) {
+            const acquired = rateLimiter.tryAcquireCallback();
+            if (!acquired.allowed) {
+                return tooManyRequests(0);
+            }
+            callbackSlot = true;
         }
 
         try {
@@ -94,6 +137,10 @@ function createAuthRoutes(options = {}) {
                 error: error.message
             });
             return redirectWithError('/', 'auth_failed');
+        } finally {
+            if (callbackSlot) {
+                rateLimiter.releaseCallback();
+            }
         }
     }
 

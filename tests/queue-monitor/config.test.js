@@ -85,6 +85,45 @@ test('createQueueMonitorConfig reads SESSION_SECRET', () => {
     assert.equal(config.sessionSecret, 'my-session-secret');
 });
 
+// --- Sprint 23 / M2: rate limit config ---
+
+test('createQueueMonitorConfig uses rate limit defaults when env is empty', () => {
+    const config = createQueueMonitorConfig({});
+
+    assert.equal(config.authRateLimit, true, 'enabled by default');
+    assert.equal(config.authRateLimitMax, 20);
+    assert.equal(config.authRateLimitWindowMs, 60_000);
+    assert.equal(config.authRateConcurrency, 5);
+});
+
+test('createQueueMonitorConfig reads AUTH_RATE_LIMIT overrides', () => {
+    const config = createQueueMonitorConfig({
+        AUTH_RATE_LIMIT: 'false',
+        AUTH_RATE_LIMIT_MAX: '50',
+        AUTH_RATE_LIMIT_WINDOW_MS: '120000',
+        AUTH_RATE_CONCURRENCY: '10'
+    });
+
+    assert.equal(config.authRateLimit, false);
+    assert.equal(config.authRateLimitMax, 50);
+    assert.equal(config.authRateLimitWindowMs, 120_000);
+    assert.equal(config.authRateConcurrency, 10);
+});
+
+test('createQueueMonitorConfig rejects invalid AUTH_RATE_LIMIT_MAX', () => {
+    assert.throws(
+        () => createQueueMonitorConfig({ AUTH_RATE_LIMIT_MAX: '0' }),
+        /Invalid AUTH_RATE_LIMIT_MAX value: 0/
+    );
+});
+
+test('createQueueMonitorConfig rejects invalid AUTH_RATE_CONCURRENCY', () => {
+    assert.throws(
+        () => createQueueMonitorConfig({ AUTH_RATE_CONCURRENCY: 'abc' }),
+        /Invalid AUTH_RATE_CONCURRENCY value: abc/
+    );
+});
+
 test('createQueueMonitorConfig trims whitespace from values', () => {
     const config = createQueueMonitorConfig({
         METRICS_API_KEY: '  test-key  ',

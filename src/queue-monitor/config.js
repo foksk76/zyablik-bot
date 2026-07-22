@@ -14,7 +14,12 @@ function createQueueMonitorConfig(environment = process.env) {
         idpClientId: readEnvValue(environment, 'IDP_CLIENT_ID'),
         idpClientSecret: readEnvValue(environment, 'IDP_CLIENT_SECRET'),
         idpRedirectUri: readEnvValue(environment, 'IDP_REDIRECT_URI'),
-        sessionSecret: readEnvValue(environment, 'SESSION_SECRET')
+        sessionSecret: readEnvValue(environment, 'SESSION_SECRET'),
+        // Sprint 23 / M2: rate limiting для /api/auth/* (только при включённом OAuth2).
+        authRateLimit: readBoolEnvValue(environment, 'AUTH_RATE_LIMIT', true),
+        authRateLimitMax: readIntegerEnvValue(environment, 'AUTH_RATE_LIMIT_MAX', 20, 1, 10000),
+        authRateLimitWindowMs: readIntegerEnvValue(environment, 'AUTH_RATE_LIMIT_WINDOW_MS', 60_000, 1, 3_600_000),
+        authRateConcurrency: readIntegerEnvValue(environment, 'AUTH_RATE_CONCURRENCY', 5, 1, 1000)
     };
 }
 

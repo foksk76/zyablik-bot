@@ -232,6 +232,21 @@ export SESSION_SECRET=<сгенерировать-секрет>
 
 Если OAuth2 не настроен, dashboard работает в режиме Bearer-only (без UI login).
 
+#### Rate limiting auth-эндпоинтов (опционально)
+
+При включённом OAuth2 `/api/auth/login` и `/api/auth/callback` защищены
+rate limiter'ом (Sprint 23): 20 запросов на 60с окно + не более 5
+одновременно идущих callback'ов (callback делает исходящие запросы к IdP).
+При превышении — `429 Too Many Requests` с заголовком `Retry-After`.
+Защита включена по умолчанию; переменные для тонкой настройки:
+
+```bash
+# AUTH_RATE_LIMIT=true               # включить/выключить
+# AUTH_RATE_LIMIT_MAX=20             # лимит запросов на окно
+# AUTH_RATE_LIMIT_WINDOW_MS=60000    # размер sliding window (мс)
+# AUTH_RATE_CONCURRENCY=5            # max одновременных callback'ов
+```
+
 ### 8.3 Запустить
 
 ```bash

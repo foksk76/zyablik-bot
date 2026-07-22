@@ -10,6 +10,7 @@ const { createBearerAuth } = require('./api/auth');
 const { createMetricsRoutes } = require('./api/metrics');
 const { createReadyzRoute } = require('./api/readyz');
 const { createAuthRoutes } = require('./api/auth-routes');
+const { createAuthRateLimiter } = require('./api/auth-rate-limit');
 const { createOidcClient } = require('./auth/oidc');
 const { createSessionStore } = require('./auth/session');
 
@@ -64,10 +65,20 @@ function createQueueMonitor(options = {}) {
         });
         // Secure-флаг cookie: true если redirect URI на https://
         const secure = config.idpRedirectUri.startsWith('https://');
+        // Sprint 23 / M2: rate limiter для /api/auth/*. Только при authEnabled
+        // (без OAuth2 auth-маршруты не регистрируются). Опционально через AUTH_RATE_LIMIT.
+        const rateLimiter = config.authRateLimit
+            ? (options.rateLimiter || createAuthRateLimiter({
+                maxAuthRequests: config.authRateLimitMax,
+                windowMs: config.authRateLimitWindowMs,
+                maxConcurrentCallbacks: config.authRateConcurrency
+            }))
+            : null;
         authRoutes = createAuthRoutes({
             oidcClient,
             sessionStore,
             secure,
+            rateLimiter,
             logger
         });
     } else if (config.idpIssuer || config.idpClientId) {
