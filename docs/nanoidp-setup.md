@@ -22,10 +22,10 @@ IdP (NanoIDP/Keycloak/Authentik) → JWT → bot-platform ingress → MAX
 
 ### Установка
 
-#### 1. Клонировать конфигурацию
+#### 1. Перейти в каталог конфигурации
 
 ```bash
-cd infra/nanoidp
+cd /root/nanoidp
 ```
 
 #### 2. Запустить
@@ -54,12 +54,11 @@ curl -X POST http://localhost:8000/token \
 #### Файлы
 
 ```text
-infra/nanoidp/
-├── docker-compose.yml           # Базовый compose файл
-├── docker-compose.override.yml  # Overrides для стенда
+/root/nanoidp/
+├── docker-compose.yml
 └── config/
-    ├── settings.yaml            # Настройки OAuth/SAML
-    └── users.yaml               # Пользователи и entitlements
+    ├── settings.yaml
+    └── users.yaml
 ```
 
 #### settings.yaml

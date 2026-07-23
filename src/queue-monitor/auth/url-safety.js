@@ -131,9 +131,13 @@ function isUnsafeAddress(address) {
 // options.dnsLookup — injectable (для тестов), по умолчанию node:dns/promises.
 // options.onDebug — injectable callback для логирования resolved IP
 //   на debug-уровне (hostname + reason в warn/error; IP только здесь).
+// options.relaxSsrf — пропустить все SSRF-проверки (scheme + IP).
+//   Используется для HTTP issuer на MVP стенде (ADR-0034, known limitation).
+//   true отключает ВСЕ проверки: scheme, DNS-to-private-IP, IP literals.
 async function assertSafeUrl(rawUrl, options = {}) {
     const lookup = options.dnsLookup || dns.lookup;
     const onDebug = typeof options.onDebug === 'function' ? options.onDebug : null;
+    const relaxSsrf = options.relaxSsrf === true;
 
     let parsed;
     try {
@@ -142,8 +146,13 @@ async function assertSafeUrl(rawUrl, options = {}) {
         throw new Error(`SSRF check: invalid URL`);
     }
 
-    if (parsed.protocol !== 'https:') {
+    if (parsed.protocol !== 'https:' && !relaxSsrf) {
         throw new Error(`SSRF check: ${parsed.hostname} — non-https scheme (${parsed.protocol})`);
+    }
+
+    // HTTP issuer на MVP стенде: пропускаем IP-проверки ( IdP уже на trusted LAN).
+    if (relaxSsrf) {
+        return;
     }
 
     const hostname = parsed.hostname;

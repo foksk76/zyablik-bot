@@ -448,3 +448,65 @@ test('onDebug is forwarded from createOidcClient to assertSafeUrl', async () => 
     assert.ok(debugInfo, 'onDebug was called during discovery');
     assert.equal(debugInfo.hostname, 'idp.example.com');
 });
+
+// --- relaxSsrf через createOidcClient ---
+
+test('createOidcClient with relaxSsrf=true bypasses SSRF for private IP token endpoint', async () => {
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() },
+        { match: (url, init) => init.method === 'POST', respond: () => jsonResponse(200, { access_token: 'at' }) }
+    ]);
+    const client = createOidcClient({
+        issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger,
+        dnsLookup: privateDnsLookup, relaxSsrf: true
+    });
+
+    const tokens = await client.callback({ code: 'c', codeVerifier: 'v' });
+    assert.equal(tokens.accessToken, 'at');
+});
+
+test('createOidcClient with relaxSsrf=true bypasses SSRF for private IP userinfo', async () => {
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() },
+        { match: (url) => url.includes('userinfo'), respond: () => jsonResponse(200, { sub: 'u1' }) }
+    ]);
+    const client = createOidcClient({
+        issuer: ISSUER, clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger,
+        dnsLookup: privateDnsLookup, relaxSsrf: true
+    });
+
+    const profile = await client.getUserInfo('at');
+    assert.equal(profile.sub, 'u1');
+});
+
+test('createOidcClient with relaxSsrf=false still rejects HTTP scheme', async () => {
+    const fetchFn = mockFetch([
+        { match: () => true, respond: () => discoveryResponse() }
+    ]);
+
+    await assert.rejects(
+        () => createOidcClient({
+            issuer: 'http://idp.example.com', clientId: CLIENT_ID,
+            redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger,
+            dnsLookup: safeDnsLookup, relaxSsrf: false, requireDiscovery: true
+        }).getAuthorizationUrl({ state: 's', codeVerifier: 'v' }),
+        /non-https scheme/
+    );
+});
+
+test('createOidcClient auto-detects SSRF relaxation from HTTP issuer (null = auto)', async () => {
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() },
+        { match: (url, init) => init.method === 'POST', respond: () => jsonResponse(200, { access_token: 'at' }) }
+    ]);
+    const client = createOidcClient({
+        issuer: 'http://10.0.0.1:8000', clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger,
+        dnsLookup: privateDnsLookup, relaxSsrf: null
+    });
+
+    const tokens = await client.callback({ code: 'c', codeVerifier: 'v' });
+    assert.equal(tokens.accessToken, 'at');
+});

@@ -238,6 +238,51 @@ test('assertSafeUrl accepts https://8.8.8.8 public IP literal', async () => {
     );
 });
 
+// --- relaxSsrf: SSRF relaxation для MVP стенда ---
+
+test('assertSafeUrl accepts HTTP scheme when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://10.101.108.137:8000/token', {
+            dnsLookup: mockLookup({}),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl accepts private IP when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://10.101.108.137:8000/userinfo', {
+            dnsLookup: mockLookup({ '10.101.108.137': ['10.101.108.137'] }),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl accepts HTTP IP literal when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://127.0.0.1:8000/token', {
+            dnsLookup: mockLookup({}),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl still rejects HTTP without relaxSsrf (default)', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('http://idp.example.com/token', {
+            dnsLookup: mockLookup({ 'idp.example.com': ['93.184.216.34'] })
+        }),
+        /non-https scheme/
+    );
+});
+
+test('assertSafeUrl rejects invalid URL even with relaxSsrf=true', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('not-a-url', { relaxSsrf: true }),
+        /invalid URL/
+    );
+});
+
 // --- onDebug: resolved IP логируется только через injectable callback ---
 
 test('assertSafeUrl calls onDebug with resolved addresses (for debug-level logging)', async () => {

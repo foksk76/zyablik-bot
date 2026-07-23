@@ -58,6 +58,7 @@ function createQueueMonitor(options = {}) {
             clientSecret: config.idpClientSecret,
             redirectUri: config.idpRedirectUri,
             requireDiscovery: config.idpRequireDiscovery,
+            relaxSsrf: config.idpRelaxSsrf,
             logger
         });
         sessionStore = options.sessionStore || createSessionStore({
