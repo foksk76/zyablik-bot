@@ -157,7 +157,7 @@ JWT-токен с claim source (entitlements или bot_source)
 ### 7.2 Установить IdP (NanoIDP для MVP)
 
 ```bash
-cd infra/nanoidp
+cd /root/nanoidp
 docker compose up -d
 ```
 

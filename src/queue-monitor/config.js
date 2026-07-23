@@ -21,7 +21,10 @@ function createQueueMonitorConfig(environment = process.env) {
         authRateLimitWindowMs: readIntegerEnvValue(environment, 'AUTH_RATE_LIMIT_WINDOW_MS', 60_000, 1, 3_600_000),
         authRateConcurrency: readIntegerEnvValue(environment, 'AUTH_RATE_CONCURRENCY', 5, 1, 1000),
         // Sprint 23 / L3 (Task 6): требовать валидный OIDC discovery вместо fallback.
-        idpRequireDiscovery: readBoolEnvValue(environment, 'IDP_REQUIRE_DISCOVERY', false)
+        idpRequireDiscovery: readBoolEnvValue(environment, 'IDP_REQUIRE_DISCOVERY', false),
+        // Временно: ослабить SSRF-проверку для MVP стенда.
+        // null = авто-детект по схеме issuer; true/false = явное значение из env.
+        idpRelaxSsrf: readBoolEnvValueNullable(environment, 'IDP_RELAX_SSRF')
     };
 }
 
@@ -38,6 +41,18 @@ function readBoolEnvValue(environment, key, fallback = false) {
 
     if (!rawValue) {
         return fallback;
+    }
+
+    return rawValue.toLowerCase() === 'true';
+}
+
+// Возвращает null если env var не задан, иначе boolean.
+// Используется когда дефолт зависит от другого параметра (например, схемы issuer).
+function readBoolEnvValueNullable(environment, key) {
+    const rawValue = readEnvValue(environment, key);
+
+    if (!rawValue) {
+        return null;
     }
 
     return rawValue.toLowerCase() === 'true';

@@ -43,7 +43,7 @@ function isPrivateIPv4(ip) {
     if (a === 192 && b === 0) return true;
     // 192.168.0.0/16 — private (RFC 1918)
     if (a === 192 && b === 168) return true;
-    // 198.18.0.0/15 — benchmarking; 198.51.100.0/24 — TEST-NET-2
+    // 198.18.0.0/15 — benchmarking (RFC 2544)
     if (a === 198 && (b === 18 || b === 19)) return true;
     // 100.64.0.0/10 — CGNAT (RFC 6598)
     if (a === 100 && b >= 64 && b <= 127) return true;
@@ -131,9 +131,17 @@ function isUnsafeAddress(address) {
 // options.dnsLookup — injectable (для тестов), по умолчанию node:dns/promises.
 // options.onDebug — injectable callback для логирования resolved IP
 //   на debug-уровне (hostname + reason в warn/error; IP только здесь).
+// options.onAudit — injectable callback для аудита при обходе SSRF-проверок.
+//   Вызывается с ({ hostname, reason }) когда relaxSsrf=true отключает
+//   scheme + IP проверки. Критично для ADR-0029 (lifecycle audit trail).
+// options.relaxSsrf — пропустить все SSRF-проверки (scheme + IP).
+//   Используется для HTTP issuer на MVP стенде (ADR-0034, known limitation).
+//   true отключает ВСЕ проверки: scheme, DNS-to-private-IP, IP literals.
 async function assertSafeUrl(rawUrl, options = {}) {
     const lookup = options.dnsLookup || dns.lookup;
     const onDebug = typeof options.onDebug === 'function' ? options.onDebug : null;
+    const onAudit = typeof options.onAudit === 'function' ? options.onAudit : null;
+    const relaxSsrf = options.relaxSsrf === true;
 
     let parsed;
     try {
@@ -142,8 +150,22 @@ async function assertSafeUrl(rawUrl, options = {}) {
         throw new Error(`SSRF check: invalid URL`);
     }
 
-    if (parsed.protocol !== 'https:') {
+    if (parsed.protocol !== 'https:' && !relaxSsrf) {
         throw new Error(`SSRF check: ${parsed.hostname} — non-https scheme (${parsed.protocol})`);
+    }
+
+    // Даже при relaxSsrf=true отклоняем опасные scheme (file:, javascript:, data:).
+    // SSRF relaxation нужен для HTTP issuer на MVP стенде — не для произвольных протоколов.
+    if (relaxSsrf && parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`SSRF check: ${parsed.hostname} — unsupported scheme (${parsed.protocol})`);
+    }
+
+    // HTTP issuer на MVP стенде: пропускаем IP-проверки ( IdP уже на trusted LAN).
+    if (relaxSsrf) {
+        if (onAudit) {
+            onAudit({ hostname: parsed.hostname, reason: 'relaxSsrf=true: all SSRF checks bypassed' });
+        }
+        return;
     }
 
     const hostname = parsed.hostname;

@@ -136,6 +136,23 @@ test('createQueueMonitorConfig reads IDP_REQUIRE_DISCOVERY=true', () => {
     assert.equal(config.idpRequireDiscovery, true);
 });
 
+// --- IDP_RELAX_SSRF: ослабить SSRF-проверку для MVP стенда ---
+
+test('createQueueMonitorConfig defaults IDP_RELAX_SSRF to null (auto-detect)', () => {
+    const config = createQueueMonitorConfig({});
+    assert.equal(config.idpRelaxSsrf, null, 'null = auto-detect from issuer scheme');
+});
+
+test('createQueueMonitorConfig reads IDP_RELAX_SSRF=true', () => {
+    const config = createQueueMonitorConfig({ IDP_RELAX_SSRF: 'true' });
+    assert.equal(config.idpRelaxSsrf, true);
+});
+
+test('createQueueMonitorConfig reads IDP_RELAX_SSRF=false (explicit opt-out)', () => {
+    const config = createQueueMonitorConfig({ IDP_RELAX_SSRF: 'false' });
+    assert.equal(config.idpRelaxSsrf, false);
+});
+
 test('createQueueMonitorConfig trims whitespace from values', () => {
     const config = createQueueMonitorConfig({
         METRICS_API_KEY: '  test-key  ',

@@ -139,7 +139,7 @@ test('assertSafeUrl rejects non-https scheme', async () => {
     );
     await assert.rejects(
         () => assertSafeUrl('file:///etc/passwd', { dnsLookup: mockLookup({}) }),
-        /non-https scheme|invalid URL/
+        /non-https scheme/
     );
 });
 
@@ -238,6 +238,51 @@ test('assertSafeUrl accepts https://8.8.8.8 public IP literal', async () => {
     );
 });
 
+// --- relaxSsrf: SSRF relaxation для MVP стенда ---
+
+test('assertSafeUrl accepts HTTP scheme when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://10.101.108.137:8000/token', {
+            dnsLookup: mockLookup({}),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl accepts private IP when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://10.101.108.137:8000/userinfo', {
+            dnsLookup: mockLookup({ '10.101.108.137': ['10.101.108.137'] }),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl accepts HTTP IP literal when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://127.0.0.1:8000/token', {
+            dnsLookup: mockLookup({}),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl still rejects HTTP without relaxSsrf (default)', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('http://idp.example.com/token', {
+            dnsLookup: mockLookup({ 'idp.example.com': ['93.184.216.34'] })
+        }),
+        /non-https scheme/
+    );
+});
+
+test('assertSafeUrl rejects invalid URL even with relaxSsrf=true', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('not-a-url', { relaxSsrf: true }),
+        /invalid URL/
+    );
+});
+
 // --- onDebug: resolved IP логируется только через injectable callback ---
 
 test('assertSafeUrl calls onDebug with resolved addresses (for debug-level logging)', async () => {
@@ -264,4 +309,74 @@ test('assertSafeUrl error message contains only hostname, not resolved IP', asyn
     }
     assert.ok(caught.includes('internal.example'));
     assert.ok(!caught.includes('10.0.0.1'), 'resolved IP must NOT be in error message');
+});
+
+// --- relaxSsrf edge cases ---
+
+test('assertSafeUrl rejects file:// scheme even with relaxSsrf=true', async () => {
+    // relaxSsrf пропускает IP-проверки, но НЕ опасные scheme.
+    await assert.rejects(
+        () => assertSafeUrl('file:///etc/passwd', { relaxSsrf: true }),
+        /unsupported scheme/
+    );
+});
+
+test('assertSafeUrl rejects javascript: scheme even with relaxSsrf=true', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('javascript:alert(1)', { relaxSsrf: true }),
+        /unsupported scheme/
+    );
+});
+
+test('assertSafeUrl rejects data: scheme even with relaxSsrf=true', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('data:text/html,<script>alert(1)</script>', { relaxSsrf: true }),
+        /unsupported scheme/
+    );
+});
+
+test('assertSafeUrl accepts http: scheme when relaxSsrf=true', async () => {
+    await assert.doesNotReject(
+        () => assertSafeUrl('http://10.0.0.1:8000/token', {
+            dnsLookup: mockLookup({}),
+            relaxSsrf: true
+        })
+    );
+});
+
+test('assertSafeUrl rejects file:// scheme when relaxSsrf is null (not boolean true)', async () => {
+    // null ≠ true: strict equality в options.relaxSsrf === true.
+    await assert.rejects(
+        () => assertSafeUrl('file:///etc/passwd', { relaxSsrf: null }),
+        /non-https scheme/
+    );
+});
+
+test('assertSafeUrl rejects HTTP scheme when relaxSsrf is undefined', async () => {
+    await assert.rejects(
+        () => assertSafeUrl('http://idp.example.com', { dnsLookup: mockLookup({ 'idp.example.com': ['93.184.216.34'] }) }),
+        /non-https scheme/
+    );
+});
+
+test('assertSafeUrl calls onAudit when relaxSsrf=true bypasses checks', async () => {
+    let auditInfo = null;
+    await assertSafeUrl('http://10.0.0.1:8000/token', {
+        dnsLookup: mockLookup({}),
+        relaxSsrf: true,
+        onAudit: (info) => { auditInfo = info; }
+    });
+    assert.ok(auditInfo, 'onAudit must be called when relaxSsrf=true');
+    assert.equal(auditInfo.hostname, '10.0.0.1');
+    assert.ok(auditInfo.reason.includes('relaxSsrf'));
+});
+
+test('assertSafeUrl does NOT call onAudit when relaxSsrf=false', async () => {
+    let auditCalled = false;
+    await assertSafeUrl('https://idp.example.com', {
+        dnsLookup: mockLookup({ 'idp.example.com': ['93.184.216.34'] }),
+        relaxSsrf: false,
+        onAudit: () => { auditCalled = true; }
+    });
+    assert.equal(auditCalled, false, 'onAudit must not fire when relaxSsrf is false');
 });

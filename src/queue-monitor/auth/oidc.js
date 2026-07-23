@@ -39,6 +39,7 @@ async function discoverEndpoints(issuer, fetchFn, logger, options = {}) {
     const dnsLookup = options.dnsLookup;
     const onDebug = options.onDebug;
     const requireDiscovery = options.requireDiscovery === true;
+    const relaxSsrf = options.relaxSsrf === true;
     const fallback = {
         authorizationEndpoint: joinUrl(issuer, '/authorize'),
         tokenEndpoint: joinUrl(issuer, '/token'),
@@ -48,9 +49,11 @@ async function discoverEndpoints(issuer, fetchFn, logger, options = {}) {
         const url = joinUrl(issuer, DISCOVERY_PATH);
         // L3: SSRF-проверка перед fetch. Бросает, если hostname резолвится
         // в private/reserved/loopback/link-local или scheme не https.
-        await assertSafeUrl(url, dnsLookup !== undefined || onDebug !== undefined
-            ? { ...(dnsLookup !== undefined ? { dnsLookup } : {}), ...(onDebug !== undefined ? { onDebug } : {}) }
-            : {});
+        await assertSafeUrl(url, {
+            ...(dnsLookup !== undefined ? { dnsLookup } : {}),
+            ...(onDebug !== undefined ? { onDebug } : {}),
+            ...(relaxSsrf ? { relaxSsrf, onAudit: ({ hostname, reason }) => logger.warn(`[${MODULE_NAME}] SSRF relaxation: ${hostname} — ${reason}`) } : {})
+        });
         const response = await fetchFn(url);
         if (!response.ok) {
             if (requireDiscovery) {
@@ -97,8 +100,20 @@ function createOidcClient(options = {}) {
     if (!redirectUri) {
         throw new Error('redirectUri is required');
     }
+
+    // Sprint 23 / L3: IDP_RELAX_SSRF — явный флаг для ослабления SSRF-проверки.
+    // null = авто-детект по схеме issuer; true/false = явное значение из env.
+    // true отключает ВСЕ проверки (scheme + IP), включая HTTPS endpoints.
+    const relaxSsrf = options.relaxSsrf === null
+        ? issuer.startsWith('http://')
+        : options.relaxSsrf === true;
+
     if (issuer.startsWith('http://')) {
-        logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
+        if (relaxSsrf) {
+            logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer} (SSRF relaxation active)`);
+        } else {
+            logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer} (SSRF enforcement active, IDP_RELAX_SSRF=false)`);
+        }
     }
 
     // Обёртка для передачи dnsLookup/onDebug в assertSafeUrl из модулей oidc.
@@ -106,6 +121,10 @@ function createOidcClient(options = {}) {
         const o = {};
         if (dnsLookup !== undefined) o.dnsLookup = dnsLookup;
         if (onDebug !== undefined) o.onDebug = onDebug;
+        if (relaxSsrf) {
+            o.relaxSsrf = true;
+            o.onAudit = ({ hostname, reason }) => logger.warn(`[${MODULE_NAME}] SSRF relaxation: ${hostname} — ${reason}`);
+        }
         return o;
     }
 
@@ -118,7 +137,7 @@ function createOidcClient(options = {}) {
     async function getEndpoints() {
         if (!endpoints || Date.now() - endpointsAt > ENDPOINTS_TTL_MS) {
             endpoints = await discoverEndpoints(issuer, fetchFn, logger, {
-                dnsLookup, onDebug, requireDiscovery
+                dnsLookup, onDebug, requireDiscovery, relaxSsrf
             });
             endpointsAt = Date.now();
         }
