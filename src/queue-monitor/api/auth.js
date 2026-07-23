@@ -2,43 +2,62 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { readSession, safeEqual } = require('../auth/session');
 
 const MODULE_NAME = 'queue-monitor-bearer-auth';
 
 function createBearerAuth(options = {}) {
     const apiKey = options.apiKey || '';
+    const sessionStore = options.sessionStore || null;
 
     if (!apiKey) {
         throw new Error('apiKey is required — configure METRICS_API_KEY');
     }
 
-    function authenticate(req, res) {
+    function checkBearer(req) {
         const authHeader = req.headers.authorization || '';
         const match = authHeader.match(/^Bearer\s+(.+)$/i);
 
         if (!match) {
-            sendUnauthorized(res);
             return false;
         }
 
         const token = match[1];
-        const expected = Buffer.from(apiKey, 'utf8');
-        const received = Buffer.from(token, 'utf8');
 
-        if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
-            sendUnauthorized(res);
+        if (!safeEqual(apiKey, token)) {
             return false;
         }
 
         return true;
     }
 
+    // Публичный API: authenticate(req, res) → boolean + отправляет 401 при провале.
+    function authenticate(req, res) {
+        if (checkBearer(req)) {
+            return true;
+        }
+        sendUnauthorized(res);
+        return false;
+    }
+
+    function authenticateSession(req) {
+        if (!sessionStore) {
+            return false;
+        }
+        const session = readSession(req, sessionStore);
+        return Boolean(session);
+    }
+
     function protectRoute(handler) {
         return (ctx) => {
-            if (!authenticate(ctx.req, ctx.res)) {
-                return;
+            if (checkBearer(ctx.req)) {
+                return handler(ctx);
             }
-            return handler(ctx);
+            if (authenticateSession(ctx.req)) {
+                return handler(ctx);
+            }
+            sendUnauthorized(ctx.res);
+            return undefined;
         };
     }
 

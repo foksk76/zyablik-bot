@@ -276,3 +276,58 @@ test('errors respects limit query param', () => {
     reader.close();
     fs.unlinkSync(dbPath);
 });
+
+// Регрессия security: parseInt('-1') === -1, Math.min(-1, 100) === -1.
+// В SQLite LIMIT -1 означает «без ограничения», что пробивало MAX_LIMIT кап
+// и позволяло вытащить все failed-записи (с payload) одним запросом.
+// Также проверяем NaN и превышение капа — clamp в [MIN_LIMIT, MAX_LIMIT].
+test('errors clamps negative limit to MIN_LIMIT (regression: SQLite LIMIT -1 = unlimited)', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    seedRow(db, { status: 'failed' });
+    seedRow(db, { status: 'failed' });
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const routes = createMetricsRoutes({ reader });
+
+    const result = routes.errors({ query: { limit: '-1' } });
+    assert.equal(result.body.limit, 1, 'negative limit must clamp to MIN_LIMIT=1');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('errors clamps limit above MAX_LIMIT and accepts non-numeric as default', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const routes = createMetricsRoutes({ reader });
+
+    assert.equal(routes.errors({ query: { limit: '99999' } }).body.limit, 100, 'over-cap clamps to MAX_LIMIT=100');
+    assert.equal(routes.errors({ query: { limit: 'abc' } }).body.limit, 20, 'non-numeric falls back to default=20');
+    assert.equal(routes.errors({ query: {} }).body.limit, 20, 'missing falls back to default=20');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('top clamps negative limit to MIN_LIMIT', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const routes = createMetricsRoutes({ reader });
+
+    assert.equal(routes.top({ query: { limit: '-1' } }).body.limit, 1, 'negative clamps to MIN_LIMIT=1');
+    assert.equal(routes.top({ query: { limit: '-1', by: 'recipient' } }).body.limit, 1, 'recipient path also clamps');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});

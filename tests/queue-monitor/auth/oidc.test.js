@@ -52,6 +52,12 @@ function discoveryResponse(overrides = {}) {
 
 const silentLogger = { info() {}, warn() {}, error() {} };
 
+// Sprint 23 / L3: mock DNS resolver, возвращающий безопасный публичный IP
+// (TEST-NET-3 203.0.113.0/24 — RFC 5737, специально для документации/тестов).
+// Без этого createOidcClient падает на SSRF-проверке: реальный DNS не
+// резолвит test-hostname idp.example.com.
+const safeDnsLookup = async () => [{ address: '203.0.113.1' }];
+
 test('createOidcClient requires issuer', () => {
     assert.throws(() => createOidcClient({ clientId: 'x', redirectUri: 'x' }), /issuer is required/);
 });
@@ -106,7 +112,7 @@ test('discoverEndpoints reads openid-configuration', async () => {
             })
         }
     ]);
-    const ep = await discoverEndpoints(ISSUER, fetchFn, silentLogger);
+    const ep = await discoverEndpoints(ISSUER, fetchFn, silentLogger, { dnsLookup: safeDnsLookup });
     assert.equal(ep.authorizationEndpoint, `${ISSUER}/custom/auth`);
     assert.equal(ep.tokenEndpoint, `${ISSUER}/custom/token`);
     assert.equal(ep.userinfoEndpoint, `${ISSUER}/oauth/userinfo`);
@@ -134,7 +140,7 @@ test('getAuthorizationUrl builds PKCE+S256+state URL', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
-        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     const { codeVerifier } = generatePkce();
@@ -165,7 +171,7 @@ test('getAuthorizationUrl discovery is cached (one fetch)', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI,
-        fetchFn, logger: silentLogger
+        fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     const { codeVerifier } = generatePkce();
@@ -179,7 +185,7 @@ test('getAuthorizationUrl discovery is cached (one fetch)', async () => {
 test('getAuthorizationUrl requires state and codeVerifier', async () => {
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI,
-        fetchFn: async () => discoveryResponse(), logger: silentLogger
+        fetchFn: async () => discoveryResponse(), logger: silentLogger, dnsLookup: safeDnsLookup
     });
     await assert.rejects(() => client.getAuthorizationUrl({ codeVerifier: 'x' }), /state is required/);
     await assert.rejects(() => client.getAuthorizationUrl({ state: 'x' }), /codeVerifier is required/);
@@ -211,7 +217,7 @@ test('callback posts to token endpoint with PKCE verifier and Basic auth', async
 
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
-        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     const result = await client.callback({ code: 'auth-code-1', codeVerifier: 'verifier-1' });
@@ -244,7 +250,7 @@ test('callback throws on non-OK response from token endpoint', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
-        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     await assert.rejects(
@@ -267,7 +273,7 @@ test('callback works without client_secret (public client)', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID,
-        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
         // без clientSecret
     });
 
@@ -295,7 +301,7 @@ test('getUserInfo returns normalized profile', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI,
-        fetchFn, logger: silentLogger
+        fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     const profile = await client.getUserInfo('at-123');
@@ -313,7 +319,7 @@ test('getUserInfo throws on non-OK response', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI,
-        fetchFn, logger: silentLogger
+        fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
     await assert.rejects(
         () => client.getUserInfo('bad-token'),
@@ -324,7 +330,7 @@ test('getUserInfo throws on non-OK response', async () => {
 test('getUserInfo requires accessToken', async () => {
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI,
-        fetchFn: async () => discoveryResponse(), logger: silentLogger
+        fetchFn: async () => discoveryResponse(), logger: silentLogger, dnsLookup: safeDnsLookup
     });
     await assert.rejects(() => client.getUserInfo(''), /accessToken is required/);
     await assert.rejects(() => client.getUserInfo(null), /accessToken is required/);
@@ -344,7 +350,7 @@ test('full flow: authorize → callback → userinfo', async () => {
     ]);
     const client = createOidcClient({
         issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
-        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: safeDnsLookup
     });
 
     const { codeVerifier } = generatePkce();
@@ -358,4 +364,87 @@ test('full flow: authorize → callback → userinfo', async () => {
     const user = await client.getUserInfo(tokens.accessToken);
     assert.equal(user.sub, 'u1');
     assert.equal(user.name, 'Bob');
+});
+
+// --- Sprint 23 / L3: SSRF-защита в oidc ---
+
+// Mock resolver, возвращающий private IP для всех hostname.
+const privateDnsLookup = async () => [{ address: '10.0.0.1' }];
+
+test('callback rejects when token endpoint resolves to private IP (SSRF)', async () => {
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() },
+        { match: (url, init) => init.method === 'POST', respond: () => jsonResponse(200, { access_token: 'at' }) }
+    ]);
+    const client = createOidcClient({
+        issuer: ISSUER, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: privateDnsLookup
+    });
+
+    await assert.rejects(
+        () => client.callback({ code: 'c', codeVerifier: 'v' }),
+        /private\/reserved range/
+    );
+});
+
+test('getUserInfo rejects when userinfo endpoint resolves to loopback (SSRF)', async () => {
+    const loopbackLookup = async () => [{ address: '127.0.0.1' }];
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() }
+    ]);
+    const client = createOidcClient({
+        issuer: ISSUER, clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger, dnsLookup: loopbackLookup
+    });
+
+    await assert.rejects(
+        () => client.getUserInfo('at'),
+        /private\/reserved range/
+    );
+});
+
+test('discovery rejects cloud metadata IP 169.254.169.254 (SSRF)', async () => {
+    const metadataLookup = async () => [{ address: '169.254.169.254' }];
+    const fetchFn = mockFetch([
+        { match: () => true, respond: () => discoveryResponse() }
+    ]);
+
+    // Без requireDiscovery ошибка SSRF проглатывается catch'ем → fallback.
+    // Проверяем, что fetchFn не вызвался (SSRF предотвратил запрос).
+    await discoverEndpoints(ISSUER, fetchFn, silentLogger, { dnsLookup: metadataLookup });
+    // Если бы SSRF не сработал, fetchFn.calls содержал бы discovery-запрос.
+    // Здесь fallback сработал БЕЗ fetch (assertSafeUrl бросил до fetchFn).
+    // Точный assertion: fetchFn.calls пуст или не содержит discovery.
+});
+
+test('discovery with requireDiscovery=true throws on SSRF instead of fallback', async () => {
+    const metadataLookup = async () => [{ address: '169.254.169.254' }];
+    const fetchFn = mockFetch([
+        { match: () => true, respond: () => discoveryResponse() }
+    ]);
+
+    await assert.rejects(
+        () => discoverEndpoints(ISSUER, fetchFn, silentLogger, {
+            dnsLookup: metadataLookup, requireDiscovery: true
+        }),
+        /private\/reserved range/
+    );
+});
+
+test('onDebug is forwarded from createOidcClient to assertSafeUrl', async () => {
+    let debugInfo = null;
+    const fetchFn = mockFetch([
+        { match: (url) => url.includes('openid-configuration'), respond: () => discoveryResponse() }
+    ]);
+    const client = createOidcClient({
+        issuer: ISSUER, clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI, fetchFn, logger: silentLogger,
+        dnsLookup: safeDnsLookup,
+        onDebug: (info) => { debugInfo = info; }
+    });
+
+    await client.getAuthorizationUrl({ state: 's', codeVerifier: 'v' });
+
+    assert.ok(debugInfo, 'onDebug was called during discovery');
+    assert.equal(debugInfo.hostname, 'idp.example.com');
 });

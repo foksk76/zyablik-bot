@@ -64,7 +64,7 @@ docs/decisions/   ADR и принятые решения
 docs/identity-plugin/  Identity Plugin документация
 examples/         обезличенные примеры параметров и чек-листы
 infra/            инфраструктура (NanoIDP Docker setup)
-src/              исходники webhook и bot-platform
+src/              исходники webhook, bot-platform и queue-monitor
 systemd/          unit-файлы для bot-platform
 tasks/            sprint plans
 tests/            Node.js policy tests и unit tests
@@ -92,9 +92,23 @@ Bot-platform (identity bot + ingress)
        │   ├── jwt-source-auth.js     JWT-аутентификация
        │   ├── oidc-verifier.js       OIDC-верификатор
        │   └── normalizers/           нормализаторы источников
-       └── queue/                     очередь доставки (SQLite)
-            ├── store.js              SQLite store
-            └── worker.js             retry + backoff
+        └── queue/                     очередь доставки (SQLite)
+             ├── store.js              SQLite store
+             └── worker.js             retry + backoff
+
+Queue Monitor Dashboard (ADR-0034)
+  └─ src/queue-monitor/
+       ├─ api/                        REST эндпоинты
+       │   ├── metrics.js             /api/metrics/* (Bearer + Session)
+       │   ├── auth.js                Bearer Token auth (protectRoute)
+       │   ├── auth-routes.js         /api/auth/* (OAuth2/OIDC)
+       │   └── readyz.js              /readyz health check
+       ├─ auth/                       OAuth2/OIDC middleware
+       │   ├── oidc.js                IdP client
+       │   └── session.js             session cookie management
+       ├─ db/reader.js                readonly SQLite replica
+       ├─ http-server.js              stdlib HTTP server
+       └─ ui/                         React SPA dashboard
 ```
 
 Ключевые архитектурные решения зафиксированы в ADR (`docs/decisions/`):
@@ -115,6 +129,10 @@ Bot-platform (identity bot + ingress)
 - ADR-0029: lifecycle audit trail (audit + trace)
 - ADR-0030: outbound rate limiter для защиты от 429 MAX API
 - ADR-0031: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot
+- ADR-0032: логирование тела ответа внешних API в ошибках доставки
+- ADR-0033: crash recovery для delivery pipeline
+- ADR-0034: Queue Monitor Dashboard (встроенный дашборд, API для метрик, auth через IdP)
+- ADR-0035: session auth как альтернатива Bearer для dashboard metrics
 
 ## Документация
 

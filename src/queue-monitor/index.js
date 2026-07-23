@@ -10,6 +10,7 @@ const { createBearerAuth } = require('./api/auth');
 const { createMetricsRoutes } = require('./api/metrics');
 const { createReadyzRoute } = require('./api/readyz');
 const { createAuthRoutes } = require('./api/auth-routes');
+const { createAuthRateLimiter } = require('./api/auth-rate-limit');
 const { createOidcClient } = require('./auth/oidc');
 const { createSessionStore } = require('./auth/session');
 
@@ -39,7 +40,6 @@ function createQueueMonitor(options = {}) {
     const dbPath = options.dbPath || 'delivery-queue.db';
     const reader = options.reader || createQueueReader({ dbPath, logger });
 
-    const auth = createBearerAuth({ apiKey: config.metricsApiKey });
     const metrics = createMetricsRoutes({ reader });
     const readyz = createReadyzRoute({ reader });
 
@@ -57,6 +57,7 @@ function createQueueMonitor(options = {}) {
             clientId: config.idpClientId,
             clientSecret: config.idpClientSecret,
             redirectUri: config.idpRedirectUri,
+            requireDiscovery: config.idpRequireDiscovery,
             logger
         });
         sessionStore = options.sessionStore || createSessionStore({
@@ -65,10 +66,20 @@ function createQueueMonitor(options = {}) {
         });
         // Secure-флаг cookie: true если redirect URI на https://
         const secure = config.idpRedirectUri.startsWith('https://');
+        // Sprint 23 / M2: rate limiter для /api/auth/*. Только при authEnabled
+        // (без OAuth2 auth-маршруты не регистрируются). Опционально через AUTH_RATE_LIMIT.
+        const rateLimiter = config.authRateLimit
+            ? (options.rateLimiter || createAuthRateLimiter({
+                maxAuthRequests: config.authRateLimitMax,
+                windowMs: config.authRateLimitWindowMs,
+                maxConcurrentCallbacks: config.authRateConcurrency
+            }))
+            : null;
         authRoutes = createAuthRoutes({
             oidcClient,
             sessionStore,
             secure,
+            rateLimiter,
             logger
         });
     } else if (config.idpIssuer || config.idpClientId) {
@@ -77,6 +88,14 @@ function createQueueMonitor(options = {}) {
             'Set IDP_ISSUER + IDP_CLIENT_ID + IDP_REDIRECT_URI + SESSION_SECRET to enable.'
         );
     }
+
+    // ADR-0035: session-авторизация как fallback для Bearer token.
+    // Если sessionStore доступен (OAuth2 включён), protectRoute проверяет
+    // cookie-сессию после неудачной Bearer-попытки.
+    const auth = createBearerAuth({
+        apiKey: config.metricsApiKey,
+        sessionStore
+    });
 
     // staticDir для SPA. options.staticDir=null отключает static serving.
     const staticDir = options.staticDir !== undefined ? options.staticDir : DEFAULT_STATIC_DIR;

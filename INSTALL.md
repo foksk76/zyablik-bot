@@ -208,7 +208,66 @@ zabbix — Zabbix alerts (по умолчанию)
 
 Для добавления нового источника создать нормализатор в `src/bot-platform/ingress/normalizers/` и зарегистрировать в `index.js`.
 
-## 8. Запуск с очередью и ingress
+## 8. Dashboard queue-monitor (опционально)
+
+Dashboard показывает метрики очереди доставки в реальном времени: статусы, топы, ошибки, временные ряды.
+
+### 8.1 Включить dashboard
+
+```bash
+export MONITOR_ENABLED=true
+export METRICS_API_KEY=<сгенерировать-токен>
+```
+
+`METRICS_API_KEY` — обязательный токен для доступа к `/api/metrics/*`. Нужен внешним системам мониторинга (Zabbix, Prometheus, curl). UI dashboard использует session auth после OAuth2 логина — повторный ввод ключа не требуется (ADR-0035).
+
+### 8.2 Настроить OAuth2 UI login (опционально)
+
+```bash
+export IDP_CLIENT_ID=dashboard
+export IDP_CLIENT_SECRET=<client-secret>
+export IDP_REDIRECT_URI=http://localhost:9000/api/auth/callback
+export SESSION_SECRET=<сгенерировать-секрет>
+```
+
+Если OAuth2 не настроен, dashboard работает в режиме Bearer-only (без UI login).
+
+#### Rate limiting auth-эндпоинтов (опционально)
+
+При включённом OAuth2 `/api/auth/login` и `/api/auth/callback` защищены
+rate limiter'ом (Sprint 23): 20 запросов на 60с окно + не более 5
+одновременно идущих callback'ов (callback делает исходящие запросы к IdP).
+При превышении — `429 Too Many Requests` с заголовком `Retry-After`.
+Защита включена по умолчанию; переменные для тонкой настройки:
+
+```bash
+# AUTH_RATE_LIMIT=true               # включить/выключить
+# AUTH_RATE_LIMIT_MAX=20             # лимит запросов на окно
+# AUTH_RATE_LIMIT_WINDOW_MS=60000    # размер sliding window (мс)
+# AUTH_RATE_CONCURRENCY=5            # max одновременных callback'ов
+```
+
+#### SSRF-защита IdP-эндпоинтов (опционально)
+
+При включённом OAuth2 все исходящие запросы к IdP (discovery, token, userinfo)
+проходят SSRF-проверку (Sprint 23): hostname резолвится, и если хотя бы один
+A/AAAA-record попадает в private/reserved/loopback/link-local диапазон
+(включая cloud metadata `169.254.169.254`), запрос отклоняется на старте.
+
+```bash
+# IDP_REQUIRE_DISCOVERY=false        # true = требовать валидный /.well-known
+#                                    #       вместо fallback на /authorize /token /userinfo
+```
+
+### 8.3 Запустить
+
+```bash
+node src/bot-platform/app.js
+```
+
+Dashboard доступен на `http://localhost:9000/`.
+
+## 9. Запуск с очередью и ingress
 
 Для запуска с обеими функциями:
 
@@ -220,6 +279,8 @@ export IDP_ISSUER=http://localhost:8000
 export IDP_AUDIENCE=bot-platform
 export JWT_CLAIM_NAME=entitlements
 export JWT_CLAIM_VALUE=zabbix
+export MONITOR_ENABLED=true
+export METRICS_API_KEY=<сгенерировать-токен>
 
 node src/bot-platform/app.js
 ```

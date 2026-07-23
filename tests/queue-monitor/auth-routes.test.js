@@ -312,3 +312,151 @@ test('logout rejects wrong CSRF token', async () => {
     assert.equal(result.statusCode, 403);
     assert.equal(store._size(), 1, 'session NOT destroyed on wrong CSRF');
 });
+
+// --- Sprint 23 / M2: rate limiting на login/callback ---
+
+// Mock rate limiter: детерминированно разрешает/отклоняет, считает вызовы.
+function mockRateLimiter({ allowAuth = true, allowCallback = true } = {}) {
+    const calls = { tryAcquireAuthRequest: 0, tryAcquireCallback: 0, releaseCallback: 0 };
+    return {
+        calls,
+        tryAcquireAuthRequest() {
+            calls.tryAcquireAuthRequest += 1;
+            return allowAuth
+                ? { allowed: true, reason: null, waitMs: 0 }
+                : { allowed: false, reason: 'rate-limit', waitMs: 5000 };
+        },
+        tryAcquireCallback() {
+            calls.tryAcquireCallback += 1;
+            return allowCallback
+                ? { allowed: true, reason: null }
+                : { allowed: false, reason: 'concurrency' };
+        },
+        releaseCallback() {
+            calls.releaseCallback += 1;
+        }
+    };
+}
+
+test('login without rateLimiter works as before (backward compatibility)', async () => {
+    const store = buildStore();
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger
+        // без rateLimiter
+    });
+
+    const result = await routes.login({ req: { headers: {} }, res: mockRes() });
+    assert.equal(result.statusCode, 302);
+    assert.ok(result.headers.Location.startsWith('https://idp.example/authorize'));
+});
+
+test('login returns 429 when auth rate limit exceeded', async () => {
+    const store = buildStore();
+    const limiter = mockRateLimiter({ allowAuth: false });
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    const result = await routes.login({ req: { headers: {} }, res: mockRes() });
+
+    assert.equal(result.statusCode, 429);
+    assert.equal(result.headers['Retry-After'], '5', 'Retry-After = ceil(waitMs/1000)');
+    assert.equal(result.body.error, 'Too Many Requests');
+    assert.equal(limiter.calls.tryAcquireAuthRequest, 1);
+    // При отказе IdP не вызывается.
+    assert.equal(limiter.calls.tryAcquireCallback, 0);
+});
+
+test('callback returns 429 when auth rate limit exceeded (before IdP work)', async () => {
+    const store = buildStore();
+    const limiter = mockRateLimiter({ allowAuth: false });
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    // Нужен валидный oauth_state cookie, чтобы пройти state-проверку до rate-limit.
+    // Но rate-limit проверяется ДО state-проверки, поэтому cookie не нужен.
+    const result = await routes.callback({
+        req: { headers: {} },
+        res: mockRes(),
+        query: { code: 'c', state: 's' }
+    });
+
+    assert.equal(result.statusCode, 429);
+    assert.equal(limiter.calls.tryAcquireAuthRequest, 1);
+    assert.equal(limiter.calls.tryAcquireCallback, 0, 'callback slot not acquired on rate-limit');
+});
+
+test('callback returns 429 when concurrency cap reached', async () => {
+    const store = buildStore();
+    const limiter = mockRateLimiter({ allowAuth: true, allowCallback: false });
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    // Готовим валидный oauth_state cookie через login.
+    const { state, oauthStateCookie } = await performLogin(routes);
+
+    const result = await performCallback(routes, { state, oauthStateCookie });
+
+    assert.equal(result.result.statusCode, 429);
+    assert.equal(result.result.body.error, 'Too Many Requests');
+    assert.equal(limiter.calls.tryAcquireCallback, 1);
+});
+
+test('callback releases concurrency slot on success', async () => {
+    const store = buildStore();
+    const limiter = mockRateLimiter();
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    const { state, oauthStateCookie } = await performLogin(routes);
+    await performCallback(routes, { state, oauthStateCookie });
+
+    assert.equal(limiter.calls.tryAcquireCallback, 1);
+    assert.equal(limiter.calls.releaseCallback, 1, 'slot released after success');
+});
+
+test('callback releases concurrency slot even when IdP exchange fails', async () => {
+    // Критично: если releaseCallback не вызовется при ошибке IdP, слот зависнет
+    // и заблокирует легитимные callback'и (regression-сценарий M2-C).
+    const store = buildStore();
+    const limiter = mockRateLimiter();
+
+    // OIDC client, у которого callback бросает.
+    const failingOidc = mockOidcClient();
+    failingOidc.callback = async () => { throw new Error('IdP down'); };
+
+    const routes = createAuthRoutes({
+        oidcClient: failingOidc, sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    const { state, oauthStateCookie } = await performLogin(routes);
+    const { result } = await performCallback(routes, { state, oauthStateCookie });
+
+    assert.equal(result.statusCode, 302, 'still redirects with error query');
+    assert.ok(result.headers.Location.includes('error=auth_failed'));
+    assert.equal(limiter.calls.tryAcquireCallback, 1);
+    assert.equal(limiter.calls.releaseCallback, 1, 'slot released in finally despite IdP error');
+});
+
+test('callback does not acquire concurrency slot on missing params (cheap reject)', async () => {
+    const store = buildStore();
+    const limiter = mockRateLimiter();
+    const routes = createAuthRoutes({
+        oidcClient: mockOidcClient(), sessionStore: store, logger: silentLogger, rateLimiter: limiter
+    });
+
+    const result = await routes.callback({
+        req: { headers: {} },
+        res: mockRes(),
+        query: {} // нет code/state
+    });
+
+    assert.equal(result.headers.Location, '/?error=missing_params');
+    // missing_params — ранний return до любых лимитов.
+    assert.equal(limiter.calls.tryAcquireAuthRequest, 0);
+    assert.equal(limiter.calls.tryAcquireCallback, 0);
+});
+

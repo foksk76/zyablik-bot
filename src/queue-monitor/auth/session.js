@@ -7,6 +7,7 @@
 // In-memory Map<sessionId, session> для MVP (1 оператор).
 
 const crypto = require('node:crypto');
+const { base64url } = require('./base64url');
 
 const MODULE_NAME = 'queue-monitor-session';
 const DEFAULT_MAX_AGE_SECONDS = 86400; // 24 часа
@@ -14,10 +15,6 @@ const STATE_COOKIE_MAX_AGE_SECONDS = 600; // 10 минут на OAuth2 roundtrip
 const COOKIE_NAME = 'session';
 const STATE_COOKIE_NAME = 'oauth_state';
 const MIN_SECRET_LENGTH = 32;
-
-function base64url(buf) {
-    return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 function base64urlDecode(str) {
     const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -30,13 +27,16 @@ function hmac(secret, value) {
 }
 
 // timing-safe сравнение двух строк произвольной длины.
+// Паддим короткий буфер нулями до длины длинного, чтобы не утекала длина токена.
 function safeEqual(a, b) {
     const bufA = Buffer.from(String(a));
     const bufB = Buffer.from(String(b));
-    if (bufA.length !== bufB.length) {
-        return false;
-    }
-    return crypto.timingSafeEqual(bufA, bufB);
+    const maxLen = Math.max(bufA.length, bufB.length);
+    const paddedA = Buffer.alloc(maxLen, 0);
+    const paddedB = Buffer.alloc(maxLen, 0);
+    bufA.copy(paddedA);
+    bufB.copy(paddedB);
+    return crypto.timingSafeEqual(paddedA, paddedB) && bufA.length === bufB.length;
 }
 
 // Создать signed cookie-значение: payload.hmac

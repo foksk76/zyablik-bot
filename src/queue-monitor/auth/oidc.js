@@ -8,14 +8,12 @@
 // Логирование через logger.error/warn — БЕЗ токенов (ADR-0013).
 
 const crypto = require('node:crypto');
+const { assertSafeUrl } = require('./url-safety');
+const { base64url } = require('./base64url');
 
 const MODULE_NAME = 'queue-monitor-oidc';
 const DEFAULT_SCOPE = 'openid profile email';
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
-
-function base64url(buf) {
-    return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 // Сгенерировать PKCE code_verifier (43-128 chars, base64url random).
 // Возвращает { codeVerifier, codeChallenge } где codeChallenge = S256(verifier).
@@ -35,8 +33,12 @@ function joinUrl(base, path) {
 }
 
 // Выполнить discovery OP, чтобы узнать endpoints. Кешируется (1 процесс = 1 OP).
-// Fallback на конвенции (/authorize, /token, /userinfo), если discovery недоступен.
-async function discoverEndpoints(issuer, fetchFn, logger) {
+// Fallback на конвенции (/authorize, /token, /userinfo), если discovery недоступен
+// — кроме случая requireDiscovery=true (Sprint 23 / Task 6), тогда ошибка пробрасывается.
+async function discoverEndpoints(issuer, fetchFn, logger, options = {}) {
+    const dnsLookup = options.dnsLookup;
+    const onDebug = options.onDebug;
+    const requireDiscovery = options.requireDiscovery === true;
     const fallback = {
         authorizationEndpoint: joinUrl(issuer, '/authorize'),
         tokenEndpoint: joinUrl(issuer, '/token'),
@@ -44,8 +46,16 @@ async function discoverEndpoints(issuer, fetchFn, logger) {
     };
     try {
         const url = joinUrl(issuer, DISCOVERY_PATH);
+        // L3: SSRF-проверка перед fetch. Бросает, если hostname резолвится
+        // в private/reserved/loopback/link-local или scheme не https.
+        await assertSafeUrl(url, dnsLookup !== undefined || onDebug !== undefined
+            ? { ...(dnsLookup !== undefined ? { dnsLookup } : {}), ...(onDebug !== undefined ? { onDebug } : {}) }
+            : {});
         const response = await fetchFn(url);
         if (!response.ok) {
+            if (requireDiscovery) {
+                throw new Error(`discovery ${url} returned ${response.status} and IDP_REQUIRE_DISCOVERY=true`);
+            }
             logger.warn(`[${MODULE_NAME}] discovery ${url} returned ${response.status}, using fallback endpoints`);
             return fallback;
         }
@@ -56,6 +66,9 @@ async function discoverEndpoints(issuer, fetchFn, logger) {
             userinfoEndpoint: doc.userinfo_endpoint || fallback.userinfoEndpoint
         };
     } catch (error) {
+        if (requireDiscovery) {
+            throw error;
+        }
         logger.warn(`[${MODULE_NAME}] discovery failed (${error.message}), using fallback endpoints`);
         return fallback;
     }
@@ -69,6 +82,11 @@ function createOidcClient(options = {}) {
     const scope = options.scope || DEFAULT_SCOPE;
     const fetchFn = options.fetchFn || globalThis.fetch;
     const logger = options.logger || console;
+    // Sprint 23 / L3: injectable для SSRF-проверки (dnsLookup — для тестов,
+    // onDebug — для логирования resolved IP на debug-уровне).
+    const dnsLookup = options.dnsLookup;
+    const onDebug = options.onDebug;
+    const requireDiscovery = options.requireDiscovery === true;
 
     if (!issuer) {
         throw new Error('issuer is required');
@@ -83,6 +101,14 @@ function createOidcClient(options = {}) {
         logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
     }
 
+    // Обёртка для передачи dnsLookup/onDebug в assertSafeUrl из модулей oidc.
+    function ssrfOptions() {
+        const o = {};
+        if (dnsLookup !== undefined) o.dnsLookup = dnsLookup;
+        if (onDebug !== undefined) o.onDebug = onDebug;
+        return o;
+    }
+
     // Discovery кешируется с TTL, чтобы подхватывать ротацию endpoints IdP
     // и не залипать навсегда на fallback, если IdP был недоступен при старте.
     let endpoints = null;
@@ -91,7 +117,9 @@ function createOidcClient(options = {}) {
 
     async function getEndpoints() {
         if (!endpoints || Date.now() - endpointsAt > ENDPOINTS_TTL_MS) {
-            endpoints = await discoverEndpoints(issuer, fetchFn, logger);
+            endpoints = await discoverEndpoints(issuer, fetchFn, logger, {
+                dnsLookup, onDebug, requireDiscovery
+            });
             endpointsAt = Date.now();
         }
         return endpoints;
@@ -152,6 +180,9 @@ function createOidcClient(options = {}) {
             headers.Authorization = `Basic ${basic}`;
         }
 
+        // L3: SSRF-проверка перед исходящим POST к token endpoint.
+        await assertSafeUrl(ep.tokenEndpoint, ssrfOptions());
+
         const response = await fetchFn(ep.tokenEndpoint, {
             method: 'POST',
             headers,
@@ -179,6 +210,9 @@ function createOidcClient(options = {}) {
             throw new Error('accessToken is required for userinfo');
         }
         const ep = await getEndpoints();
+
+        // L3: SSRF-проверка перед исходящим GET к userinfo endpoint.
+        await assertSafeUrl(ep.userinfoEndpoint, ssrfOptions());
 
         const response = await fetchFn(ep.userinfoEndpoint, {
             headers: { Authorization: `Bearer ${accessToken}` }

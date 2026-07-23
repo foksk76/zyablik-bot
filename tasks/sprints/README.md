@@ -28,6 +28,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-19.md` — ADR-0033 Crash recovery для delivery pipeline
 - `sprint-20.md` — ADR-0034 Queue Monitor Backend API (readonly replica, metrics endpoints, Bearer Token)
 - `sprint-21.md` — ADR-0034 Queue Monitor Frontend UI (React SPA, OAuth2/OIDC auth, dashboard)
+- `sprint-22.md` — ADR-0035 Session Auth для Dashboard Metrics
+- `sprint-23.md` — Queue Monitor Hardening: rate limiting (M2) и SSRF-защита (L3)
 
 ## Status
 
@@ -47,6 +49,8 @@ Sprint 18: Complete (ADR-0031: лицензия Apache-2.0, бренд «Зяб�
 Sprint 19: Complete (ADR-0033: crash recovery для delivery pipeline)
 Sprint 20: Planned (ADR-0034: Queue Monitor Backend API — readonly replica, metrics endpoints, Bearer Token auth)
 Sprint 21: Planned (ADR-0034: Queue Monitor Frontend UI — React SPA, OAuth2/OIDC auth, dashboard)
+Sprint 22: Complete (ADR-0035: Session Auth для Dashboard Metrics)
+Sprint 23: Complete (Queue Monitor Hardening: rate limiting M2 + SSRF-защита L3 — findings из security-and-hardening ревью)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.
