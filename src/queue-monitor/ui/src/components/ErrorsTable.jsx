@@ -25,6 +25,23 @@ function parseRecipient(payload) {
 }
 
 export default function ErrorsTable({ errors }) {
+    if (errors === null) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Последние ошибки</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="animate-pulse space-y-2">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="h-10 bg-neutral-100 rounded" />
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
     const rows = errors?.data || [];
 
     return (

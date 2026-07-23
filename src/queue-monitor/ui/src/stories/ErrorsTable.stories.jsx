@@ -6,6 +6,7 @@ export default {
     component: ErrorsTable
 };
 
+export const Loading = { args: { errors: null } };
 export const Empty = { args: { errors: { data: [] } } };
 export const WithData = {
     args: {

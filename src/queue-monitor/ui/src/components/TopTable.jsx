@@ -5,6 +5,25 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Button } from './ui/button.jsx';
 
 export default function TopTable({ top, topBy, onByChange }) {
+    if (top === null) {
+        return (
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle>Топ отправителей/получателей</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="animate-pulse space-y-2">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="h-10 bg-neutral-100 rounded" />
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
     const rows = top?.data || [];
     const labelKey = topBy === 'recipient' ? 'recipient' : 'source';
 

@@ -58,7 +58,7 @@ export default function DashboardPage({ user, csrf }) {
                 </div>
 
                 {metrics.error && (
-                    <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg p-3">
+                    <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3">
                         Ошибка загрузки метрик: {metrics.error}
                     </div>
                 )}

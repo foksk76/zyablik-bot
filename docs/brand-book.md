@@ -24,27 +24,27 @@ branding-элементы (icon backgrounds, active states).
 
 ### Neutral Palette (text, borders, backgrounds)
 
-Серая палитра для текста, рамок, фонов. Основа — Tailwind slate.
+Серая палитра для текста, рамок, фонов. Основа — Tailwind neutral (tokens).
 
 | Token | Hex | Tailwind | Назначение |
 |-------|-----|----------|------------|
-| neutral-50 | `#f8fafc` | `bg-slate-50` | Page background |
-| neutral-100 | `#f1f5f9` | `bg-slate-100` | Card background (hover) |
-| neutral-200 | `#e2e8f0` | `border-slate-200` | Borders, dividers |
-| neutral-400 | `#94a3b8` | `text-slate-400` | Placeholder, muted text |
-| neutral-500 | `#64748b` | `text-slate-500` | Secondary text |
-| neutral-600 | `#475569` | `text-slate-600` | Body text |
-| neutral-700 | `#334155` | `text-slate-700` | Headings |
-| neutral-800 | `#1e293b` | `text-slate-800` | Primary text |
+| neutral-50 | `#f8fafc` | `bg-neutral-50` | Page background |
+| neutral-100 | `#f1f5f9` | `bg-neutral-100` | Card background (hover) |
+| neutral-200 | `#e2e8f0` | `border-neutral-200` | Borders, dividers |
+| neutral-400 | `#94a3b8` | `text-neutral-400` | Placeholder, muted text |
+| neutral-500 | `#64748b` | `text-neutral-500` | Secondary text |
+| neutral-600 | `#475569` | `text-neutral-600` | Body text |
+| neutral-700 | `#334155` | `text-neutral-700` | Headings |
+| neutral-800 | `#1e293b` | `text-neutral-800` | Primary text |
 
 ### Semantic Palette (status)
 
 | Статус | Light | Dark | Hex | Tailwind |
 |--------|-------|------|-----|----------|
-| Delivered (success) | `emerald-50` | `emerald-700` | `#10b981` | `bg-emerald-50 text-emerald-700` |
-| Failed (error) | `rose-50` | `rose-700` | `#f43f5e` | `bg-rose-50 text-rose-700` |
-| Pending (warning) | `amber-50` | `amber-700` | `#f59e0b` | `bg-amber-50 text-amber-700` |
-| Processing (info) | `blue-50` | `blue-700` | `#3b82f6` | `bg-blue-50 text-blue-700` |
+| Delivered (success) | `success-light` | `success-dark` | `#10b981` | `bg-success-light text-success-dark` |
+| Failed (error) | `error-light` | `error-dark` | `#f43f5e` | `bg-error-light text-error-dark` |
+| Pending (warning) | `warning-light` | `warning-dark` | `#f59e0b` | `bg-warning-light text-warning-dark` |
+| Processing (info) | `info-light` | `info-dark` | `#3b82f6` | `bg-info-light text-info-dark` |
 
 ## Типографика
 

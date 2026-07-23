@@ -36,6 +36,21 @@ function formatBucket(ts) {
 }
 
 export default function TimeseriesChart({ timeseries, windowSeconds, onWindowChange }) {
+    if (timeseries === null) {
+        return (
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle>Временные ряды по статусам</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="animate-pulse h-[260px] bg-neutral-100 rounded" />
+                </CardContent>
+            </Card>
+        );
+    }
+
     const data = pivot(timeseries?.data);
 
     return (

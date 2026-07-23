@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 const test = require('node:test');
+const { mock } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 
@@ -245,9 +246,8 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
     // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
     // If the source constant changes, update this value to keep tests deterministic.
     const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
-    const originalDateNow = Date.now;
     let currentTime = Date.now();
-    Date.now = () => currentTime;
+    const dateMock = mock.method(Date, 'now', () => currentTime);
 
     try {
         currentTime += JWKS_CACHE_TTL_MS + 1;
@@ -258,7 +258,7 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
         assert.ok(result2.claims);
         assert.equal(fetchCount, 2, 'should re-fetch when kid not found and cache expired');
     } finally {
-        Date.now = originalDateNow;
+        dateMock.mock.restore();
     }
 });
 
@@ -401,7 +401,7 @@ test('token issued in future throws', async () => {
     const verifier = factory({ issuer: 'https://idp.example.com' });
 
     const now = Math.floor(Date.now() / 1000);
-    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 10000 }));
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 10000, exp: now + 20000 }));
 
     await assert.rejects(
         () => verifier.verifyAccessToken(token),
@@ -506,8 +506,7 @@ test('JWKS cache expired — re-fetch happens', async () => {
     // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
     const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
     let currentTime = Date.now();
-    const originalDateNow = Date.now;
-    Date.now = () => currentTime;
+    const dateMock = mock.method(Date, 'now', () => currentTime);
 
     let fetchCount = 0;
     const mockFetch = async (url) => {
@@ -535,7 +534,7 @@ test('JWKS cache expired — re-fetch happens', async () => {
         await verifier.verifyAccessToken(tokenV2);
         assert.equal(fetchCount, 2, 'should re-fetch JWKS after cache expiry');
     } finally {
-        Date.now = originalDateNow;
+        dateMock.mock.restore();
     }
 });
 

@@ -100,7 +100,7 @@ options.now                   — injectable (для тестов)
 Auth rate limiter должен быть non-blocking ( synchronous tryAcquire)
 чтобы не вешать event loop. Отклонено.
 
-### Concurrency cap через sempahore
+### Concurrency cap через semaphore
 
 Минус: для 5 слотов простой счётчик + try/release проще, чем semaphore.
 Отклонено.
