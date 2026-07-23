@@ -70,7 +70,7 @@ test('createOidcClient requires redirectUri', () => {
     assert.throws(() => createOidcClient({ issuer: 'x', clientId: 'x' }), /redirectUri is required/);
 });
 
-test('createOidcClient warns on http:// issuer', () => {
+test('createOidcClient warns on http:// issuer (SSRF enforcement active)', () => {
     const warnings = [];
     const logger = { info() {}, warn: (m) => warnings.push(m), error() {} };
     createOidcClient({
@@ -80,6 +80,20 @@ test('createOidcClient warns on http:// issuer', () => {
         logger
     });
     assert.ok(warnings.some((w) => w.includes('insecure HTTP issuer')));
+    assert.ok(warnings.some((w) => w.includes('SSRF enforcement active')), 'must indicate SSRF is not relaxed');
+});
+
+test('createOidcClient warns on http:// issuer with relaxSsrf=true (SSRF relaxation active)', () => {
+    const warnings = [];
+    const logger = { info() {}, warn: (m) => warnings.push(m), error() {} };
+    createOidcClient({
+        issuer: 'http://insecure-idp.example',
+        clientId: 'x',
+        redirectUri: 'x',
+        relaxSsrf: true,
+        logger
+    });
+    assert.ok(warnings.some((w) => w.includes('SSRF relaxation active')), 'must indicate SSRF is relaxed');
 });
 
 // --- PKCE / state utilities ---

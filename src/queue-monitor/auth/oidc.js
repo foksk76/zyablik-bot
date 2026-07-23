@@ -109,7 +109,11 @@ function createOidcClient(options = {}) {
         : options.relaxSsrf === true;
 
     if (issuer.startsWith('http://')) {
-        logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
+        if (relaxSsrf) {
+            logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer} (SSRF relaxation active)`);
+        } else {
+            logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer} (SSRF enforcement active, IDP_RELAX_SSRF=false)`);
+        }
     }
 
     // Обёртка для передачи dnsLookup/onDebug в assertSafeUrl из модулей oidc.
