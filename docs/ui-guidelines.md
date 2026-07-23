@@ -159,10 +159,10 @@ import { Button } from '../components/ui/button.jsx';
 | Семантика | Tailwind | Hex |
 |-----------|----------|-----|
 | Primary | `brand-500` | `#0ea5e9` |
-| Success | `success` / `emerald-500` | `#10b981` |
+| Success | `success` / `success-light` / `success-dark` | `#10b981` |
 | Error | `error` / `error-light` / `error-dark` | `#f43f5e` |
-| Warning | `warning` / `amber-500` | `#f59e0b` |
-| Info | `info` / `blue-500` | `#3b82f6` |
+| Warning | `warning` / `warning-light` / `warning-dark` | `#f59e0b` |
+| Info | `info` / `info-light` / `info-dark` | `#3b82f6` |
 | Text | `neutral-700` | `#334155` |
 | Muted | `neutral-400` | `#94a3b8` |
 | Background | `neutral-50` | `#f8fafc` |

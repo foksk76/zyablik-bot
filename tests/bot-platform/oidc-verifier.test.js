@@ -243,6 +243,7 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
     assert.equal(fetchCount, 1, 'should fetch JWKS on first call');
 
     // Force cache expiry so next call re-fetches
+    // TODO: import JWKS_CACHE_TTL_MS from oidc-verifier.js if module exports it
     // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
     // If the source constant changes, update this value to keep tests deterministic.
     const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -503,6 +504,7 @@ test('JWKS cache expired — re-fetch happens', async () => {
     const jwksBodyV2 = createJwksResponse('kid-v2');
     const logger = createMockLogger();
 
+    // TODO: import JWKS_CACHE_TTL_MS from oidc-verifier.js if module exports it
     // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
     const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
     let currentTime = Date.now();
