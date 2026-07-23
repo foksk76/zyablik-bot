@@ -9,6 +9,8 @@ const CARDS = [
     { key: 'delivered', label: 'Доставлено', variant: 'success' },
     { key: 'failed', label: 'Ошибки', variant: 'error' }
 ];
+// Total items rendered: CARDS.length (4) + 1 total card = 5.
+// md:grid-cols-5 matches exactly; skeleton also renders 5 placeholders.
 
 export default function SummaryCards({ summary }) {
     if (!summary) {

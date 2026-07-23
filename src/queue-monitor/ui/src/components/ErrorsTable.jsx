@@ -51,7 +51,7 @@ export default function ErrorsTable({ errors }) {
             </CardHeader>
             <CardContent>
                 {rows.length === 0 ? (
-                    <p className="text-sm text-success py-8 text-center">Ошибок нет</p>
+                    <p className="text-sm text-success-dark py-8 text-center">Ошибок нет</p>
                 ) : (
                     <Table>
                         <TableHeader>
