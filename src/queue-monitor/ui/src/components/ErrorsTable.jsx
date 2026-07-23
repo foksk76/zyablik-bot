@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card.jsx';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table.jsx';
+import { Badge } from './ui/badge.jsx';
 
 function formatTime(ts) {
     if (!ts) {
@@ -21,41 +24,44 @@ function parseRecipient(payload) {
     }
 }
 
-// Таблица последних ошибок: id, source, recipient, attempts, updated_at, payload (свёрнуто).
 export default function ErrorsTable({ errors }) {
     const rows = errors?.data || [];
 
     return (
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <h2 className="text-sm font-medium text-slate-700 mb-3">Последние ошибки</h2>
-            {rows.length === 0 ? (
-                <p className="text-sm text-emerald-600 py-8 text-center">Ошибок нет ✓</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-slate-500 border-b border-slate-100">
-                                <th className="py-2 font-medium">ID</th>
-                                <th className="py-2 font-medium">Источник</th>
-                                <th className="py-2 font-medium">Получатель</th>
-                                <th className="py-2 font-medium text-center">Попыток</th>
-                                <th className="py-2 font-medium">Обновлено</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+        <Card>
+            <CardHeader>
+                <CardTitle>Последние ошибки</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {rows.length === 0 ? (
+                    <p className="text-sm text-emerald-600 py-8 text-center">Ошибок нет</p>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>ID</TableHead>
+                                <TableHead>Источник</TableHead>
+                                <TableHead>Получатель</TableHead>
+                                <TableHead className="text-center">Попыток</TableHead>
+                                <TableHead>Обновлено</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {rows.map((row) => (
-                                <tr key={row.id} className="border-b border-slate-50 align-top">
-                                    <td className="py-2 text-slate-400 font-mono text-xs">{row.id}</td>
-                                    <td className="py-2 text-slate-700">{row.source || '—'}</td>
-                                    <td className="py-2 text-slate-700 break-all">{parseRecipient(row.payload)}</td>
-                                    <td className="py-2 text-center text-rose-600 font-mono">{row.attempts}</td>
-                                    <td className="py-2 text-slate-500 text-xs">{formatTime(row.updatedAt)}</td>
-                                </tr>
+                                <TableRow key={row.id} className="align-top">
+                                    <TableCell className="text-neutral-400 font-mono text-xs">{row.id}</TableCell>
+                                    <TableCell>{row.source || '—'}</TableCell>
+                                    <TableCell className="break-all">{parseRecipient(row.payload)}</TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge variant="error">{row.attempts}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs">{formatTime(row.updatedAt)}</TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
     );
 }

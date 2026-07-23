@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import SummaryCards from '../components/SummaryCards.jsx';
 import TimeseriesChart from '../components/TimeseriesChart.jsx';
 import TopTable from '../components/TopTable.jsx';
 import ErrorsTable from '../components/ErrorsTable.jsx';
 import { useMetrics } from '../hooks/useMetrics.js';
+import { Button } from '../components/ui/button.jsx';
 
-// ADR-0035: session-авторизация — оператор залогинен через OAuth2,
-// session cookie используется автоматически для /api/metrics/*.
 export default function DashboardPage({ user, csrf }) {
     const [windowSeconds, setWindowSeconds] = useState(3600);
 
@@ -23,9 +22,6 @@ export default function DashboardPage({ user, csrf }) {
                 headers: { 'X-CSRF-Token': csrf },
                 credentials: 'same-origin'
             });
-            // Сервер вернул ответ, но logout не прошёл (403 CSRF, 500 и т.д.) —
-            // сессия может быть ещё активна. Предупредить пользователя, но
-            // всё равно уйти со страницы (UI logout — best-effort).
             if (!r.ok) {
                 alert(`Не удалось выйти (сервер: ${r.status}). Сессия может быть активна.`);
             }
@@ -36,35 +32,29 @@ export default function DashboardPage({ user, csrf }) {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <header className="bg-white border-b border-slate-200">
+        <div className="min-h-screen bg-neutral-50">
+            <header className="bg-white border-b border-neutral-200">
                 <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded bg-brand-500 flex items-center justify-center">
                             <span className="text-white font-bold text-sm">З</span>
                         </div>
-                        <h1 className="text-base font-semibold text-slate-800">Зяблик — очередь доставки</h1>
+                        <h1 className="text-base font-semibold text-neutral-800">Зяблик — очередь доставки</h1>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
-                        <span className="text-slate-500 hidden sm:inline">{user?.name || user?.email || user?.sub}</span>
-                        <button
-                            onClick={logout}
-                            className="text-slate-500 hover:text-slate-700"
-                        >
+                        <span className="text-neutral-500 hidden sm:inline">{user?.name || user?.email || user?.sub}</span>
+                        <Button variant="ghost" size="sm" onClick={logout}>
                             Выйти
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
                 <div className="flex items-center justify-between">
-                    <button
-                        onClick={() => metrics.refresh()}
-                        className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                        ↻ обновить
-                    </button>
+                    <Button variant="ghost" size="sm" onClick={() => metrics.refresh()}>
+                        обновить
+                    </Button>
                 </div>
 
                 {metrics.error && (
@@ -91,7 +81,7 @@ export default function DashboardPage({ user, csrf }) {
                 </div>
 
                 {metrics.lastUpdated && (
-                    <p className="text-xs text-slate-400 text-center">
+                    <p className="text-xs text-neutral-400 text-center">
                         обновлено: {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
                     </p>
                 )}

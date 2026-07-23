@@ -38,6 +38,7 @@ vendor/agent-skills/
 # Secrets and local exports
 *token*
 *secret*
+!src/queue-monitor/ui/src/tokens/
 !docs/decisions/ADR-0013-safe-logger-secret-redaction.md
 *.bak
 *.tmp
