@@ -19,10 +19,11 @@ const buttonSizes = {
     icon: 'h-9 w-9'
 };
 
-const Button = React.forwardRef(({ className, variant = 'default', size = 'default', asChild = false, ...props }, ref) => {
+const Button = React.forwardRef(({ className, variant = 'default', size = 'default', asChild = false, type, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
     return (
         <Comp
+            type={asChild ? undefined : (type ?? 'button')}
             className={cn(
                 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50',
                 buttonVariants[variant],
