@@ -30,6 +30,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-21.md` — ADR-0034 Queue Monitor Frontend UI (React SPA, OAuth2/OIDC auth, dashboard)
 - `sprint-22.md` — ADR-0035 Session Auth для Dashboard Metrics
 - `sprint-23.md` — Queue Monitor Hardening: rate limiting (M2) и SSRF-защита (L3)
+- `sprint-24.md` — ADR-0036 Дизайн-система для React UI queue-monitor (shadcn/ui, Lucide, tokens, Storybook)
+- `sprint-25.md` — ADR-0038 Тесты для hand-rolled JWT-verifier (oidc-verifier.js)
 
 ## Status
 
@@ -47,10 +49,12 @@ Sprint 16: Complete (App Wiring + Integration — end-to-end multi-source ingest
 Sprint 17: Complete (Lifecycle Audit Trail, ADR-0029)
 Sprint 18: Complete (ADR-0031: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot)
 Sprint 19: Complete (ADR-0033: crash recovery для delivery pipeline)
-Sprint 20: Planned (ADR-0034: Queue Monitor Backend API — readonly replica, metrics endpoints, Bearer Token auth)
-Sprint 21: Planned (ADR-0034: Queue Monitor Frontend UI — React SPA, OAuth2/OIDC auth, dashboard)
+Sprint 20: Complete (ADR-0034: Queue Monitor Backend API — readonly replica, metrics endpoints, Bearer Token auth)
+Sprint 21: Complete (ADR-0034: Queue Monitor Frontend UI — React SPA, OAuth2/OIDC auth, dashboard)
 Sprint 22: Complete (ADR-0035: Session Auth для Dashboard Metrics)
 Sprint 23: Complete (Queue Monitor Hardening: rate limiting M2 + SSRF-защита L3 — findings из security-and-hardening ревью)
+Sprint 24: Planned (ADR-0036: Дизайн-система для React UI queue-monitor — shadcn/ui, Lucide, tokens, Storybook)
+Sprint 25: Planned (ADR-0038: Тесты для hand-rolled JWT-verifier — oidc-verifier.js unit tests)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.
