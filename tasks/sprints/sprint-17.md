@@ -17,7 +17,7 @@
 
 ### Task 1: Config — add `LOG_AUDIT`, `LOG_TRACE` env vars
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Расширить `createBotPlatformConfig()` двумя новыми boolean переменными: `LOG_AUDIT` и `LOG_TRACE`. Использовать существующий `readBoolEnvValue`. Дефолт: `true` (ADR-0029 specifies enabled by default).
 
@@ -39,7 +39,7 @@
 
 ### Task 2: Logger — add `formatLogLine()` helper
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Добавить в `src/bot-platform/core/logger.js` функцию `formatLogLine({ ts, level, module, reqId, action, context })`, которая возвращает строку формата ADR-0029: `[<ISO-timestamp>] [<level>] [<module>:<reqId>] <action> {<json-context>}`. Если `reqId` не передан — формат `[<module>]`. Если `context` пуст — без JSON-хвоста. Экспортировать функцию.
 
@@ -61,7 +61,7 @@
 
 ### Task 3: Schema — add `req_id` column + index
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** В `src/bot-platform/queue/store.js` добавить миграцию: при старте `createQueueStore` выполнять `ALTER TABLE delivery_queue ADD COLUMN req_id TEXT` (с try/catch — если столбец уже есть) и `CREATE INDEX IF NOT EXISTS idx_queue_req_id ON delivery_queue(req_id)`. Обновить INSERT/SELECT запросы для поддержки `req_id`. Принимать `reqId` в `enqueue(entry)`, возвращать в `dequeue()`.
 
@@ -85,7 +85,7 @@
 
 ### Task 4: http-server.js — generate reqId + trace/audit logs
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** В `handleIngest`: (1) генерировать `reqId = crypto.randomUUID()` в начале; (2) trace-log `ingress` с method, path, from (IP); (3) передавать `reqId` в `jwtAuth.authenticate(header, { reqId, ip })`; (4) trace-log `normalized` с recipient; (5) передавать `reqId` в `queueStore.enqueue({ ...entry, reqId })`; (6) audit-log `message queued`. Использовать `formatLogLine()` для вывода. Проверять `LOG_AUDIT` / `LOG_TRACE` флаги из config перед логированием.
 
@@ -111,7 +111,7 @@
 
 ### Task 5: jwt-source-auth.js — add audit log
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Расширить `authenticate(authorizationHeader)` → `authenticate(authorizationHeader, options = {})` для принятия `{ reqId, ip }`. Добавить audit-логи: (1) auth success — `[audit] auth success sub=... source=... ip=...`; (2) auth failed — `[audit] auth failed reason=... ip=...`. Использовать `formatLogLine()`. IP не верифицируется (приходит из http-server).
 
@@ -134,7 +134,7 @@
 
 ### Task 6: Tests for ingress audit/trace
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Расширить `ingress-http-server.test.js` и `ingress-e2e.test.js` тестами для audit/trace: (1) mock logger проверяет что `formatLogLine` вызывается с правильными параметрами; (2) `reqId` присутствует в queue payload; (3) audit-логи вызываются при auth success/fail; (4) trace-логи вызываются на каждом этапе.
 
@@ -158,7 +158,7 @@
 
 ### Task 7: store.js — trace log for enqueue
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** В `queue/store.js` добавить trace-log при enqueue: `[trace:req:<reqId>] enqueued id=<rowId>`. Добавить dependency injection для `logger` через options. Log-вызов опционален (logger может отсутствовать).
 
@@ -180,7 +180,7 @@
 
 ### Task 8: worker.js — trace/audit logs
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** В `queue/worker.js` добавить: (1) trace-log при dequeue: `[trace:queue:<id>] dequeued attempt=<n>`; (2) audit + trace при success: `[audit] message delivered id=<n> duration_ms=<ms>`, `[trace:queue:<id>] delivered duration_ms=<ms>`; (3) audit + trace при failure: `[audit] message failed id=<n> reason=... attempts=<n>`, `[trace:queue:<id>] failed reason=...`. Использовать `formatLogLine()`. Измерять duration с момента dequeue до ack/nack.
 
@@ -204,7 +204,7 @@
 
 ### Task 9: outbound-client.js — trace log
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** В `transports/max/outbound-client.js` добавить trace-log: (1) before request: `[trace:queue:<reqId>] outbound POST <url>`; (2) after response: добавить `statusCode` в context. Извлекать `reqId` из response/payload. Использовать `formatLogLine()`.
 
@@ -226,7 +226,7 @@
 
 ### Task 10: Tests for queue + outbound audit/trace
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Расширить `queue-worker.test.js`, `queue-store.test.js`, `max-outbound-client.test.js` тестами для audit/trace: (1) mock logger проверяет формат; (2) duration_ms измеряется; (3) reqId прокидывается через payload; (4) audit/trace вызываются при success/failure.
 
@@ -250,7 +250,7 @@
 
 ### Task 11: End-to-end integration test
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Полный end-to-end тест lifecycle trace: POST /ingest → auth → normalize → queue → dequeue → outbound → ack. Mock outboundClient. Проверить: (1) reqId генерируется и прокидывается через все этапы; (2) audit-логи вызываются на auth, queue, delivery; (3) trace-логи вызываются на ingress, jwt, normalize, enqueue, dequeue, outbound, delivered.
 
@@ -273,7 +273,7 @@
 
 ### Task 12: Documentation
 
-**Status:** Planned
+**Status:** Done
 
 **Description:** Обновить документацию: (1) `docs/project-context.md` — env vars `LOG_AUDIT`/`LOG_TRACE`, req_id в схеме; (2) `examples/bot-platform/env.example` — добавить `LOG_AUDIT` и `LOG_TRACE`; (3) ADR-0029 — добавить "Реализовано" секцию со ссылками на код.
 
@@ -319,7 +319,7 @@
 ## Checkpoint: After Tasks 11-12 (Complete)
 
 - [ ] Полный lifecycle trace от ingress до delivery
-- [ ] `journalctl -u zyablik-bot-live | grep '\[audit\]'` работает
+- [ ] `journalctl -u zyablik-bot-live | grep -E 'message queued|message delivered|message failed|auth success|auth failed'` работает
 - [ ] `npm test` — все тесты проходят
 - [ ] Документация обновлена
 - [ ] Готово к ревью

@@ -44,7 +44,7 @@ Sprint 13: Complete (Bot Commands System — command parser, registry, pipeline 
 Sprint 14: Complete (Queue Infrastructure — SQLite queue store, worker, pipeline integration)
 Sprint 15: Complete (Ingress Pipeline — JWT auth, normalizers, HTTP server)
 Sprint 16: Complete (App Wiring + Integration — end-to-end multi-source ingest)
-Sprint 17: Planned (Lifecycle Audit Trail, ADR-0029)
+Sprint 17: Complete (Lifecycle Audit Trail, ADR-0029)
 Sprint 18: Complete (ADR-0031: лицензия Apache-2.0, бренд «Зяблик», ренейминг в zyablik-bot)
 Sprint 19: Complete (ADR-0033: crash recovery для delivery pipeline)
 Sprint 20: Planned (ADR-0034: Queue Monitor Backend API — readonly replica, metrics endpoints, Bearer Token auth)
