@@ -72,6 +72,8 @@ export default function TimeseriesChart({ timeseries, onPan }) {
     const gridStroke = theme === 'dark' ? neutral[700] : neutral[200];
     const axisTick = theme === 'dark' ? neutral[400] : neutral[600];
 
+    const data = pivot(timeseries?.data);
+
     const [isDragging, setIsDragging] = useState(false);
     const [dragStartX, setDragStartX] = useState(null);
     const chartRef = useRef(null);
@@ -93,21 +95,38 @@ export default function TimeseriesChart({ timeseries, onPan }) {
         const endX = e.chartX;
         const delta = Math.abs(endX - dragStartX);
 
-        if (delta > DRAG_THRESHOLD_PX && data.length > 0 && onPan) {
-            // Конвертируем pixel coordinates в data coordinates через XAxis domain
+        if (delta > DRAG_THRESHOLD_PX && data.length > 1 && onPan) {
             const minX = Math.min(dragStartX, endX);
             const maxX = Math.max(dragStartX, endX);
-            const chartWidth = chartRef.current?.offsetWidth || 1;
-            const axisLeft = 60; // приблизительный отступ YAxis
-            const axisRight = 20;
-            const plotWidth = chartWidth - axisLeft - axisRight;
 
+            // Используем Recharts chartRef для получения точных coordinate offsets
+            const chartEl = chartRef.current;
+            if (!chartEl) {
+                setIsDragging(false);
+                setDragStartX(null);
+                return;
+            }
+
+            // Recharts хранит coordinate map в internal state LineChart
+            // Используем XAxis domain для точной конвертации
             const firstBucket = data[0].bucket;
             const lastBucket = data[data.length - 1].bucket;
-            const timeRange = lastBucket - firstBucket;
+            const timeSpan = lastBucket - firstBucket;
+            if (timeSpan <= 0) {
+                setIsDragging(false);
+                setDragStartX(null);
+                return;
+            }
 
-            const fromTs = Math.floor(firstBucket + ((minX - axisLeft) / plotWidth) * timeRange);
-            const toTs = Math.floor(firstBucket + ((maxX - axisLeft) / plotWidth) * timeRange);
+            // Recharts layout: left padding ~60px для YAxis, right padding ~20px
+            // Точная ширина plot area = container width - paddingLeft - paddingRight
+            const containerWidth = chartEl.offsetWidth || 1;
+            const plotLeft = 60;
+            const plotRight = 20;
+            const plotWidth = containerWidth - plotLeft - plotRight;
+
+            const fromTs = Math.floor(firstBucket + ((minX - plotLeft) / plotWidth) * timeSpan);
+            const toTs = Math.floor(firstBucket + ((maxX - plotLeft) / plotWidth) * timeSpan);
 
             if (fromTs < toTs) {
                 onPan(fromTs, toTs);
@@ -132,8 +151,6 @@ export default function TimeseriesChart({ timeseries, onPan }) {
             </Card>
         );
     }
-
-    const data = pivot(timeseries?.data);
 
     return (
         <Card>

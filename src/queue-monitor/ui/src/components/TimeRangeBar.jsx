@@ -7,7 +7,7 @@ import { Calendar } from 'lucide-react';
 
 // ADR-0041: TimeRangeBar — объединённый компонент для выбора временного диапазона.
 // Содержит TimeRangeDropdown (relative presets) + toggle для абсолютного диапазона.
-export default function TimeRangeDropdownBar({ timeRange, onTimeRangeChange }) {
+export default function TimeRangeBar({ timeRange, onTimeRangeChange }) {
     const [isAbsolute, setIsAbsolute] = useState(false);
 
     function handleRelativeSelect(seconds) {

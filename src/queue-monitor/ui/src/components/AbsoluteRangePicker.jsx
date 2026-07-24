@@ -3,6 +3,9 @@ import React, { useState } from 'react';
 import { Button } from './ui/button.jsx';
 
 // ADR-0041: выбор абсолютного временного диапазона через datetime-local inputs.
+// ADR-0041: max range — 30 дней (2592000 секунд) для производительности SQLite.
+const MAX_RANGE_SECONDS = 2592000;
+
 function toLocalISOString(ts) {
     if (!ts) return '';
     const d = new Date(ts * 1000);
@@ -19,10 +22,12 @@ export default function AbsoluteRangePicker({ from, to, onApply, onCancel }) {
     const [localFrom, setLocalFrom] = useState(toLocalISOString(from));
     const [localTo, setLocalTo] = useState(toLocalISOString(to));
 
+    const fromTs = fromLocalInput(localFrom);
+    const toTs = fromLocalInput(localTo);
+    const isValid = fromTs && toTs && fromTs < toTs && (toTs - fromTs) <= MAX_RANGE_SECONDS;
+
     function handleApply() {
-        const fromTs = fromLocalInput(localFrom);
-        const toTs = fromLocalInput(localTo);
-        if (fromTs && toTs && fromTs < toTs) {
+        if (isValid) {
             onApply(fromTs, toTs);
         }
     }
@@ -47,7 +52,7 @@ export default function AbsoluteRangePicker({ from, to, onApply, onCancel }) {
                 className="text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
                 aria-label="Конец диапазона"
             />
-            <Button size="sm" onClick={handleApply}>Применить</Button>
+            <Button size="sm" onClick={handleApply} disabled={!isValid}>Применить</Button>
             <Button size="sm" variant="ghost" onClick={onCancel}>Отмена</Button>
         </div>
     );

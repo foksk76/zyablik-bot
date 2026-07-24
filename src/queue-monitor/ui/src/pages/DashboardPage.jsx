@@ -75,6 +75,10 @@ export default function DashboardPage({ user, csrf }) {
         }
     }
 
+    function handlePan(fromTs, toTs) {
+        setAbsolute(fromTs, toTs);
+    }
+
     async function logout() {
         try {
             const r = await fetch('/api/auth/logout', {
@@ -153,6 +157,7 @@ export default function DashboardPage({ user, csrf }) {
                 <ErrorBoundary>
                     <TimeseriesChart
                         timeseries={metrics.timeseries}
+                        onPan={handlePan}
                     />
                 </ErrorBoundary>
 
