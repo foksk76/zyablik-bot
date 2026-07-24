@@ -7,10 +7,11 @@ import { Calendar } from 'lucide-react';
 
 // ADR-0041: TimeRangeBar — объединённый компонент для выбора временного диапазона.
 // Содержит TimeRangeDropdown (relative presets) + toggle для абсолютного диапазона.
-// Кнопка календаря: в relative mode — переключает в absolute (показывает picker),
-// в absolute mode — скрывает picker и переключает обратно в relative.
+// При переключении на абсолютный диапазон — вычисляет from/to из текущего relative.
 export default function TimeRangeBar({ timeRange, onTimeRangeChange }) {
     const [isAbsolute, setIsAbsolute] = useState(timeRange.mode === 'absolute');
+    const [computedFrom, setComputedFrom] = useState(null);
+    const [computedTo, setComputedTo] = useState(null);
 
     useEffect(() => {
         setIsAbsolute(timeRange.mode === 'absolute');
@@ -32,9 +33,12 @@ export default function TimeRangeBar({ timeRange, onTimeRangeChange }) {
     function handleCalendarClick() {
         if (isAbsolute) {
             setIsAbsolute(false);
-            // Возвращаемся к предыдущему relative значению или дефолтному 1ч
-            onTimeRangeChange('relative', timeRange.seconds || 3600);
+            onTimeRangeChange('relative', timeRange.seconds || 86400);
         } else {
+            const now = Math.floor(Date.now() / 1000);
+            const seconds = timeRange.seconds || 86400;
+            setComputedFrom(now - seconds);
+            setComputedTo(now);
             setIsAbsolute(true);
         }
     }
@@ -59,8 +63,8 @@ export default function TimeRangeBar({ timeRange, onTimeRangeChange }) {
             </div>
             {isAbsolute && (
                 <AbsoluteRangePicker
-                    from={timeRange.from}
-                    to={timeRange.to}
+                    from={computedFrom}
+                    to={computedTo}
                     onApply={handleAbsoluteApply}
                     onCancel={handleAbsoluteCancel}
                 />

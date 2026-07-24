@@ -11,7 +11,7 @@ import TimeRangeBar from '../components/TimeRangeBar.jsx';
 import RefreshDropdown from '../components/RefreshDropdown.jsx';
 import { Button } from '../components/ui/button.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
-import { RefreshCw, LogOut, Clock, Activity } from 'lucide-react';
+import { RefreshCw, LogOut, Activity } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const { timeRange, setRelative, setAbsolute } = useTimeRange();
@@ -141,12 +141,6 @@ export default function DashboardPage({ user, csrf }) {
                         </Button>
                         <RefreshDropdown value={refreshMs} onChange={setRefreshMs} />
                     </div>
-                    {metrics.lastUpdated && (
-                        <span className="text-xs text-muted-foreground hidden sm:inline">
-                            <Clock className="w-3 h-3 inline mr-0.5" />
-                            {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
-                        </span>
-                    )}
                 </div>
 
                 {metrics.error && (
@@ -192,10 +186,6 @@ export default function DashboardPage({ user, csrf }) {
 
                 {metrics.lastUpdated && (
                     <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 pb-4">
-                        <span>
-                            <Clock className="w-3 h-3 inline mr-0.5" />
-                            обновлено: {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
-                        </span>
                         {!sessionExpired && refreshMs > 0 && (
                             <span>
                                 <Activity className="w-3 h-3 inline mr-0.5" />

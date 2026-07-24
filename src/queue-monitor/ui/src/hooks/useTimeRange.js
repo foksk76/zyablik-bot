@@ -9,7 +9,7 @@ import { useState, useCallback } from 'react';
 //   setRelative(3600);          // 1 час
 //   setAbsolute(from, to);      // абсолютный диапазон
 //   shift(-3600);               // сдвинуть на 1 час назад
-export function useTimeRange(initialSeconds = 3600) {
+export function useTimeRange(initialSeconds = 86400) {
     const [timeRange, setTimeRange] = useState({
         mode: 'relative',
         seconds: initialSeconds,
