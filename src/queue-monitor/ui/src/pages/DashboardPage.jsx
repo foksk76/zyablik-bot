@@ -12,17 +12,28 @@ import { Button } from '../components/ui/button.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { RefreshCw, LogOut, Clock, Activity } from 'lucide-react';
 
+// ADR-0041: интервалы автообновления (раздел 4).
+const REFRESH_OPTIONS = [
+    { label: '30с', ms: 30000 },
+    { label: '1м', ms: 60000 },
+    { label: '5м', ms: 300000 },
+    { label: '10м', ms: 600000 },
+    { label: '30м', ms: 1800000 },
+    { label: 'выкл', ms: 0 }
+];
+
 export default function DashboardPage({ user, csrf }) {
     const { timeRange, setRelative, setAbsolute } = useTimeRange();
     const [logoutError, setLogoutError] = useState(null);
     const [topLimit, setTopLimit] = useState(5);
     const [errorsLimit, setErrorsLimit] = useState(20);
-    const [countdown, setCountdown] = useState(30);
+    const [refreshMs, setRefreshMs] = useState(30000);
+    const [countdown, setCountdown] = useState(refreshMs / 1000);
     const logoutTimerRef = useRef(null);
 
     const metrics = useMetrics({
         timeRange,
-        refreshMs: 30000,
+        refreshMs,
         topLimit,
         errorsLimit
     });
@@ -30,21 +41,21 @@ export default function DashboardPage({ user, csrf }) {
     const sessionExpired = metrics.error && metrics.error.includes('Сессия истекла');
 
     useEffect(() => {
-        if (sessionExpired) {
+        if (sessionExpired || refreshMs === 0) {
             return;
         }
         const timer = setInterval(() => {
-            setCountdown((prev) => (prev <= 1 ? 30 : prev - 1));
+            setCountdown((prev) => (prev <= 1 ? refreshMs / 1000 : prev - 1));
         }, 1000);
         return () => clearInterval(timer);
-    }, [sessionExpired]);
+    }, [sessionExpired, refreshMs]);
 
     useEffect(() => {
         if (sessionExpired) {
             return;
         }
-        setCountdown(30);
-    }, [topLimit, errorsLimit, metrics.topBy, timeRange, sessionExpired]);
+        setCountdown(refreshMs / 1000);
+    }, [topLimit, errorsLimit, metrics.topBy, timeRange, sessionExpired, refreshMs]);
 
     useEffect(() => {
         return () => {
@@ -64,7 +75,12 @@ export default function DashboardPage({ user, csrf }) {
 
     function handleRefresh() {
         metrics.refreshNow();
-        setCountdown(30);
+        setCountdown(refreshMs / 1000);
+    }
+
+    function handleRefreshOptionChange(ms) {
+        setRefreshMs(ms);
+        setCountdown(ms / 1000);
     }
 
     function handleTimeRangeChange(mode, value) {
@@ -126,11 +142,26 @@ export default function DashboardPage({ user, csrf }) {
                     </div>
                 )}
 
-                <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={handleRefresh}>
-                        <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
-                        обновить ({countdown}с)
-                    </Button>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={handleRefresh}>
+                            <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
+                            {refreshMs > 0 ? `обновить (${countdown}с)` : 'обновить'}
+                        </Button>
+                        <div className="flex gap-0.5">
+                            {REFRESH_OPTIONS.map((opt) => (
+                                <Button
+                                    key={opt.ms}
+                                    variant={refreshMs === opt.ms ? 'default' : 'ghost'}
+                                    size="sm"
+                                    className="text-xs h-7 px-2"
+                                    onClick={() => handleRefreshOptionChange(opt.ms)}
+                                >
+                                    {opt.label}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
                     {metrics.lastUpdated && (
                         <span className="text-xs text-muted-foreground hidden sm:inline">
                             <Clock className="w-3 h-3 inline mr-0.5" />
@@ -186,7 +217,7 @@ export default function DashboardPage({ user, csrf }) {
                             <Clock className="w-3 h-3 inline mr-0.5" />
                             обновлено: {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
                         </span>
-                        {!sessionExpired && (
+                        {!sessionExpired && refreshMs > 0 && (
                             <span>
                                 <Activity className="w-3 h-3 inline mr-0.5" />
                                 следующее: ~{countdown}с
