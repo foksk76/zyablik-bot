@@ -76,6 +76,7 @@ ADR-0037  SSRF-защита для IdP-запросов (dns resolution + privat
 ADR-0038  hand-rolled JWT-verifier для ingress layer (RS256/384/512, JWKS cache)
 ADR-0039  rate limiting для auth-эндпоинтов dashboard (sliding window + concurrency cap)
 ADR-0040  улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary)
+ADR-0041  глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
 ```
 
 ## Каноничные источники

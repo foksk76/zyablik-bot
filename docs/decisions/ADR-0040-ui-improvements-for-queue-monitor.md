@@ -74,7 +74,7 @@ backend API.
 ```
 
 Почему expandable rows, а не Dialog/Sheet:
-- Не требует нового shadcn-компонента (ADR-0036:最小主义);
+- Не требует нового shadcn-компонента (ADR-0036: minimalism);
 - Контекст сохраняется (оператор видит таблицу + detail);
 - Простая реализация — state `expandedId` в компоненте.
 

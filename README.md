@@ -132,6 +132,12 @@ Queue Monitor Dashboard (ADR-0034)
 - ADR-0033: crash recovery для delivery pipeline
 - ADR-0034: Queue Monitor Dashboard (встроенный дашборд, API для метрик, auth через IdP)
 - ADR-0035: session auth как альтернатива Bearer для dashboard metrics
+- ADR-0036: дизайн-система для React UI queue-monitor (design tokens, компоненты, Storybook, AI-guidelines)
+- ADR-0037: SSRF-защита для IdP-запросов (dns resolution + private IP blocking)
+- ADR-0038: hand-rolled JWT-verifier для ingress layer (RS256/384/512, JWKS cache)
+- ADR-0039: rate limiting для auth-эндпоинтов dashboard (sliding window + concurrency cap)
+- ADR-0040: улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary)
+- ADR-0041: глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
 
 ## Документация
 

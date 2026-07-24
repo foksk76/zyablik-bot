@@ -93,3 +93,23 @@ test('README references live identity bot status document without duplicating ac
   assert.match(readme, /docs\/live-identity-bot\.md/);
   assert.doesNotMatch(readme, /Критерии завершения первого этапа\n\n- \[ \]/);
 });
+
+test('documentation does not contain CJK hieroglyphs', () => {
+  const cjkPattern = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u{20000}-\u{2a6df}\u{2a700}-\u{2b73f}\u{2b740}-\u{2b81f}\u{2b820}-\u{2ceaf}\u{2ceb0}-\u{2ebef}\u{30000}-\u{3134f}\u{2e80}-\u{2eff}\u{31c0}-\u{31ef}\u{f900}-\u{faff}\u{2f800}-\u{2fa1f}]/u;
+  const violations = [];
+
+  for (const scannedRoot of scannedRoots) {
+    for (const file of listMarkdownAndTextFiles(scannedRoot)) {
+      const content = fs.readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+
+      lines.forEach((line, index) => {
+        if (cjkPattern.test(line)) {
+          violations.push(`${path.relative(root, file)}:${index + 1}: ${line.trim()}`);
+        }
+      });
+    }
+  }
+
+  assert.deepEqual(violations, [], `found CJK hieroglyphs in documentation:\n${violations.join('\n')}`);
+});

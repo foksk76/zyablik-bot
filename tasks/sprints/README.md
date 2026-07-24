@@ -35,6 +35,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-26.md` — Queue Monitor UI Polish: Lucide Icons, fontWeights, CSS-переменные shadcn/ui
 - `sprint-27.md` — ADR-0040 Queue Monitor UX: error drill-down, session redirect, alert cleanup
 - `sprint-28.md` — ADR-0040 Queue Monitor Polish: configurable limits, countdown, error boundary
+- `sprint-29.md` — ADR-0041 Глобальный фильтр времени — Backend + State Management
+- `sprint-30.md` — ADR-0041 Глобальный фильтр времени — UI Components + Drag-to-Pan
 
 ## Status
 
@@ -58,9 +60,11 @@ Sprint 22: Complete (ADR-0035: Session Auth для Dashboard Metrics)
 Sprint 23: Complete (Queue Monitor Hardening: rate limiting M2 + SSRF-защита L3 — findings из security-and-hardening ревью)
 Sprint 24: Complete (ADR-0036: Дизайн-система для React UI queue-monitor — shadcn/ui, Lucide, tokens, Storybook)
 Sprint 25: Complete (ADR-0038: Тесты для hand-rolled JWT-verifier — oidc-verifier.js unit tests)
-Sprint 26: Pending (Queue Monitor UI Polish — Lucide Icons, fontWeights, CSS-переменные shadcn/ui)
-Sprint 27: Pending (ADR-0040: Queue Monitor UX — error drill-down, session redirect, alert cleanup)
-Sprint 28: Pending (ADR-0040: Queue Monitor Polish — configurable limits, countdown, error boundary)
+Sprint 26: Complete (Queue Monitor UI Polish — Lucide Icons, fontWeights, CSS-переменные shadcn/ui)
+Sprint 27: Complete (ADR-0040: Queue Monitor UX — error drill-down, session redirect, alert cleanup)
+Sprint 28: Complete (ADR-0040: Queue Monitor Polish — configurable limits, countdown, error boundary)
+Sprint 29: Planned (ADR-0041: Глобальный фильтр времени — Backend + State Management)
+Sprint 30: Planned (ADR-0041: Глобальный фильтр времени — UI Components + Drag-to-Pan)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.
