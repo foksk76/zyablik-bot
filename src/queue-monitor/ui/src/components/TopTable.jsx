@@ -5,7 +5,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Button } from './ui/button.jsx';
 import { ArrowUpRight, Users } from 'lucide-react';
 
-export default function TopTable({ top, topBy, onByChange }) {
+export default function TopTable({ top, topBy, onByChange, limit, onLimitChange }) {
     if (top === null) {
         return (
             <Card>
@@ -50,6 +50,16 @@ export default function TopTable({ top, topBy, onByChange }) {
                             <Users className="w-3.5 h-3.5 mr-1 shrink-0" />
                             по получателю
                         </Button>
+                        {[5, 10, 20].map((v) => (
+                            <Button
+                                key={v}
+                                variant={limit === v ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onLimitChange(v)}
+                            >
+                                {v}
+                            </Button>
+                        ))}
                     </div>
                 </div>
             </CardHeader>

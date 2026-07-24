@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table.jsx';
 import { Badge } from './ui/badge.jsx';
+import { Button } from './ui/button.jsx';
 import { AlertTriangle } from 'lucide-react';
 
 function formatTime(ts) {
@@ -25,7 +26,19 @@ function parseRecipient(payload) {
     }
 }
 
-export default function ErrorsTable({ errors }) {
+function formatPayload(payload) {
+    if (!payload) return '—';
+    try {
+        const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+        return JSON.stringify(obj, null, 2);
+    } catch {
+        return String(payload);
+    }
+}
+
+export default function ErrorsTable({ errors, limit, onLimitChange }) {
+    const [expandedId, setExpandedId] = useState(null);
+
     if (errors === null) {
         return (
             <Card>
@@ -48,7 +61,21 @@ export default function ErrorsTable({ errors }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Последние ошибки</CardTitle>
+                <div className="flex items-center justify-between">
+                    <CardTitle>Последние ошибки</CardTitle>
+                    <div className="flex gap-1">
+                        {[20, 50, 100].map((v) => (
+                            <Button
+                                key={v}
+                                variant={limit === v ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onLimitChange(v)}
+                            >
+                                {v}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
                 {rows.length === 0 ? (
@@ -66,20 +93,34 @@ export default function ErrorsTable({ errors }) {
                         </TableHeader>
                         <TableBody>
                             {rows.map((row) => (
-                                <TableRow key={row.id} className="align-top">
-                                    <TableCell className="text-muted-foreground font-mono text-xs">{row.id}</TableCell>
-                                    <TableCell>
-                                        <span className="inline-flex items-center gap-1">
-                                            <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0" />
-                                            {row.source || '—'}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="break-all">{parseRecipient(row.payload)}</TableCell>
-                                    <TableCell className="text-center">
-                                        <Badge variant="error">{row.attempts}</Badge>
-                                    </TableCell>
-                                    <TableCell className="text-xs">{formatTime(row.updatedAt)}</TableCell>
-                                </TableRow>
+                                <React.Fragment key={row.id}>
+                                    <TableRow
+                                        className="align-top cursor-pointer"
+                                        onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                                    >
+                                        <TableCell className="text-muted-foreground font-mono text-xs">{row.id}</TableCell>
+                                        <TableCell>
+                                            <span className="inline-flex items-center gap-1">
+                                                <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0" />
+                                                {row.source || '—'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="break-all">{parseRecipient(row.payload)}</TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant="error">{row.attempts}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-xs">{formatTime(row.updatedAt)}</TableCell>
+                                    </TableRow>
+                                    {expandedId === row.id && (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="p-0">
+                                                <pre className="text-xs font-mono bg-muted p-3 rounded max-h-48 overflow-auto">
+                                                    {formatPayload(row.payload)}
+                                                </pre>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </TableBody>
                     </Table>

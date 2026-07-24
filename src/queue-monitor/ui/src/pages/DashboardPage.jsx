@@ -1,20 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SummaryCards from '../components/SummaryCards.jsx';
 import TimeseriesChart from '../components/TimeseriesChart.jsx';
 import TopTable from '../components/TopTable.jsx';
 import ErrorsTable from '../components/ErrorsTable.jsx';
+import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useMetrics } from '../hooks/useMetrics.js';
 import { Button } from '../components/ui/button.jsx';
 import { RefreshCw, LogOut } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const [windowSeconds, setWindowSeconds] = useState(3600);
+    const [logoutError, setLogoutError] = useState(null);
+    const [topLimit, setTopLimit] = useState(5);
+    const [errorsLimit, setErrorsLimit] = useState(20);
+    const [countdown, setCountdown] = useState(30);
+    const logoutTimerRef = useRef(null);
 
     const metrics = useMetrics({
         windowSeconds,
-        refreshMs: 30000
+        refreshMs: 30000,
+        topLimit,
+        errorsLimit
     });
+
+    const sessionExpired = metrics.error && metrics.error.includes('Сессия истекла');
+
+    useEffect(() => {
+        if (sessionExpired) {
+            return;
+        }
+        const timer = setInterval(() => {
+            setCountdown((prev) => (prev <= 1 ? 30 : prev - 1));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [sessionExpired]);
+
+    useEffect(() => {
+        if (sessionExpired) {
+            return;
+        }
+        setCountdown(30);
+    }, [topLimit, errorsLimit, metrics.topBy, windowSeconds, sessionExpired]);
+
+    useEffect(() => {
+        return () => {
+            if (logoutTimerRef.current) {
+                clearTimeout(logoutTimerRef.current);
+            }
+        };
+    }, []);
+
+    function dismissLogoutError() {
+        if (logoutTimerRef.current) {
+            clearTimeout(logoutTimerRef.current);
+            logoutTimerRef.current = null;
+        }
+        setLogoutError(null);
+    }
+
+    function handleRefresh() {
+        metrics.refreshNow();
+        setCountdown(30);
+    }
 
     async function logout() {
         try {
@@ -24,7 +72,9 @@ export default function DashboardPage({ user, csrf }) {
                 credentials: 'same-origin'
             });
             if (!r.ok) {
-                alert(`Не удалось выйти (сервер: ${r.status}). Сессия может быть активна.`);
+                setLogoutError(`Не удалось выйти (сервер: ${r.status}). Сессия может быть активна.`);
+                logoutTimerRef.current = setTimeout(() => { window.location.href = '/'; }, 3000);
+                return;
             }
         } catch {
             // Network error — redirect anyway (session may already be destroyed)
@@ -53,10 +103,17 @@ export default function DashboardPage({ user, csrf }) {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+                {logoutError && (
+                    <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3 flex items-center justify-between">
+                        <span>{logoutError}</span>
+                        <Button variant="ghost" size="sm" onClick={dismissLogoutError}>×</Button>
+                    </div>
+                )}
+
                 <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => metrics.refresh()}>
+                    <Button variant="ghost" size="sm" onClick={handleRefresh}>
                         <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
-                        обновить
+                        обновить ({countdown}с)
                     </Button>
                 </div>
 
@@ -66,21 +123,35 @@ export default function DashboardPage({ user, csrf }) {
                     </div>
                 )}
 
-                <SummaryCards summary={metrics.summary} />
+                <ErrorBoundary>
+                    <SummaryCards summary={metrics.summary} />
+                </ErrorBoundary>
 
-                <TimeseriesChart
-                    timeseries={metrics.timeseries}
-                    windowSeconds={windowSeconds}
-                    onWindowChange={setWindowSeconds}
-                />
+                <ErrorBoundary>
+                    <TimeseriesChart
+                        timeseries={metrics.timeseries}
+                        windowSeconds={windowSeconds}
+                        onWindowChange={setWindowSeconds}
+                    />
+                </ErrorBoundary>
 
                 <div className="grid md:grid-cols-2 gap-4">
-                    <TopTable
-                        top={metrics.top}
-                        topBy={metrics.topBy}
-                        onByChange={metrics.setTopBy}
-                    />
-                    <ErrorsTable errors={metrics.errors} />
+                    <ErrorBoundary>
+                        <TopTable
+                            top={metrics.top}
+                            topBy={metrics.topBy}
+                            onByChange={metrics.setTopBy}
+                            limit={topLimit}
+                            onLimitChange={setTopLimit}
+                        />
+                    </ErrorBoundary>
+                    <ErrorBoundary>
+                        <ErrorsTable
+                            errors={metrics.errors}
+                            limit={errorsLimit}
+                            onLimitChange={setErrorsLimit}
+                        />
+                    </ErrorBoundary>
                 </div>
 
                 {metrics.lastUpdated && (

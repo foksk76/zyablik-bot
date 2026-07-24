@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // (credentials: 'same-origin'), Bearer token не нужен для UI.
 //
 // Возвращает { summary, timeseries, top, errors, loading, error, refresh, lastUpdated }.
-export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
+export function useMetrics({ windowSeconds = 3600, refreshMs = 30000, topLimit = 5, errorsLimit = 20 }) {
     const [summary, setSummary] = useState(null);
     const [timeseries, setTimeseries] = useState(null);
     const [top, setTop] = useState(null);
@@ -16,6 +16,7 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
     const [error, setError] = useState(null);
     const [lastUpdated, setLastUpdated] = useState(null);
     const refreshRef = useRef(null);
+    const redirectRef = useRef(null);
 
     const refresh = useCallback(async () => {
         try {
@@ -32,8 +33,8 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
             const [sumRes, tsRes, topRes, errRes] = await Promise.all([
                 fetchJson('/api/metrics/summary'),
                 fetchJson(`/api/metrics/timeseries?window=${windowSeconds}`),
-                fetchJson(`/api/metrics/top?by=${topBy}&limit=5`),
-                fetchJson('/api/metrics/errors?limit=20')
+                fetchJson(`/api/metrics/top?by=${topBy}&limit=${topLimit}`),
+                fetchJson(`/api/metrics/errors?limit=${errorsLimit}`)
             ]);
             setSummary(sumRes);
             setTimeseries(tsRes);
@@ -43,14 +44,21 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
             setLastUpdated(new Date());
         } catch (err) {
             if (err.message === 'SESSION_EXPIRED') {
-                setError('Сессия истекла. Войдите заново.');
+                if (refreshRef.current) {
+                    clearInterval(refreshRef.current);
+                    refreshRef.current = null;
+                }
+                setError('Сессия истекла. Перенаправление...');
+                redirectRef.current = setTimeout(() => {
+                    window.location.href = '/api/auth/login';
+                }, 2000);
             } else {
                 setError(err.message);
             }
         } finally {
             setLoading(false);
         }
-    }, [windowSeconds, topBy]);
+    }, [windowSeconds, topBy, topLimit, errorsLimit]);
 
     useEffect(() => {
         refresh();
@@ -62,7 +70,21 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
             if (refreshRef.current) {
                 clearInterval(refreshRef.current);
             }
+            if (redirectRef.current) {
+                clearTimeout(redirectRef.current);
+            }
         };
+    }, [refresh, refreshMs]);
+
+    const refreshNow = useCallback(async () => {
+        await refresh();
+        if (redirectRef.current) {
+            return;
+        }
+        if (refreshRef.current) {
+            clearInterval(refreshRef.current);
+        }
+        refreshRef.current = setInterval(refresh, refreshMs);
     }, [refresh, refreshMs]);
 
     return {
@@ -75,6 +97,7 @@ export function useMetrics({ windowSeconds = 3600, refreshMs = 30000 }) {
         loading,
         error,
         refresh,
+        refreshNow,
         lastUpdated
     };
 }
