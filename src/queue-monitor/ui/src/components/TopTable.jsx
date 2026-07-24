@@ -29,11 +29,11 @@ export default function TopTable({ top, topBy, onByChange, limit, onLimitChange 
     const labelKey = topBy === 'recipient' ? 'recipient' : 'source';
 
     return (
-        <Card>
+        <Card className="overflow-hidden">
             <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                     <CardTitle>Топ отправителей/получателей</CardTitle>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                         <Button
                             variant={topBy === 'source' ? 'default' : 'ghost'}
                             size="sm"
@@ -63,24 +63,40 @@ export default function TopTable({ top, topBy, onByChange, limit, onLimitChange 
                     </div>
                 </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-h-[500px] overflow-auto">
                 {rows.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">Нет данных</p>
+                    <p className="text-sm text-muted-foreground py-8 text-center">
+                        Нет данных за выбранный период
+                    </p>
                 ) : (
-                    <Table>
+                    <Table className="table-fixed">
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-10">#</TableHead>
                                 <TableHead>{topBy === 'recipient' ? 'Получатель' : 'Источник'}</TableHead>
-                                <TableHead className="text-right">Сообщений</TableHead>
+                                <TableHead className="text-right w-24">Сообщений</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {rows.map((row, i) => (
-                                <TableRow key={`${row[labelKey]}-${i}`}>
-                                    <TableCell className="break-all">{row[labelKey] || '—'}</TableCell>
-                                    <TableCell className="text-right font-mono">{row.count}</TableCell>
-                                </TableRow>
-                            ))}
+                            {rows.map((row, i) => {
+                                const maxCount = rows[0]?.count || 1;
+                                const barPct = Math.round((row.count / maxCount) * 100);
+                                return (
+                                    <TableRow key={`${row[labelKey]}-${i}`}>
+                                        <TableCell className="text-muted-foreground text-xs font-mono">{i + 1}</TableCell>
+                                        <TableCell>
+                                            <div className="truncate">{row[labelKey] || '—'}</div>
+                                            <div className="mt-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full bg-primary/60"
+                                                    style={{ width: `${barPct}%` }}
+                                                />
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-sm">{row.count}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 )}

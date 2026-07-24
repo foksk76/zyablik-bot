@@ -4,7 +4,7 @@
 
 @layer base {
     :root {
-        /* shadcn/ui base */
+        /* shadcn/ui base — light */
         --background: 210 40% 98%;
         --foreground: 215.4 16.3% 46.9%;
 
@@ -32,7 +32,7 @@
 
         --radius: 0.5rem;
 
-        /* Semantic colors (exact HSL from tokens/colors.js) */
+        /* Semantic colors — light */
         --success: 160 84% 39%;
         --success-light: 160 40% 95%;
         --success-dark: 162 72% 24%;
@@ -52,6 +52,85 @@
         --info-light: 214 100% 97%;
         --info-dark: 224 76% 41%;
         --info-foreground: 0 0% 100%;
+    }
+
+    .dark {
+        /* shadcn/ui base — dark */
+        --background: 222 47% 11%;
+        --foreground: 210 40% 98%;
+
+        --card: 222 47% 11%;
+        --card-foreground: 210 40% 98%;
+
+        --primary: 198.9 88.7% 48.4%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 217 33% 17%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217 33% 17%;
+        --muted-foreground: 215 20.2% 65.1%;
+
+        --accent: 217 33% 17%;
+        --accent-foreground: 210 40% 98%;
+
+        --destructive: 347.2 78.6% 59.4%;
+        --destructive-foreground: 0 0% 100%;
+
+        --border: 217 33% 17%;
+        --input: 217 33% 17%;
+        --ring: 198.9 88.7% 48.4%;
+
+        /* Semantic colors — dark */
+        --success: 160 84% 49%;
+        --success-light: 160 30% 18%;
+        --success-dark: 160 60% 65%;
+        --success-foreground: 0 0% 100%;
+
+        --error: 347 79% 64%;
+        --error-light: 347 40% 18%;
+        --error-dark: 347 85% 75%;
+        --error-foreground: 0 0% 100%;
+
+        --warning: 38 92% 55%;
+        --warning-light: 38 40% 18%;
+        --warning-dark: 38 80% 70%;
+        --warning-foreground: 0 0% 100%;
+
+        --info: 217 91% 65%;
+        --info-light: 217 40% 18%;
+        --info-dark: 217 80% 75%;
+        --info-foreground: 0 0% 100%;
+    }
+
+    /* Dark theme scrollbars */
+    .dark .overflow-auto,
+    .dark pre {
+        scrollbar-color: hsl(215 20.2% 65.1% / 0.4) hsl(217 33% 17% / 0.2);
+        scrollbar-width: thin;
+    }
+
+    .dark .overflow-auto::-webkit-scrollbar,
+    .dark pre::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .dark .overflow-auto::-webkit-scrollbar-track,
+    .dark pre::-webkit-scrollbar-track {
+        background: hsl(217 33% 17% / 0.2);
+        border-radius: 3px;
+    }
+
+    .dark .overflow-auto::-webkit-scrollbar-thumb,
+    .dark pre::-webkit-scrollbar-thumb {
+        background: hsl(215 20.2% 65.1% / 0.4);
+        border-radius: 3px;
+    }
+
+    .dark .overflow-auto::-webkit-scrollbar-thumb:hover,
+    .dark pre::-webkit-scrollbar-thumb:hover {
+        background: hsl(215 20.2% 65.1% / 0.6);
     }
 }
 

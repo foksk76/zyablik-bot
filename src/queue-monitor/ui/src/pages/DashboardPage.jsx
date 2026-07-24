@@ -7,7 +7,8 @@ import ErrorsTable from '../components/ErrorsTable.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useMetrics } from '../hooks/useMetrics.js';
 import { Button } from '../components/ui/button.jsx';
-import { RefreshCw, LogOut } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle.jsx';
+import { RefreshCw, LogOut, Clock, Activity } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const [windowSeconds, setWindowSeconds] = useState(3600);
@@ -92,8 +93,9 @@ export default function DashboardPage({ user, csrf }) {
                         </div>
                         <h1 className="text-base font-semibold text-foreground">Зяблик — очередь доставки</h1>
                     </div>
-                    <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-sm">
                         <span className="text-muted-foreground hidden sm:inline">{user?.name || user?.email || user?.sub}</span>
+                        <ThemeToggle />
                         <Button variant="ghost" size="sm" onClick={logout}>
                             <LogOut className="w-4 h-4 mr-1 shrink-0" />
                             Выйти
@@ -115,6 +117,12 @@ export default function DashboardPage({ user, csrf }) {
                         <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
                         обновить ({countdown}с)
                     </Button>
+                    {metrics.lastUpdated && (
+                        <span className="text-xs text-muted-foreground hidden sm:inline">
+                            <Clock className="w-3 h-3 inline mr-0.5" />
+                            {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
+                        </span>
+                    )}
                 </div>
 
                 {metrics.error && (
@@ -135,7 +143,7 @@ export default function DashboardPage({ user, csrf }) {
                     />
                 </ErrorBoundary>
 
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-4 [&>*]:min-w-0">
                     <ErrorBoundary>
                         <TopTable
                             top={metrics.top}
@@ -155,9 +163,25 @@ export default function DashboardPage({ user, csrf }) {
                 </div>
 
                 {metrics.lastUpdated && (
-                    <p className="text-xs text-muted-foreground text-center">
-                        обновлено: {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
-                    </p>
+                    <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 pb-4">
+                        <span>
+                            <Clock className="w-3 h-3 inline mr-0.5" />
+                            обновлено: {metrics.lastUpdated.toLocaleTimeString('ru-RU')}
+                        </span>
+                        {!sessionExpired && (
+                            <span>
+                                <Activity className="w-3 h-3 inline mr-0.5" />
+                                следующее: ~{countdown}с
+                            </span>
+                        )}
+                        <span className={
+                            metrics.error
+                                ? 'text-error-dark'
+                                : 'text-success-dark'
+                        }>
+                            {metrics.error ? '⚠ degraded' : '● healthy'}
+                        </span>
+                    </div>
                 )}
             </main>
         </div>

@@ -7,6 +7,7 @@ import { shadows } from './src/tokens/shadows.js';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    darkMode: 'class',
     content: [
         './index.html',
         './src/**/*.{js,jsx}'
