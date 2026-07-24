@@ -443,3 +443,33 @@ test('errors with timeFilter returns only matching rows', () => {
     reader.close();
     fs.unlinkSync(dbPath);
 });
+
+test('timeseries with absolute timeFilter returns only rows in range', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    // Seed a row 2 hours ago (outside 1-hour range)
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'old', recipient: { value: 'u' } }), now - 7200, now - 7200);
+    // Seed a row 30 minutes ago (inside 1-hour range)
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'grafana', 'failed', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'new', recipient: { value: 'u' } }), now - 1800, now - 1800);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    const tf = reader.buildTimeFilter(0, now - 3600, now);
+    const result = reader.timeseries(0, tf);
+
+    // Only the recent row should appear (failed from grafana)
+    const statuses = result.map((r) => r.status);
+    assert.ok(statuses.includes('failed'), 'should include recent failed row');
+    assert.ok(!statuses.includes('delivered') || result.every((r) => r.count === 0), 'should not include old delivered row');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});

@@ -13,11 +13,11 @@ function createQueueReader(options = {}) {
 
     const Database = require('better-sqlite3');
     let db;
-    let stmts;
+    let pingStmt;
 
     try {
         db = new Database(dbPath, { readonly: true });
-        stmts = prepareStatements(db);
+        pingStmt = db.prepare('SELECT 1 as ok');
     } catch (error) {
         // WAL выставляется writer-ом (src/bot-platform/queue/store.js); на readonly
         // подключении journal_mode = WAL бросает SQLITE_READONLY, поэтому здесь прагму
@@ -29,54 +29,14 @@ function createQueueReader(options = {}) {
             });
         }
         db = null;
-        stmts = null;
+        pingStmt = null;
     }
 
-    function prepareStatements(database) {
-        return {
-            summary: database.prepare(`
-                    SELECT status, COUNT(*) as count, SUM(attempts) as total_attempts
-                    FROM delivery_queue
-                    GROUP BY status
-            `),
-            timeseries: database.prepare(`
-                    SELECT
-                            (created_at / 3600) * 3600 as bucket,
-                            status,
-                            COUNT(*) as count
-                    FROM delivery_queue
-                    WHERE created_at >= ?
-                    GROUP BY bucket, status
-                    ORDER BY bucket ASC
-            `),
-            topSource: database.prepare(`
-                    SELECT source, COUNT(*) as count
-                    FROM delivery_queue
-                    WHERE source != ''
-                    GROUP BY source
-                    ORDER BY count DESC
-                    LIMIT ?
-            `),
-            topRecipient: database.prepare(`
-                    SELECT
-                            json_extract(payload, '$.recipient.value') as recipient,
-                            COUNT(*) as count
-                    FROM delivery_queue
-                    WHERE payload LIKE '%"recipient"%'
-                    GROUP BY recipient
-                    ORDER BY count DESC
-                    LIMIT ?
-            `),
-            errors: database.prepare(`
-                    SELECT id, req_id, source, payload, attempts, updated_at
-                    FROM delivery_queue
-                    WHERE status = 'failed'
-                    ORDER BY updated_at DESC
-                    LIMIT ?
-            `),
-            ping: database.prepare('SELECT 1 as ok')
-        };
-    }
+    // ADR-0041: dynamic SQL с clause interpolation — осознанный компромисс.
+    // buildTimeFilter возвращает только захардкоженные SQL-фрагменты
+    // (created_at >= ?, created_at >= ? AND created_at <= ?, 1=1),
+    // параметры передаются через prepared statement params.
+    // Токенизация SQL-инъекций невозможна, т.к. clause не зависит от user input.
 
     function buildTimeFilter(windowSeconds, from, to) {
         const now = Math.floor(Date.now() / 1000);
@@ -193,7 +153,7 @@ function createQueueReader(options = {}) {
         }
 
         try {
-            stmts.ping.get();
+            pingStmt.get();
             return true;
         } catch (error) {
             // Симметрично с catch выше (DB-open): логируем, иначе /readyz молча
