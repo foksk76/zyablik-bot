@@ -52,7 +52,7 @@ function createMonitorHttpServer(options = {}) {
             const key = eqIdx === -1 ? pair : pair.slice(0, eqIdx);
             const value = eqIdx === -1 ? '' : pair.slice(eqIdx + 1);
             if (key) {
-                params[decodeURIComponent(key)] = value ? decodeURIComponent(value) : '';
+                params[decodeURIComponent(key)] = value ? decodeURIComponent(value.replace(/\+/g, '%20')) : '';
             }
         }
         return params;

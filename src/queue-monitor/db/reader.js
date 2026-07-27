@@ -18,6 +18,15 @@ function createQueueReader(options = {}) {
     try {
         db = new Database(dbPath, { readonly: true });
         pingStmt = db.prepare('SELECT 1 as ok');
+
+        // SQLite LIKE is case-sensitive for non-ASCII (Cyrillic) characters.
+        // Register a JS function for case-insensitive payload search.
+        db.function('contains_ci', (payload, term) => {
+            if (!payload || !term) return 0;
+            const p = typeof payload === 'string' ? payload : '';
+            const t = typeof term === 'string' ? term : '';
+            return p.toLowerCase().includes(t.toLowerCase()) ? 1 : 0;
+        });
     } catch (error) {
         // WAL выставляется writer-ом (src/bot-platform/queue/store.js); на readonly
         // подключении journal_mode = WAL бросает SQLITE_READONLY, поэтому здесь прагму
@@ -186,8 +195,8 @@ function createQueueReader(options = {}) {
             params.push(`%${source}%`);
         }
         if (search) {
-            conditions.push('payload LIKE ?');
-            params.push(`%${search}%`);
+            conditions.push('contains_ci(payload, ?) = 1');
+            params.push(search);
         }
         if (from && to && from > 0 && to > from) {
             conditions.push('created_at >= ? AND created_at <= ?');
@@ -275,8 +284,8 @@ function createQueueReader(options = {}) {
             params.push(`%${source}%`);
         }
         if (search) {
-            conditions.push('payload LIKE ?');
-            params.push(`%${search}%`);
+            conditions.push('contains_ci(payload, ?) = 1');
+            params.push(search);
         }
         if (from && to && from > 0 && to > from) {
             conditions.push('created_at >= ? AND created_at <= ?');

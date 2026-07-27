@@ -335,6 +335,22 @@ test('static serving blocks path traversal', () => {
     }
 });
 
+test('server decodes + as space in query params (URL form encoding)', async () => {
+    const server = createMonitorHttpServer({ port: 19020 });
+    let receivedQuery;
+    server.registerRoute('GET', '/search', (ctx) => {
+        receivedQuery = ctx.query;
+        return { statusCode: 200, body: { query: ctx.query } };
+    });
+    await server.start();
+
+    const res = await get('/search?search=%D0%A1%D0%B5%D1%80%D0%B2%D0%B5%D1%80+ELK', 19020);
+    assert.equal(res.status, 200);
+    assert.equal(receivedQuery.search, 'Сервер ELK', '+ decoded as space');
+
+    await server.stop();
+});
+
 test('static serving returns 404 when staticDir has no index.html and route missing', async () => {
     const dir = tmpStaticDir();
     // пустая директория, без index.html
