@@ -3,6 +3,15 @@
 
 const MODULE_NAME = 'queue-monitor-archive-routes';
 
+function csvEscape(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+}
+
 function createArchiveRoutes(options = {}) {
     const reader = options.reader;
     const queueStore = options.queueStore || null;
@@ -143,10 +152,77 @@ function createArchiveRoutes(options = {}) {
         };
     }
 
+    function exportArchive(ctx) {
+        const format = ctx.query.format === 'json' ? 'json' : 'csv';
+
+        const status = ctx.query.status || undefined;
+        const source = ctx.query.source || undefined;
+        const search = ctx.query.search || undefined;
+
+        let from = null;
+        let to = null;
+        if (ctx.query.from && ctx.query.to) {
+            from = Number(ctx.query.from);
+            to = Number(ctx.query.to);
+            if (Number.isNaN(from) || Number.isNaN(to) || from <= 0 || to <= 0 || from >= to) {
+                from = null;
+                to = null;
+            }
+        }
+
+        const now = new Date();
+        const ts = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}_${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}`;
+
+        const res = ctx.res;
+
+        if (format === 'json') {
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Content-Disposition': `attachment; filename="archive_${ts}.json"`
+            });
+
+            res.write('{"data":[');
+            let first = true;
+            for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
+                for (const row of batch) {
+                    if (!first) res.write(',');
+                    res.write(JSON.stringify(row));
+                    first = false;
+                }
+            }
+            res.write(']}');
+            res.end();
+        } else {
+            res.writeHead(200, {
+                'Content-Type': 'text/csv',
+                'Content-Disposition': `attachment; filename="archive_${ts}.csv"`
+            });
+
+            res.write('id,reqId,source,status,attempts,createdAt,updatedAt,payload\n');
+            for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
+                for (const row of batch) {
+                    const line = [
+                        row.id,
+                        csvEscape(row.reqId || ''),
+                        csvEscape(row.source || ''),
+                        row.status,
+                        row.attempts,
+                        row.createdAt,
+                        row.updatedAt,
+                        csvEscape(typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload))
+                    ].join(',');
+                    res.write(line + '\n');
+                }
+            }
+            res.end();
+        }
+    }
+
     return {
         messages,
         messageById,
-        retry
+        retry,
+        exportArchive
     };
 }
 

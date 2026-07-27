@@ -262,6 +262,72 @@ function createQueueReader(options = {}) {
         };
     }
 
+    function archiveMessagesBatch({ status, source, search, from, to, batchSize = 1000 } = {}) {
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            conditions.push('status = ?');
+            params.push(status);
+        }
+        if (source) {
+            conditions.push('source LIKE ?');
+            params.push(`%${source}%`);
+        }
+        if (search) {
+            conditions.push('payload LIKE ?');
+            params.push(`%${search}%`);
+        }
+        if (from && to && from > 0 && to > from) {
+            conditions.push('created_at >= ? AND created_at <= ?');
+            params.push(from, to);
+        } else if (from && from > 0) {
+            conditions.push('created_at >= ?');
+            params.push(from);
+        } else if (to && to > 0) {
+            conditions.push('created_at <= ?');
+            params.push(to);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const stmt = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            ${where}
+            ORDER BY id ASC
+            LIMIT ? OFFSET ?
+        `);
+
+        let offset = 0;
+
+        return {
+            [Symbol.iterator]() {
+                return {
+                    next() {
+                        const rows = stmt.all(...params, batchSize, offset);
+                        offset += batchSize;
+                        if (rows.length === 0) {
+                            return { done: true, value: undefined };
+                        }
+                        return {
+                            done: false,
+                            value: rows.map((row) => ({
+                                id: row.id,
+                                reqId: row.req_id || null,
+                                source: row.source,
+                                payload: row.payload,
+                                status: row.status,
+                                attempts: row.attempts,
+                                createdAt: row.created_at,
+                                updatedAt: row.updated_at
+                            }))
+                        };
+                    }
+                };
+            }
+        };
+    }
+
     return {
         summary,
         timeseries,
@@ -269,6 +335,7 @@ function createQueueReader(options = {}) {
         topRecipient,
         errors,
         archiveMessages,
+        archiveMessagesBatch,
         archiveMessageById,
         ready,
         close,

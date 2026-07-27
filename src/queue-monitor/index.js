@@ -124,6 +124,7 @@ function createQueueMonitor(options = {}) {
     httpServer.registerRoute('GET', '/api/archive/messages', auth.protectRoute(archive.messages));
     httpServer.registerRoute('GET', '/api/archive/messages/*', auth.protectRoute(archive.messageById));
     httpServer.registerRoute('POST', '/api/archive/retry/*', auth.protectRoute(archive.retry));
+    httpServer.registerRoute('GET', '/api/archive/export', auth.protectRoute(archive.exportArchive));
 
     // Auth routes: OAuth2 login/callback/logout/session (если auth layer включён).
     if (authRoutes) {
