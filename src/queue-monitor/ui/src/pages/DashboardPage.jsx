@@ -100,105 +100,92 @@ export default function DashboardPage({ user, csrf }) {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <header className="bg-card border-b border-border">
-                <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-                            <span className="text-primary-foreground font-bold text-sm">З</span>
-                        </div>
-                        <h1 className="text-base font-semibold text-foreground">Зяблик — очередь доставки</h1>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground hidden sm:inline">{user?.name || user?.email || user?.sub}</span>
-                        <ThemeToggle />
-                        <Button variant="ghost" size="sm" onClick={logout}>
-                            <LogOut className="w-4 h-4 mr-1 shrink-0" />
-                            Выйти
-                        </Button>
-                    </div>
+        <div className="space-y-4">
+            <div className="flex items-center justify-end gap-2 text-sm">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={logout}>
+                    <LogOut className="w-4 h-4 mr-1 shrink-0" />
+                    Выйти
+                </Button>
+            </div>
+
+            {logoutError && (
+                <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3 flex items-center justify-between">
+                    <span>{logoutError}</span>
+                    <Button variant="ghost" size="sm" onClick={dismissLogoutError}>×</Button>
                 </div>
-            </header>
+            )}
 
-            <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
-                {logoutError && (
-                    <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3 flex items-center justify-between">
-                        <span>{logoutError}</span>
-                        <Button variant="ghost" size="sm" onClick={dismissLogoutError}>×</Button>
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                        <RefreshButton
-                            refreshMs={refreshMs}
-                            countdown={countdown}
-                            onRefresh={handleRefresh}
-                            onIntervalChange={setRefreshMs}
-                        />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <TimeRangeBar
-                            timeRange={timeRange}
-                            onTimeRangeChange={handleTimeRangeChange}
-                        />
-                    </div>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                    <RefreshButton
+                        refreshMs={refreshMs}
+                        countdown={countdown}
+                        onRefresh={handleRefresh}
+                        onIntervalChange={setRefreshMs}
+                    />
                 </div>
+                <div className="flex items-center gap-2">
+                    <TimeRangeBar
+                        timeRange={timeRange}
+                        onTimeRangeChange={handleTimeRangeChange}
+                    />
+                </div>
+            </div>
 
-                {metrics.error && (
-                    <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3">
-                        Ошибка загрузки метрик: {metrics.error}
-                    </div>
-                )}
+            {metrics.error && (
+                <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3">
+                    Ошибка загрузки метрик: {metrics.error}
+                </div>
+            )}
 
+            <ErrorBoundary>
+                <SummaryCards summary={metrics.summary} />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <TimeseriesChart
+                    timeseries={metrics.timeseries}
+                    onPan={handlePan}
+                />
+            </ErrorBoundary>
+
+            <div className="grid md:grid-cols-2 gap-4 [&>*]:min-w-0">
                 <ErrorBoundary>
-                    <SummaryCards summary={metrics.summary} />
-                </ErrorBoundary>
-
-                <ErrorBoundary>
-                    <TimeseriesChart
-                        timeseries={metrics.timeseries}
-                        onPan={handlePan}
+                    <TopTable
+                        top={metrics.top}
+                        topBy={metrics.topBy}
+                        onByChange={metrics.setTopBy}
+                        limit={topLimit}
+                        onLimitChange={setTopLimit}
                     />
                 </ErrorBoundary>
+                <ErrorBoundary>
+                    <ErrorsTable
+                        errors={metrics.errors}
+                        limit={errorsLimit}
+                        onLimitChange={setErrorsLimit}
+                    />
+                </ErrorBoundary>
+            </div>
 
-                <div className="grid md:grid-cols-2 gap-4 [&>*]:min-w-0">
-                    <ErrorBoundary>
-                        <TopTable
-                            top={metrics.top}
-                            topBy={metrics.topBy}
-                            onByChange={metrics.setTopBy}
-                            limit={topLimit}
-                            onLimitChange={setTopLimit}
-                        />
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                        <ErrorsTable
-                            errors={metrics.errors}
-                            limit={errorsLimit}
-                            onLimitChange={setErrorsLimit}
-                        />
-                    </ErrorBoundary>
-                </div>
-
-                {metrics.lastUpdated && (
-                    <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 pb-4">
-                        {!sessionExpired && refreshMs > 0 && (
-                            <span>
-                                <Activity className="w-3 h-3 inline mr-0.5" />
-                                следующее: ~{countdown}с
-                            </span>
-                        )}
-                        <span className={
-                            metrics.error
-                                ? 'text-error-dark'
-                                : 'text-success-dark'
-                        }>
-                            {metrics.error ? '⚠ degraded' : '● healthy'}
+            {metrics.lastUpdated && (
+                <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 pb-4">
+                    {!sessionExpired && refreshMs > 0 && (
+                        <span>
+                            <Activity className="w-3 h-3 inline mr-0.5" />
+                            следующее: ~{countdown}с
                         </span>
-                    </div>
-                )}
-            </main>
+                    )}
+                    <span className={
+                        metrics.error
+                            ? 'text-error-dark'
+                            : 'text-success-dark'
+                    }>
+                        {metrics.error ? '⚠ degraded' : '● healthy'}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }

@@ -173,12 +173,103 @@ function createQueueReader(options = {}) {
         }
     }
 
+    function archiveMessages({ page = 1, limit = 20, status, source, search, from, to, sort } = {}) {
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            conditions.push('status = ?');
+            params.push(status);
+        }
+        if (source) {
+            conditions.push('source LIKE ?');
+            params.push(`%${source}%`);
+        }
+        if (search) {
+            conditions.push('payload LIKE ?');
+            params.push(`%${search}%`);
+        }
+        if (from && to && from > 0 && to > from) {
+            conditions.push('created_at >= ? AND created_at <= ?');
+            params.push(from, to);
+        } else if (from && from > 0) {
+            conditions.push('created_at >= ?');
+            params.push(from);
+        } else if (to && to > 0) {
+            conditions.push('created_at <= ?');
+            params.push(to);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const sortParts = (sort || 'created_at:desc').split(':');
+        const sortColumn = sortParts[0] === 'created_at' ? 'created_at' : 'created_at';
+        const sortDir = sortParts[1] === 'asc' ? 'ASC' : 'DESC';
+
+        const countRow = db.prepare(`SELECT COUNT(*) as total FROM delivery_queue ${where}`).get(...params);
+        const total = countRow.total;
+        const pages = Math.max(1, Math.ceil(total / limit));
+
+        const safePage = Math.min(Math.max(1, page), pages);
+        const offset = (safePage - 1) * limit;
+
+        const rows = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            ${where}
+            ORDER BY ${sortColumn} ${sortDir}
+            LIMIT ? OFFSET ?
+        `).all(...params, limit, offset);
+
+        return {
+            data: rows.map((row) => ({
+                id: row.id,
+                reqId: row.req_id || null,
+                source: row.source,
+                payload: row.payload,
+                status: row.status,
+                attempts: row.attempts,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            })),
+            total,
+            page: safePage,
+            limit,
+            pages
+        };
+    }
+
+    function archiveMessageById(id) {
+        const row = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            WHERE id = ?
+        `).get(id);
+
+        if (!row) {
+            return null;
+        }
+
+        return {
+            id: row.id,
+            reqId: row.req_id || null,
+            source: row.source,
+            payload: row.payload,
+            status: row.status,
+            attempts: row.attempts,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
+    }
+
     return {
         summary,
         timeseries,
         topSource,
         topRecipient,
         errors,
+        archiveMessages,
+        archiveMessageById,
         ready,
         close,
         buildTimeFilter

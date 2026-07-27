@@ -8,6 +8,7 @@ const { createQueueReader } = require('./db/reader');
 const { createMonitorHttpServer } = require('./http-server');
 const { createBearerAuth } = require('./api/auth');
 const { createMetricsRoutes } = require('./api/metrics');
+const { createArchiveRoutes } = require('./api/archive-routes');
 const { createReadyzRoute } = require('./api/readyz');
 const { createAuthRoutes } = require('./api/auth-routes');
 const { createAuthRateLimiter } = require('./api/auth-rate-limit');
@@ -24,6 +25,7 @@ function createQueueMonitor(options = {}) {
     const environment = options.environment || process.env;
     const config = options.config || createQueueMonitorConfig(environment);
     const logger = options.logger || console;
+    const queueStore = options.queueStore || null;
 
     if (!config.monitorEnabled) {
         return {
@@ -116,6 +118,12 @@ function createQueueMonitor(options = {}) {
     httpServer.registerRoute('GET', '/api/metrics/timeseries', auth.protectRoute(metrics.timeseries));
     httpServer.registerRoute('GET', '/api/metrics/top', auth.protectRoute(metrics.top));
     httpServer.registerRoute('GET', '/api/metrics/errors', auth.protectRoute(metrics.errors));
+
+    // Archive routes — pagination, details, retry.
+    const archive = createArchiveRoutes({ reader, queueStore });
+    httpServer.registerRoute('GET', '/api/archive/messages', auth.protectRoute(archive.messages));
+    httpServer.registerRoute('GET', '/api/archive/messages/:id', auth.protectRoute(archive.messageById));
+    httpServer.registerRoute('POST', '/api/archive/retry/:id', auth.protectRoute(archive.retry));
 
     // Auth routes: OAuth2 login/callback/logout/session (если auth layer включён).
     if (authRoutes) {

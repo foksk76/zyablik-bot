@@ -164,11 +164,12 @@ async function startIngressAndQueue(config, options, io) {
 
   // ADR-0034: queue monitor dashboard — readonly replica + HTTP server.
   // Запускается после queue-store (нужен dbPath), останавливается ПОСЛЕ worker.
-  if (config.monitorEnabled) {
+    if (config.monitorEnabled) {
     const monitorDbPath = options.monitorDbPath || options.queueDbPath || 'delivery-queue.db';
     const monitor = options.monitor || createQueueMonitor({
       environment,
       dbPath: monitorDbPath,
+      queueStore,
       logger: options.logger || console
     });
 

@@ -34,7 +34,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 2: Рефактор App.jsx — React Router
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Обернуть приложение в `HashRouter`. Заменить условный
 рендеринг на `Routes`/`Route`. Вынести header с навигацией.
@@ -57,7 +57,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 3: Компонент NavBar
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Горизонтальная навигационная панель в header.
 Три ссылки: Дашборд, Архив, Настройки. Active state через
@@ -84,7 +84,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 4: Страница Settings (заглушка)
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Заглушка для страницы настроек. Отображает заголовок
 и список будущих подразделов.
@@ -116,7 +116,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 5: Archive queries в reader.js
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Добавить в `reader.js` функции для пагинированного
 списка сообщений и деталей одного сообщения.
@@ -141,7 +141,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 6: Archive routes (backend API)
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Создать `archive-routes.js` с эндпоинтами для архива.
 Зарегистрировать в `http-server.js`.
@@ -172,7 +172,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 7: Инъекция queueStore в queue-monitor
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** По ADR-0016, передать `queueStore` как опцию в
 `createQueueMonitor()`. Использовать для retry в Sprint 32.
