@@ -8,10 +8,10 @@ import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useMetrics } from '../hooks/useMetrics.js';
 import { useTimeRange } from '../hooks/useTimeRange.js';
 import TimeRangeBar from '../components/TimeRangeBar.jsx';
-import RefreshDropdown from '../components/RefreshDropdown.jsx';
+import RefreshButton from '../components/RefreshButton.jsx';
 import { Button } from '../components/ui/button.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
-import { RefreshCw, LogOut, Activity } from 'lucide-react';
+import { LogOut, Activity } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const { timeRange, setRelative, setAbsolute } = useTimeRange();
@@ -67,11 +67,6 @@ export default function DashboardPage({ user, csrf }) {
     function handleRefresh() {
         metrics.refreshNow();
         setCountdown(refreshMs / 1000);
-    }
-
-    function handleRefreshOptionChange(ms) {
-        setRefreshMs(ms);
-        setCountdown(ms / 1000);
     }
 
     function handleTimeRangeChange(mode, value) {
@@ -135,11 +130,12 @@ export default function DashboardPage({ user, csrf }) {
 
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={handleRefresh}>
-                            <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
-                            {refreshMs > 0 ? `обновить (${countdown}с)` : 'обновить'}
-                        </Button>
-                        <RefreshDropdown value={refreshMs} onChange={setRefreshMs} />
+                        <RefreshButton
+                            refreshMs={refreshMs}
+                            countdown={countdown}
+                            onRefresh={handleRefresh}
+                            onIntervalChange={setRefreshMs}
+                        />
                     </div>
                     <div className="flex items-center gap-2">
                         <TimeRangeBar

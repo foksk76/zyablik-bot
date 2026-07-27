@@ -35,9 +35,28 @@ function pivot(rows) {
     return Array.from(byBucket.values()).sort((a, b) => a.bucket - b.bucket);
 }
 
-function formatBucket(ts) {
+function formatTime(ts) {
     const d = new Date(ts * 1000);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatDate(ts) {
+    const d = new Date(ts * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function sameDay(a, b) {
+    const da = new Date(a * 1000);
+    const db = new Date(b * 1000);
+    return da.getFullYear() === db.getFullYear() &&
+        da.getMonth() === db.getMonth() &&
+        da.getDate() === db.getDate();
+}
+
+function createTickFormatter(data) {
+    if (!data || data.length === 0) return formatTime;
+    return sameDay(data[0].bucket, data[data.length - 1].bucket) ? formatTime : formatDate;
 }
 
 function formatBucketFull(ts) {
@@ -71,6 +90,7 @@ export default function TimeseriesChart({ timeseries, onPan }) {
     const axisTick = theme === 'dark' ? neutral[400] : neutral[600];
 
     const data = pivot(timeseries?.data);
+    const tickFormatter = createTickFormatter(data);
 
     const [isDragging, setIsDragging] = useState(false);
     const [dragStartLabel, setDragStartLabel] = useState(null);
@@ -145,7 +165,7 @@ export default function TimeseriesChart({ timeseries, onPan }) {
                                 onMouseUp={handleMouseUp}
                             >
                                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                                <XAxis dataKey="bucket" tickFormatter={formatBucket} fontSize={11} tick={{ fill: axisTick }} />
+                                <XAxis dataKey="bucket" tickFormatter={tickFormatter} fontSize={11} tick={{ fill: axisTick }} />
                                 <YAxis allowDecimals={false} fontSize={11} tick={{ fill: axisTick }} />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Legend wrapperStyle={{ color: axisTick }} />
