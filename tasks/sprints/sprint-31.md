@@ -17,7 +17,7 @@ TimeRangeBar). Все тесты passing.
 
 #### Task 1: Установка React Router
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Установить `react-router-dom` v6 в `src/queue-monitor/ui/`.
 
