@@ -16,7 +16,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 8: Хук useArchive
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Хук для data fetching архива. Управляет пагинацией,
 фильтрами, сортировкой, загрузкой данных.
@@ -37,7 +37,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 9: ArchivePage — таблица с пагинацией
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Основная страница архива. Таблица с колонками,
 пагинация с номерами страниц, сортировка по клику на заголовок.
@@ -69,7 +69,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 10: Фильтры архива
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Панель фильтров над таблицей: поиск, статус,
 источник, диапазон дат (пресеты + absolute), экспорт.
@@ -108,7 +108,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 11: Просмотр деталей сообщения
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Клик по строке таблицы открывает детали сообщения.
 Отдельный роут `/archive/:id`.
@@ -136,7 +136,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 12: Retry — backend endpoint
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `POST /api/archive/retry/:id` — повторная отправка
 сообщения через `queueStore.enqueue()`.
@@ -167,7 +167,7 @@ queueStore injection. Все тесты passing.
 
 #### Task 13: Retry — UI
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Кнопка «Повторить» в деталях сообщения и в строке таблицы.
 Optimistic UI, без подтверждения.
@@ -205,7 +205,7 @@ Optimistic UI, без подтверждения.
 
 #### Task 14: Export — backend endpoint
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `GET /api/archive/export?format=csv|json` — экспорт
 **всех результатов фильтра** (без пагинации). Streaming для больших объёмов.
@@ -231,7 +231,7 @@ Optimistic UI, без подтверждения.
 
 #### Task 15: Export — UI
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Кнопка экспорта в панели фильтров архива.
 Скачивание **всех результатов фильтра** (без пагинации).
