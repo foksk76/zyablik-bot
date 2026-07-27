@@ -182,7 +182,22 @@ function createMonitorHttpServer(options = {}) {
         const method = req.method;
 
         const routeKey = `${method} ${urlPath}`;
-        const handler = routes[routeKey] || routes[urlPath];
+        let handler = routes[routeKey] || routes[urlPath];
+
+        // Prefix wildcard fallback: "GET /api/archive/messages/*" matches
+        // "GET /api/archive/messages/42".
+        if (!handler) {
+            const prefix = `${method} `;
+            for (const key of Object.keys(routes)) {
+                if (key.startsWith(prefix) && key.endsWith('/*')) {
+                    const routePath = key.slice(prefix.length, -2);
+                    if (urlPath.startsWith(routePath + '/')) {
+                        handler = routes[key];
+                        break;
+                    }
+                }
+            }
+        }
 
         if (handler) {
             try {

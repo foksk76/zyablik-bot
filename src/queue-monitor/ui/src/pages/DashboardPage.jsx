@@ -10,8 +10,7 @@ import { useTimeRange } from '../hooks/useTimeRange.js';
 import TimeRangeBar from '../components/TimeRangeBar.jsx';
 import RefreshButton from '../components/RefreshButton.jsx';
 import { Button } from '../components/ui/button.jsx';
-import ThemeToggle from '../components/ThemeToggle.jsx';
-import { LogOut, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const { timeRange, setRelative, setAbsolute } = useTimeRange();
@@ -101,14 +100,6 @@ export default function DashboardPage({ user, csrf }) {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-end gap-2 text-sm">
-                <ThemeToggle />
-                <Button variant="ghost" size="sm" onClick={logout}>
-                    <LogOut className="w-4 h-4 mr-1 shrink-0" />
-                    Выйти
-                </Button>
-            </div>
-
             {logoutError && (
                 <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3 flex items-center justify-between">
                     <span>{logoutError}</span>

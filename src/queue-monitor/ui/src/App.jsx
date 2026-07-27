@@ -27,7 +27,7 @@ export default function App() {
     return (
         <HashRouter>
             <div className="min-h-screen bg-background">
-                <NavBar user={session.user} />
+                <NavBar user={session.user} csrf={session.csrf} />
                 <main className="max-w-7xl mx-auto px-4 py-6">
                     <Routes>
                         <Route path="/dashboard" element={<DashboardPage user={session.user} csrf={session.csrf} />} />
