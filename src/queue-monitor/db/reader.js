@@ -212,7 +212,8 @@ function createQueueReader(options = {}) {
         const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const sortParts = (sort || 'created_at:desc').split(':');
-        const sortColumn = 'created_at';
+        const ALLOWED_SORT_COLUMNS = new Set(['id', 'created_at', 'status', 'source', 'attempts']);
+        const sortColumn = ALLOWED_SORT_COLUMNS.has(sortParts[0]) ? sortParts[0] : 'created_at';
         const sortDir = sortParts[1] === 'asc' ? 'ASC' : 'DESC';
 
         const countRow = db.prepare(`SELECT COUNT(*) as total FROM delivery_queue ${where}`).get(...params);

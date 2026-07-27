@@ -175,46 +175,55 @@ function createArchiveRoutes(options = {}) {
 
         const res = ctx.res;
 
-        if (format === 'json') {
-            res.writeHead(200, {
-                'Content-Type': 'application/json',
-                'Content-Disposition': `attachment; filename="archive_${ts}.json"`
-            });
+        try {
+            if (format === 'json') {
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Content-Disposition': `attachment; filename="archive_${ts}.json"`
+                });
 
-            res.write('{"data":[');
-            let first = true;
-            for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
-                for (const row of batch) {
-                    if (!first) res.write(',');
-                    res.write(JSON.stringify(row));
-                    first = false;
+                res.write('{"data":[');
+                let first = true;
+                for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
+                    for (const row of batch) {
+                        if (!first) res.write(',');
+                        res.write(JSON.stringify(row));
+                        first = false;
+                    }
+                }
+                res.write(']}');
+            } else {
+                res.writeHead(200, {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': `attachment; filename="archive_${ts}.csv"`
+                });
+
+                res.write('id,reqId,source,status,attempts,createdAt,updatedAt,payload\n');
+                for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
+                    for (const row of batch) {
+                        const line = [
+                            row.id,
+                            csvEscape(row.reqId || ''),
+                            csvEscape(row.source || ''),
+                            row.status,
+                            row.attempts,
+                            row.createdAt,
+                            row.updatedAt,
+                            csvEscape(typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload))
+                        ].join(',');
+                        res.write(line + '\n');
+                    }
                 }
             }
-            res.write(']}');
-            res.end();
-        } else {
-            res.writeHead(200, {
-                'Content-Type': 'text/csv',
-                'Content-Disposition': `attachment; filename="archive_${ts}.csv"`
-            });
-
-            res.write('id,reqId,source,status,attempts,createdAt,updatedAt,payload\n');
-            for (const batch of reader.archiveMessagesBatch({ status, source, search, from, to })) {
-                for (const row of batch) {
-                    const line = [
-                        row.id,
-                        csvEscape(row.reqId || ''),
-                        csvEscape(row.source || ''),
-                        row.status,
-                        row.attempts,
-                        row.createdAt,
-                        row.updatedAt,
-                        csvEscape(typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload))
-                    ].join(',');
-                    res.write(line + '\n');
-                }
+        } catch (error) {
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Export failed' }));
             }
-            res.end();
+        } finally {
+            if (!res.writableEnded) {
+                res.end();
+            }
         }
     }
 

@@ -73,7 +73,7 @@ function CustomTooltip({ active, payload, label }) {
             {payload.map((p) => (
                 <div key={p.dataKey} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                    <span className="text-muted-foreground">{p.dataKey}:</span>
+                    <span className="text-muted-foreground">{STATUS_LABELS[p.dataKey] || p.dataKey}:</span>
                     <span className="font-mono">{p.value ?? 0}</span>
                 </div>
             ))}
