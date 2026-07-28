@@ -169,6 +169,7 @@ async function startIngressAndQueue(config, options, io) {
     const monitor = options.monitor || createQueueMonitor({
       environment,
       dbPath: monitorDbPath,
+      queueStore,
       logger: options.logger || console
     });
 

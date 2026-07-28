@@ -3,7 +3,10 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table.jsx';
 import { Button } from './ui/button.jsx';
+import LimitDropdown from './ui/limit-dropdown.jsx';
 import { ArrowUpRight, Users } from 'lucide-react';
+
+const LIMIT_OPTIONS = [5, 10, 20];
 
 export default function TopTable({ top, topBy, onByChange, limit, onLimitChange }) {
     if (top === null) {
@@ -50,16 +53,7 @@ export default function TopTable({ top, topBy, onByChange, limit, onLimitChange 
                             <Users className="w-3.5 h-3.5 mr-1 shrink-0" />
                             по получателю
                         </Button>
-                        {[5, 10, 20].map((v) => (
-                            <Button
-                                key={v}
-                                variant={limit === v ? 'default' : 'ghost'}
-                                size="sm"
-                                onClick={() => onLimitChange(v)}
-                            >
-                                {v}
-                            </Button>
-                        ))}
+                        <LimitDropdown value={limit} onChange={onLimitChange} options={LIMIT_OPTIONS} />
                     </div>
                 </div>
             </CardHeader>

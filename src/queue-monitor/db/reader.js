@@ -18,6 +18,15 @@ function createQueueReader(options = {}) {
     try {
         db = new Database(dbPath, { readonly: true });
         pingStmt = db.prepare('SELECT 1 as ok');
+
+        // SQLite LIKE is case-sensitive for non-ASCII (Cyrillic) characters.
+        // Register a JS function for case-insensitive payload search.
+        db.function('contains_ci', (payload, term) => {
+            if (!payload || !term) return 0;
+            const p = typeof payload === 'string' ? payload : '';
+            const t = typeof term === 'string' ? term : '';
+            return p.toLowerCase().includes(t.toLowerCase()) ? 1 : 0;
+        });
     } catch (error) {
         // WAL выставляется writer-ом (src/bot-platform/queue/store.js); на readonly
         // подключении journal_mode = WAL бросает SQLITE_READONLY, поэтому здесь прагму
@@ -173,12 +182,171 @@ function createQueueReader(options = {}) {
         }
     }
 
+    function archiveMessages({ page = 1, limit = 20, status, source, search, from, to, sort } = {}) {
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            conditions.push('status = ?');
+            params.push(status);
+        }
+        if (source) {
+            conditions.push('source LIKE ?');
+            params.push(`%${source}%`);
+        }
+        if (search) {
+            conditions.push('contains_ci(payload, ?) = 1');
+            params.push(search);
+        }
+        if (from && to && from > 0 && to > from) {
+            conditions.push('created_at >= ? AND created_at <= ?');
+            params.push(from, to);
+        } else if (from && from > 0) {
+            conditions.push('created_at >= ?');
+            params.push(from);
+        } else if (to && to > 0) {
+            conditions.push('created_at <= ?');
+            params.push(to);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const sortParts = (sort || 'created_at:desc').split(':');
+        const ALLOWED_SORT_COLUMNS = new Set(['id', 'created_at', 'status', 'source', 'attempts']);
+        const sortColumn = ALLOWED_SORT_COLUMNS.has(sortParts[0]) ? sortParts[0] : 'created_at';
+        const sortDir = sortParts[1] === 'asc' ? 'ASC' : 'DESC';
+
+        const countRow = db.prepare(`SELECT COUNT(*) as total FROM delivery_queue ${where}`).get(...params);
+        const total = countRow.total;
+        const pages = Math.max(1, Math.ceil(total / limit));
+
+        const safePage = Math.min(Math.max(1, page), pages);
+        const offset = (safePage - 1) * limit;
+
+        const rows = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            ${where}
+            ORDER BY ${sortColumn} ${sortDir}
+            LIMIT ? OFFSET ?
+        `).all(...params, limit, offset);
+
+        return {
+            data: rows.map((row) => ({
+                id: row.id,
+                reqId: row.req_id || null,
+                source: row.source,
+                payload: row.payload,
+                status: row.status,
+                attempts: row.attempts,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at
+            })),
+            total,
+            page: safePage,
+            limit,
+            pages
+        };
+    }
+
+    function archiveMessageById(id) {
+        const row = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            WHERE id = ?
+        `).get(id);
+
+        if (!row) {
+            return null;
+        }
+
+        return {
+            id: row.id,
+            reqId: row.req_id || null,
+            source: row.source,
+            payload: row.payload,
+            status: row.status,
+            attempts: row.attempts,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
+    }
+
+    function archiveMessagesBatch({ status, source, search, from, to, batchSize = 1000 } = {}) {
+        const conditions = [];
+        const params = [];
+
+        if (status) {
+            conditions.push('status = ?');
+            params.push(status);
+        }
+        if (source) {
+            conditions.push('source LIKE ?');
+            params.push(`%${source}%`);
+        }
+        if (search) {
+            conditions.push('contains_ci(payload, ?) = 1');
+            params.push(search);
+        }
+        if (from && to && from > 0 && to > from) {
+            conditions.push('created_at >= ? AND created_at <= ?');
+            params.push(from, to);
+        } else if (from && from > 0) {
+            conditions.push('created_at >= ?');
+            params.push(from);
+        } else if (to && to > 0) {
+            conditions.push('created_at <= ?');
+            params.push(to);
+        }
+
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const stmt = db.prepare(`
+            SELECT id, req_id, source, payload, status, attempts, created_at, updated_at
+            FROM delivery_queue
+            ${where}
+            ORDER BY id ASC
+            LIMIT ? OFFSET ?
+        `);
+
+        let offset = 0;
+
+        return {
+            [Symbol.iterator]() {
+                return {
+                    next() {
+                        const rows = stmt.all(...params, batchSize, offset);
+                        offset += batchSize;
+                        if (rows.length === 0) {
+                            return { done: true, value: undefined };
+                        }
+                        return {
+                            done: false,
+                            value: rows.map((row) => ({
+                                id: row.id,
+                                reqId: row.req_id || null,
+                                source: row.source,
+                                payload: row.payload,
+                                status: row.status,
+                                attempts: row.attempts,
+                                createdAt: row.created_at,
+                                updatedAt: row.updated_at
+                            }))
+                        };
+                    }
+                };
+            }
+        };
+    }
+
     return {
         summary,
         timeseries,
         topSource,
         topRecipient,
         errors,
+        archiveMessages,
+        archiveMessagesBatch,
+        archiveMessageById,
         ready,
         close,
         buildTimeFilter

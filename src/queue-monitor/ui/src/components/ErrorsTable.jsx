@@ -3,8 +3,10 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table.jsx';
 import { Badge } from './ui/badge.jsx';
-import { Button } from './ui/button.jsx';
+import LimitDropdown from './ui/limit-dropdown.jsx';
 import { AlertTriangle } from 'lucide-react';
+
+const LIMIT_OPTIONS = [20, 50, 100];
 
 function formatTime(ts) {
     if (!ts) {
@@ -14,17 +16,7 @@ function formatTime(ts) {
     return d.toLocaleString('ru-RU');
 }
 
-function parseRecipient(payload) {
-    if (!payload) {
-        return '—';
-    }
-    try {
-        const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
-        return obj?.recipient?.value || '—';
-    } catch {
-        return '—';
-    }
-}
+import { parseRecipient } from '../lib/format.js';
 
 function formatPayload(payload) {
     if (!payload) return '—';
@@ -77,16 +69,7 @@ export default function ErrorsTable({ errors, limit, onLimitChange }) {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                     <CardTitle>Последние ошибки</CardTitle>
                     <div className="flex gap-1 flex-wrap">
-                        {[20, 50, 100].map((v) => (
-                            <Button
-                                key={v}
-                                variant={limit === v ? 'default' : 'ghost'}
-                                size="sm"
-                                onClick={() => onLimitChange(v)}
-                            >
-                                {v}
-                            </Button>
-                        ))}
+                        <LimitDropdown value={limit} onChange={onLimitChange} options={LIMIT_OPTIONS} />
                     </div>
                 </div>
             </CardHeader>

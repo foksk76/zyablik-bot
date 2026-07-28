@@ -37,6 +37,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-28.md` — ADR-0040 Queue Monitor Polish: configurable limits, countdown, error boundary
 - `sprint-29.md` — ADR-0041 Глобальный фильтр времени — Backend + State Management
 - `sprint-30.md` — ADR-0041 Глобальный фильтр времени — UI Components + Drag-to-Pan
+- `sprint-31.md` — ADR-0042 Web Interface: Navigation Shell + Archive Backend
+- `sprint-32.md` — ADR-0042 Web Interface: Archive UI + Retry + Export
 
 ## Status
 
@@ -65,6 +67,8 @@ Sprint 27: Complete (ADR-0040: Queue Monitor UX — error drill-down, session re
 Sprint 28: Complete (ADR-0040: Queue Monitor Polish — configurable limits, countdown, error boundary)
 Sprint 29: Planned (ADR-0041: Глобальный фильтр времени — Backend + State Management)
 Sprint 30: Planned (ADR-0041: Глобальный фильтр времени — UI Components + Drag-to-Pan)
+Sprint 31: Planned (Web Interface: Navigation Shell + Archive Backend)
+Sprint 32: Planned (Web Interface: Archive UI + Retry + Export)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.

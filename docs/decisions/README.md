@@ -56,3 +56,4 @@ ADR фиксируют не только принятое решение, но �
 | [ADR-0039](ADR-0039-auth-rate-limiting-for-dashboard.md) | Принято | Rate limiting для auth-эндпоинтов dashboard (sliding window + concurrency cap) |
 | [ADR-0040](ADR-0040-ui-improvements-for-queue-monitor.md) | Принято | Улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert→banner, configurable limits, countdown, error boundary) |
 | [ADR-0041](ADR-0041-global-time-filter.md) | Принято | Глобальный фильтр времени для Queue Monitor Dashboard (TimeRangeBar, предустановки, absolute range, drag-to-pan) |
+| [ADR-0042](ADR-0042-web-interface-archive.md) | Принято | Web Interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export) |

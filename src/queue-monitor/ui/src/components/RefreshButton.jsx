@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button.jsx';
-import { ChevronDown } from 'lucide-react';
+import { RefreshCw, ChevronDown } from 'lucide-react';
 
-// ADR-0041: интервалы автообновления.
 const REFRESH_OPTIONS = [
     { label: '30с', ms: 30000 },
     { label: '1 мин', ms: 60000 },
@@ -13,12 +12,11 @@ const REFRESH_OPTIONS = [
     { label: 'Выкл', ms: 0 }
 ];
 
-// ADR-0041: выпадающий список для выбора интервала автообновления.
-export default function RefreshDropdown({ value, onChange }) {
+export default function RefreshButton({ refreshMs, countdown, onRefresh, onIntervalChange }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
-    const current = REFRESH_OPTIONS.find((o) => o.ms === value) || REFRESH_OPTIONS[0];
+    const current = REFRESH_OPTIONS.find((o) => o.ms === refreshMs) || REFRESH_OPTIONS[0];
 
     useEffect(() => {
         function handleClickOutside(e) {
@@ -31,26 +29,34 @@ export default function RefreshDropdown({ value, onChange }) {
     }, []);
 
     return (
-        <div className="relative" ref={ref}>
+        <div className="relative inline-flex" ref={ref}>
             <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs h-7 px-2"
+                onClick={onRefresh}
+                className="rounded-r-none border-r border-border/40"
+            >
+                <RefreshCw className="w-4 h-4 mr-1 shrink-0" />
+                {refreshMs > 0 ? `обновить (${countdown}с)` : 'обновить'}
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                className="px-1.5"
                 onClick={() => setOpen((prev) => !prev)}
             >
-                {current.label}
-                <ChevronDown className="w-3 h-3 ml-1 shrink-0" />
+                <ChevronDown className="w-3 h-3 shrink-0" />
             </Button>
             {open && (
-                <div className="absolute top-full left-0 mt-1 bg-background border rounded-md shadow-md z-50 min-w-[80px]">
+                <div className="absolute top-full right-0 mt-1 bg-background border rounded-md shadow-md z-50 min-w-[80px]">
                     {REFRESH_OPTIONS.map((opt) => (
                         <button
                             key={opt.ms}
                             className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground ${
-                                opt.ms === value ? 'bg-accent font-medium' : ''
+                                opt.ms === refreshMs ? 'bg-accent font-medium' : ''
                             }`}
                             onClick={() => {
-                                onChange(opt.ms);
+                                onIntervalChange(opt.ms);
                                 setOpen(false);
                             }}
                         >

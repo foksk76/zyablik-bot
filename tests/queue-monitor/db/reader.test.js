@@ -444,6 +444,98 @@ test('errors with timeFilter returns only matching rows', () => {
     fs.unlinkSync(dbPath);
 });
 
+// --- Case-insensitive search (contains_ci) ---
+
+test('archiveMessages search is case-insensitive for Cyrillic', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'Привет мир', recipient: { value: 'u' } }), now, now);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'test message', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    const upper = reader.archiveMessages({ search: 'привет', limit: 10 });
+    assert.equal(upper.total, 1, 'lowercase кириллица находит');
+
+    const lower = reader.archiveMessages({ search: 'Привет', limit: 10 });
+    assert.equal(lower.total, 1, 'uppercase кириллица находит');
+
+    const mixed = reader.archiveMessages({ search: 'ПРИВЕТ', limit: 10 });
+    assert.equal(mixed.total, 1, 'ALL CAPS кириллица находит');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('archiveMessages search is case-insensitive for Latin', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'Hello World', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    assert.equal(reader.archiveMessages({ search: 'hello', limit: 10 }).total, 1);
+    assert.equal(reader.archiveMessages({ search: 'HELLO', limit: 10 }).total, 1);
+    assert.equal(reader.archiveMessages({ search: 'Hello', limit: 10 }).total, 1);
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('archiveMessages search handles spaces correctly', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'Сервер ELK is down', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    assert.equal(reader.archiveMessages({ search: 'Сервер ELK', limit: 10 }).total, 1);
+    assert.equal(reader.archiveMessages({ search: 'сервер elk', limit: 10 }).total, 1);
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('archiveMessagesBatch search is case-insensitive', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'Тестовый прогон', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    let count = 0;
+    for (const batch of reader.archiveMessagesBatch({ search: 'тестовый' })) {
+        count += batch.length;
+    }
+    assert.equal(count, 1, 'batch search is case-insensitive');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
 test('timeseries with absolute timeFilter returns only rows in range', () => {
     const dbPath = tmpDb();
     const db = new Database(dbPath);
@@ -469,6 +561,33 @@ test('timeseries with absolute timeFilter returns only rows in range', () => {
     const statuses = result.map((r) => r.status);
     assert.ok(statuses.includes('failed'), 'should include recent failed row');
     assert.ok(!statuses.includes('delivered') || result.every((r) => r.count === 0), 'should not include old delivered row');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('archiveMessages falls back to created_at for disallowed sort column', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'first', recipient: { value: 'u' } }), now - 100, now - 100);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'grafana', 'failed', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'second', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    const resultAsc = reader.archiveMessages({ limit: 10, sort: 'nonexistent_column:asc' });
+    assert.equal(resultAsc.data.length, 2, 'sort fallback works');
+    assert.equal(resultAsc.data[0].source, 'zabbix', 'fallback sorts by created_at asc');
+
+    const resultDesc = reader.archiveMessages({ limit: 10, sort: 'nonexistent_column:desc' });
+    assert.equal(resultDesc.data[0].source, 'grafana', 'fallback sorts by created_at desc');
 
     reader.close();
     fs.unlinkSync(dbPath);
