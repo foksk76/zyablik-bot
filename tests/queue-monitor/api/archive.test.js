@@ -44,14 +44,17 @@ function mockRes() {
     return {
         headers: null,
         statusCode: null,
+        headersSent: false,
+        writableEnded: false,
         writeHead(code, headers) {
             this.statusCode = code;
             this.headers = headers;
+            this.headersSent = true;
         },
         write(chunk) {
             chunks.push(chunk);
         },
-        end() {},
+        end() { this.writableEnded = true; },
         getOutput() { return chunks.join(''); }
     };
 }
@@ -324,6 +327,108 @@ test('exportArchive filters by status', () => {
     const parsed = JSON.parse(res.getOutput());
     assert.equal(parsed.data.length, 1);
     assert.equal(parsed.data[0].status, 'failed');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+// --- export error paths ---
+
+test('exportArchive catches reader error and ends response', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const originalBatch = reader.archiveMessagesBatch;
+    reader.archiveMessagesBatch = function* () {
+        throw new Error('DB read failure');
+    };
+    const routes = createArchiveRoutes({ reader });
+    const res = mockRes();
+    routes.exportArchive({ query: { format: 'csv' }, res });
+
+    // writeHead(200) is called before iteration, so headersSent is true.
+    // The catch block sees headersSent=true and skips the 500 response.
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.headersSent, 'headers were sent before error');
+    assert.ok(res.writableEnded, 'res.end() was called in finally block');
+
+    reader.archiveMessagesBatch = originalBatch;
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('exportArchive ends response after reader error (JSON)', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const originalBatch = reader.archiveMessagesBatch;
+    reader.archiveMessagesBatch = function* () {
+        throw new Error('stream error');
+    };
+    const routes = createArchiveRoutes({ reader });
+    const res = mockRes();
+    routes.exportArchive({ query: { format: 'json' }, res });
+
+    assert.ok(res.writableEnded, 'res.end() was called in finally block');
+
+    reader.archiveMessagesBatch = originalBatch;
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('exportArchive JSON with empty dataset returns empty data array', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const routes = createArchiveRoutes({ reader });
+    const res = mockRes();
+    routes.exportArchive({ query: { format: 'json' }, res });
+
+    assert.equal(res.statusCode, 200);
+    const parsed = JSON.parse(res.getOutput());
+    assert.ok(Array.isArray(parsed.data));
+    assert.equal(parsed.data.length, 0);
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});
+
+test('exportArchive CSV escapes payload with commas and newlines', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    const payload = JSON.stringify({ text: 'line1\nline2,with,commas', recipient: { value: 'u' } });
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(payload, now, now);
+    db.close();
+
+    const reader = createQueueReader({ dbPath });
+    const routes = createArchiveRoutes({ reader });
+    const res = mockRes();
+    routes.exportArchive({ query: { format: 'csv' }, res });
+
+    assert.equal(res.statusCode, 200);
+    const output = res.getOutput();
+    const lines = output.trim().split('\n');
+    // First line is header, second line is data
+    assert.equal(lines.length, 2, 'CSV has header + 1 data row');
+    // The payload column (last) should be double-quoted because it contains commas/newlines
+    const lastCommaIdx = lines[1].lastIndexOf(',');
+    const payloadCol = lines[1].slice(lastCommaIdx + 1);
+    assert.ok(payloadCol.startsWith('"'), 'payload column is quoted');
+    assert.ok(payloadCol.endsWith('"'), 'payload column ends with quote');
 
     reader.close();
     fs.unlinkSync(dbPath);

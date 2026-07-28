@@ -1,47 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Download, RotateCcw, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { Button } from '../components/ui/button.jsx';
 import { useArchive } from '../hooks/useArchive.js';
 import { showToast } from '../lib/showToast.js';
-
-const STATUS_VARIANTS = {
-    delivered: 'bg-success-light text-success-dark border border-success/20',
-    failed: 'bg-error-light text-error-dark border border-error/20',
-    pending: 'bg-warning-light text-warning-dark border border-warning/20',
-    processing: 'bg-info-light text-info-dark border border-info/20'
-};
-
-const STATUS_LABELS = {
-    delivered: 'Delivered',
-    failed: 'Failed',
-    pending: 'Pending',
-    processing: 'Processing'
-};
+import { formatDate, parseRecipient, STATUS_VARIANTS, STATUS_LABELS } from '../lib/format.js';
 
 const LIMIT_OPTIONS = [20, 50, 100];
-
-function formatDate(ts) {
-    if (!ts) return '—';
-    const d = new Date(ts * 1000);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${dd}.${mm}.${yyyy} ${hh}:${mi}:${ss}`;
-}
-
-function parseRecipient(payload) {
-    try {
-        const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
-        return obj?.recipient?.value || '—';
-    } catch {
-        return '—';
-    }
-}
 
 function SkeletonRow() {
     return (
@@ -96,9 +62,21 @@ function DatePresets({ onPreset, activePreset }) {
 
 function ExportDropdown({ onExport, disabled }) {
     const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function handleClick(e) {
+            if (ref.current && !ref.current.contains(e.target)) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [open]);
 
     return (
-        <div className="relative">
+        <div className="relative" ref={ref}>
             <Button
                 variant="outline"
                 size="sm"
@@ -183,6 +161,7 @@ function Pagination({ page, pages, onPageChange }) {
 }
 
 export default function ArchivePage() {
+    const navigate = useNavigate();
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
     const [sort, setSort] = useState('created_at:desc');
@@ -412,7 +391,7 @@ export default function ArchivePage() {
                                     <tr
                                         key={msg.id}
                                         className="border-b border-border hover:bg-muted/50 cursor-pointer"
-                                        onClick={() => { window.location.hash = `#/archive/${msg.id}`; }}
+                                        onClick={() => { navigate(`/archive/${msg.id}`); }}
                                     >
                                         <td className="px-4 py-3 text-muted-foreground">{msg.id}</td>
                                         <td className="px-4 py-3 whitespace-nowrap">{formatDate(msg.createdAt)}</td>

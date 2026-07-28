@@ -16,17 +16,7 @@ function formatTime(ts) {
     return d.toLocaleString('ru-RU');
 }
 
-function parseRecipient(payload) {
-    if (!payload) {
-        return '—';
-    }
-    try {
-        const obj = typeof payload === 'string' ? JSON.parse(payload) : payload;
-        return obj?.recipient?.value || '—';
-    } catch {
-        return '—';
-    }
-}
+import { parseRecipient } from '../lib/format.js';
 
 function formatPayload(payload) {
     if (!payload) return '—';

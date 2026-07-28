@@ -565,3 +565,30 @@ test('timeseries with absolute timeFilter returns only rows in range', () => {
     reader.close();
     fs.unlinkSync(dbPath);
 });
+
+test('archiveMessages falls back to created_at for disallowed sort column', () => {
+    const dbPath = tmpDb();
+    const db = new Database(dbPath);
+    initSchema(db);
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'zabbix', 'delivered', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'first', recipient: { value: 'u' } }), now - 100, now - 100);
+    db.prepare(`
+        INSERT INTO delivery_queue (payload, source, status, attempts, next_retry_at, created_at, updated_at)
+        VALUES (?, 'grafana', 'failed', 0, 0, ?, ?)
+    `).run(JSON.stringify({ text: 'second', recipient: { value: 'u' } }), now, now);
+    db.close();
+    const reader = createQueueReader({ dbPath });
+
+    const resultAsc = reader.archiveMessages({ limit: 10, sort: 'nonexistent_column:asc' });
+    assert.equal(resultAsc.data.length, 2, 'sort fallback works');
+    assert.equal(resultAsc.data[0].source, 'zabbix', 'fallback sorts by created_at asc');
+
+    const resultDesc = reader.archiveMessages({ limit: 10, sort: 'nonexistent_column:desc' });
+    assert.equal(resultDesc.data[0].source, 'grafana', 'fallback sorts by created_at desc');
+
+    reader.close();
+    fs.unlinkSync(dbPath);
+});

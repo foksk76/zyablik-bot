@@ -4,25 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button.jsx';
 import { showToast } from '../lib/showToast.js';
-
-const STATUS_VARIANTS = {
-    delivered: 'bg-success-light text-success-dark border border-success/20',
-    failed: 'bg-error-light text-error-dark border border-error/20',
-    pending: 'bg-warning-light text-warning-dark border border-warning/20',
-    processing: 'bg-info-light text-info-dark border border-info/20'
-};
-
-function formatDate(ts) {
-    if (!ts) return '—';
-    const d = new Date(ts * 1000);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${dd}.${mm}.${yyyy} ${hh}:${mi}:${ss}`;
-}
+import { formatDate, STATUS_VARIANTS } from '../lib/format.js';
 
 function DetailRow({ label, value }) {
     return (

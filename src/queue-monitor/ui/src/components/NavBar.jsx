@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { Menu, X, LogOut } from 'lucide-react';
 import { Button } from './ui/button.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
+import { useLogout } from '../hooks/useLogout.js';
 
 const NAV_ITEMS = [
     { to: '/dashboard', label: 'Дашборд' },
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 
 export default function NavBar({ user, csrf }) {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const { logout } = useLogout(csrf);
 
     useEffect(() => {
         if (mobileOpen) {
@@ -30,19 +32,6 @@ export default function NavBar({ user, csrf }) {
         return isActive
             ? 'text-foreground font-medium border-b-2 border-primary'
             : 'text-muted-foreground hover:text-foreground';
-    }
-
-    async function logout() {
-        try {
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
-                credentials: 'same-origin'
-            });
-        } catch {
-            // Network error — redirect anyway
-        }
-        window.location.href = '/';
     }
 
     return (

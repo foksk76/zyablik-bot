@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import SummaryCards from '../components/SummaryCards.jsx';
 import TimeseriesChart from '../components/TimeseriesChart.jsx';
 import TopTable from '../components/TopTable.jsx';
@@ -7,6 +7,7 @@ import ErrorsTable from '../components/ErrorsTable.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useMetrics } from '../hooks/useMetrics.js';
 import { useTimeRange } from '../hooks/useTimeRange.js';
+import { useLogout } from '../hooks/useLogout.js';
 import TimeRangeBar from '../components/TimeRangeBar.jsx';
 import RefreshButton from '../components/RefreshButton.jsx';
 import { Button } from '../components/ui/button.jsx';
@@ -14,12 +15,11 @@ import { Activity } from 'lucide-react';
 
 export default function DashboardPage({ user, csrf }) {
     const { timeRange, setRelative, setAbsolute } = useTimeRange();
-    const [logoutError, setLogoutError] = useState(null);
+    const { logout, logoutError, dismissLogoutError } = useLogout(csrf);
     const [topLimit, setTopLimit] = useState(5);
     const [errorsLimit, setErrorsLimit] = useState(20);
     const [refreshMs, setRefreshMs] = useState(30000);
     const [countdown, setCountdown] = useState(refreshMs / 1000);
-    const logoutTimerRef = useRef(null);
 
     const metrics = useMetrics({
         timeRange,
@@ -47,22 +47,6 @@ export default function DashboardPage({ user, csrf }) {
         setCountdown(refreshMs / 1000);
     }, [topLimit, errorsLimit, metrics.topBy, timeRange, sessionExpired, refreshMs]);
 
-    useEffect(() => {
-        return () => {
-            if (logoutTimerRef.current) {
-                clearTimeout(logoutTimerRef.current);
-            }
-        };
-    }, []);
-
-    function dismissLogoutError() {
-        if (logoutTimerRef.current) {
-            clearTimeout(logoutTimerRef.current);
-            logoutTimerRef.current = null;
-        }
-        setLogoutError(null);
-    }
-
     function handleRefresh() {
         metrics.refreshNow();
         setCountdown(refreshMs / 1000);
@@ -78,24 +62,6 @@ export default function DashboardPage({ user, csrf }) {
 
     function handlePan(fromTs, toTs) {
         setAbsolute(fromTs, toTs);
-    }
-
-    async function logout() {
-        try {
-            const r = await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
-                credentials: 'same-origin'
-            });
-            if (!r.ok) {
-                setLogoutError(`Не удалось выйти (сервер: ${r.status}). Сессия может быть активна.`);
-                logoutTimerRef.current = setTimeout(() => { window.location.href = '/'; }, 3000);
-                return;
-            }
-        } catch {
-            // Network error — redirect anyway (session may already be destroyed)
-        }
-        window.location.href = '/';
     }
 
     return (
