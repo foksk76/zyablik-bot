@@ -132,7 +132,7 @@
 
 ### Task 5: Документация и индексы
 
-**Status:** In Progress
+**Status:** Done
 
 **Description:** Дополнить `docs/zabbix-monitoring-template.md` разделом
 «Живой стенд» (как поднять бота, как завести хост, что проверено),
@@ -140,9 +140,9 @@
 
 **Acceptance criteria:**
 - [x] `docs/zabbix-monitoring-template.md` — раздел про живой стенд
-- [ ] `tasks/todo.md` — Sprint 35 задачи
-- [ ] `npm test` — все тесты passing
-- [ ] Нет секретов в репо
+- [x] `tasks/todo.md` — Sprint 35 задачи
+- [x] `npm test` — все тесты passing
+- [x] Нет секретов в репо
 
 **Estimated scope:** S
 
@@ -173,7 +173,7 @@ PORT=9000, API_KEY=Secret, POLL_INTERVAL=10, NODATA_SEC=30.
 - [x] Стенд: бот жив, хост в Zabbix, items supported, триггеры OK
 - [x] Отказоустойчивость: PROBLEM -> RECOVERY на живом стенде
 - [x] `npm test` — passing (663/663 юнит + 20/20 шаблонных)
-- [ ] Ревью с человеком
+- [x] Ревью с человеком
 
 ## Risks and Mitigations
 
