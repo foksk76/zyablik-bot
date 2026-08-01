@@ -1,0 +1,349 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7f9c6796c53546a3b1426f5f5736ae39
+      name: Templates/Zyablik
+  templates:
+    - uuid: 5bc8b16f66764e209e2ed2cdcbfa40af
+      template: 'Zyablik monitoring'
+      name: 'Zyablik monitoring'
+      description: |
+        Шаблон мониторинга Zyablik bot (очередь доставки уведомлений из Zabbix в МАХ).
+
+        Метрики собираются по HTTP без агента (Zabbix 7.0+, HTTP agent item).
+
+        Настройка:
+
+        1. Задайте базовый URL бота в макросе `{$ZYABLIK.URL}` (например, `http://127.0.0.1`)
+           и HTTP-порт в `{$ZYABLIK.PORT}` (по умолчанию `9000`).
+        2. Задайте API-ключ для `/api/metrics/*` в секретном макросе `{$ZYABLIK.API_KEY}`
+           на уровне хоста (секретные макросы не передаются в шаблон).
+        3. Привяжите шаблон к хосту Zabbix, представляющему бот.
+
+        Состав (ADR-0043):
+
+        - `zyablik.readyz` - healthcheck без авторизации; триггер доступности бота.
+        - `zyablik.summary` - мастер `/api/metrics/summary` (Bearer `{$ZYABLIK.API_KEY}`).
+        - `zyablik.status.*` - dependent-элементы со счётчиками очереди
+          (pending, processing, delivered, failed, total, totalAttempts).
+        - `zyablik.backlog` - расчётный элемент: pending + processing.
+        - LLD-правило `zyablik.queue.discovery` (источник `/api/metrics/discovery`) -
+          поверхность расширения на новые метрики очереди без правки шаблона.
+      vendor:
+        name: Zyablik
+        version: 7.0-1
+      groups:
+        - name: Templates/Zyablik
+      items:
+        - uuid: 40873a158edd462abdae4e59228ad1c2
+          name: 'Zyablik: Get summary'
+          type: HTTP_AGENT
+          key: zyablik.summary
+          delay: '{$ZYABLIK.POLL_INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Сводные счётчики очереди доставки из /api/metrics/summary. Источник данных для dependent-элементов zyablik.status.*.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+          timeout: 15s
+          url: '{$ZYABLIK.URL}:{$ZYABLIK.PORT}/api/metrics/summary'
+          status_codes: '200'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$ZYABLIK.API_KEY}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: df8e8a68a266431e8fcebeb74c4a34c8
+          name: 'Zyablik: Get discovery'
+          type: HTTP_AGENT
+          key: zyablik.get.discovery
+          delay: '{$ZYABLIK.POLL_INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Список метрик очереди из /api/metrics/discovery. Источник данных для LLD-правила zyablik.queue.discovery (ADR-0043).'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+          timeout: 15s
+          url: '{$ZYABLIK.URL}:{$ZYABLIK.PORT}/api/metrics/discovery'
+          status_codes: '200'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$ZYABLIK.API_KEY}'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: d738c293ba3545368171a83b047c7916
+          name: 'Zyablik: Get readyz'
+          type: HTTP_AGENT
+          key: zyablik.readyz
+          delay: '{$ZYABLIK.POLL_INTERVAL}'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Healthcheck /readyz без авторизации. Используется триггером доступности бота: не-200 или отсутствие данных переводят элемент в unsupported и срабатывает nodata-триггер.'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+          timeout: 15s
+          url: '{$ZYABLIK.URL}:{$ZYABLIK.PORT}/readyz'
+          status_codes: '200'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 239951b8c9f649fe890ac08126a7cf3f
+          name: 'Zyablik: Ожидают отправки'
+          type: DEPENDENT
+          key: zyablik.status.pending
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Количество сообщений, ожидающих отправки в МАХ.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.pending'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: queue
+        - uuid: 8c85a3ce7e9941e4826adb974ac61cf1
+          name: 'Zyablik: В обработке'
+          type: DEPENDENT
+          key: zyablik.status.processing
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Количество сообщений, находящихся в обработке.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.processing'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: queue
+        - uuid: d8e274a788c9481ba2ff5978d77f52e2
+          name: 'Zyablik: Доставлено'
+          type: DEPENDENT
+          key: zyablik.status.delivered
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Количество успешно доставленных сообщений.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.delivered'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: delivery
+        - uuid: 6b424b7f5df14949a7810a9af0a85c8f
+          name: 'Zyablik: Ошибки'
+          type: DEPENDENT
+          key: zyablik.status.failed
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Количество сообщений, доставка которых завершилась ошибкой.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.failed'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: delivery
+        - uuid: ab3945d4e88c4debab458152c0a00fc5
+          name: 'Zyablik: Всего сообщений'
+          type: DEPENDENT
+          key: zyablik.status.total
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Общее количество сообщений в очереди.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.total'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: queue
+        - uuid: 616823b11b9645e2bb1c5ab9553583f5
+          name: 'Zyablik: Всего попыток'
+          type: DEPENDENT
+          key: zyablik.status.totalAttempts
+          delay: '0'
+          value_type: UNSIGNED
+          description: 'Общее количество попыток доставки (включая повторные).'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.totalAttempts'
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: delivery
+        - uuid: 26d4dc0c13184fbdad8e8d9cbbc75f1a
+          name: 'Zyablik: Backlog (ожидают + в обработке)'
+          type: CALCULATED
+          key: zyablik.backlog
+          delay: '{$ZYABLIK.POLL_INTERVAL}'
+          value_type: UNSIGNED
+          description: 'Сумма pending и processing - текущая глубина неразгруженной очереди.'
+          params: 'last(/Zyablik monitoring/zyablik.status.pending)+last(/Zyablik monitoring/zyablik.status.processing)'
+          tags:
+            - tag: scope
+              value: queue
+      discovery_rules:
+        - uuid: 45b2980565584a3cb0bb3c4d47692671
+          name: 'Zyablik queue metrics discovery'
+          type: DEPENDENT
+          key: zyablik.queue.discovery
+          delay: '0'
+          description: 'LLD поверх списка метрик очереди. Расширяет набор zyablik.queue[{#METRIC}] на новые метрики без правки шаблона (ADR-0043).'
+          item_prototypes:
+            - uuid: f876e380047942b9bd911388d0bfc620
+              name: 'Zyablik: Queue [{#METRIC}]'
+              type: DEPENDENT
+              key: 'zyablik.queue[{#METRIC}]'
+              delay: '0'
+              value_type: UNSIGNED
+              description: 'Значение метрики очереди {#METRIC} из /api/metrics/summary.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.{#METRIC}'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: zyablik.summary
+              tags:
+                - tag: scope
+                  value: queue
+                - tag: metric
+                  value: '{#METRIC}'
+          master_item:
+            key: zyablik.get.discovery
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data'
+              error_handler: DISCARD_VALUE
+      tags:
+        - tag: class
+          value: middleware
+        - tag: target
+          value: zyablik
+      macros:
+        - macro: '{$ZYABLIK.URL}'
+          value: 'http://127.0.0.1'
+          description: 'Базовый URL бота без порта и пути (например, http://bot.example.internal).'
+        - macro: '{$ZYABLIK.PORT}'
+          value: '9000'
+          description: 'HTTP-порт бота.'
+        - macro: '{$ZYABLIK.API_KEY}'
+          type: SECRET_TEXT
+          description: 'API-ключ для /api/metrics/* (Bearer). Секретный макрос - задаётся на уровне хоста.'
+        - macro: '{$ZYABLIK.POLL_INTERVAL}'
+          value: '30'
+          description: 'Интервал опроса HTTP-эндпоинтов, в секундах.'
+        - macro: '{$ZYABLIK.BACKLOG_SEC}'
+          value: '1800'
+          description: 'Окно анализа застоя очереди и роста ошибок, в секундах.'
+        - macro: '{$ZYABLIK.MAX_FAILED}'
+          value: '10'
+          description: 'Порог прироста failed/totalAttempts за окно {$ZYABLIK.BACKLOG_SEC} для триггеров.'
+  triggers:
+    - uuid: d92576f44693461289cdfe923e3eb201
+      expression: 'nodata(/Zyablik monitoring/zyablik.readyz,3*{$ZYABLIK.POLL_INTERVAL})=1'
+      name: 'Zyablik: бот недоступен'
+      event_name: 'Zyablik: бот недоступен (нет данных /readyz)'
+      priority: HIGH
+      description: 'Срабатывает, если /readyz не отвечает 200 на протяжении 3 интервалов опроса - бот не работает или недоступен.'
+      manual_close: 'YES'
+      tags:
+        - tag: scope
+          value: availability
+    - uuid: e918355037ac45e7ba11dde01dbd6b38
+      expression: 'min(/Zyablik monitoring/zyablik.status.pending,{$ZYABLIK.BACKLOG_SEC})>0'
+      name: 'Zyablik: очередь не разгружается'
+      event_name: 'Zyablik: очередь не разгружается (pending > 0 на протяжении {$ZYABLIK.BACKLOG_SEC} сек)'
+      priority: AVERAGE
+      description: 'Очередь доставки не разгружается: количество ожидающих сообщений не опускалось до нуля на протяжении {$ZYABLIK.BACKLOG_SEC} секунд.'
+      manual_close: 'YES'
+      tags:
+        - tag: scope
+          value: queue
+    - uuid: 3e6f747ce6514f66a93b041d9ce8aaf9
+      expression: 'last(/Zyablik monitoring/zyablik.status.failed)-last(/Zyablik monitoring/zyablik.status.failed,{$ZYABLIK.BACKLOG_SEC})>{$ZYABLIK.MAX_FAILED}'
+      name: 'Zyablik: рост числа ошибок доставки'
+      event_name: 'Zyablik: рост числа ошибок доставки'
+      priority: HIGH
+      description: 'Количество неуспешно доставленных сообщений выросло более чем на {$ZYABLIK.MAX_FAILED} за {$ZYABLIK.BACKLOG_SEC} секунд.'
+      manual_close: 'YES'
+      tags:
+        - tag: scope
+          value: delivery
+    - uuid: f9f4dbada1534e9891f51b7eea025015
+      expression: 'last(/Zyablik monitoring/zyablik.status.totalAttempts)-last(/Zyablik monitoring/zyablik.status.totalAttempts,{$ZYABLIK.BACKLOG_SEC})>{$ZYABLIK.MAX_FAILED}'
+      name: 'Zyablik: накопление ошибок доставки'
+      event_name: 'Zyablik: накопление ошибок доставки'
+      priority: WARNING
+      description: 'Число попыток доставки выросло более чем на {$ZYABLIK.MAX_FAILED} за {$ZYABLIK.BACKLOG_SEC} секунд - признак повторных неудач.'
+      manual_close: 'YES'
+      dependencies:
+        - name: 'Zyablik: рост числа ошибок доставки'
+          expression: 'last(/Zyablik monitoring/zyablik.status.failed)-last(/Zyablik monitoring/zyablik.status.failed,{$ZYABLIK.BACKLOG_SEC})>{$ZYABLIK.MAX_FAILED}'
+      tags:
+        - tag: scope
+          value: delivery
+  graphs:
+    - uuid: 40060cf3d9404c21a2d4430dcf07af4b
+      name: 'Zyablik: Статусы очереди по времени'
+      graph_items:
+        - color: 1A7FDD
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.pending
+        - sortorder: '1'
+          color: F7941D
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.processing
+        - sortorder: '2'
+          color: 0F9F4E
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.delivered
+        - sortorder: '3'
+          color: F63100
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.failed
+    - uuid: 8aa6ce7f958e415580cf5755aeeca423
+      name: 'Zyablik: Backlog и результат доставки'
+      graph_items:
+        - color: 1A7FDD
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.backlog
+        - sortorder: '1'
+          color: 0F9F4E
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.delivered
+        - sortorder: '2'
+          color: F63100
+          item:
+            host: 'Zyablik monitoring'
+            key: zyablik.status.failed

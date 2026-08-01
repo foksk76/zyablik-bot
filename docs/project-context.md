@@ -117,6 +117,10 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0037 ввести SSRF-защиту для IdP-запросов (dns resolution + private IP blocking);
 - по ADR-0038 зафиксировать hand-rolled JWT-verifier для ingress layer (RS256/384/512, JWKS cache);
 - по ADR-0039 ввести rate limiting для auth-эндпоинтов dashboard (sliding window + concurrency cap);
+- по ADR-0040 улучшить UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary);
+- по ADR-0041 ввести глобальный фильтр времени для Queue Monitor Dashboard (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan);
+- по ADR-0042 расширить scope на web interface (navigation shell + archive: React Router hash-based, archive API, retry через queueStore, backend export);
+- по ADR-0043 опубликовать agent-less Zabbix monitoring template 7.0+ (LLD-шаблон на `/api/metrics/*` и `/readyz`, ключи `{#METRIC}` = поля `/summary`, полный набор триггеров, тестовый Zabbix 7.2 в Docker);
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основные артефакты
@@ -125,6 +129,7 @@ Live-сценарий с реальным входящим сообщением 
 src/zabbix-media-type/max-webhook.js              — прямой webhook (Zabbix → MAX Bot API)
 src/zabbix-media-type/bot-platform-ingest.js       — webhook через ingress (Zabbix → bot-platform)
 src/bot-platform/                                  — bot-platform (ingress, queue, transports, plugins)
+docs/zabbix-template/                              — Zabbix monitoring template (ADR-0043) + тестовый стек
 ```
 
 Если меняется логика webhook-файлов, нужно проверить и при необходимости обновить:

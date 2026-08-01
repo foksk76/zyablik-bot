@@ -1,0 +1,257 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..', '..');
+const templatePath = path.join(root, 'docs/zabbix-template/zyablik-monitoring-template.yaml');
+
+const EXPECTED_ITEM_KEYS = [
+  'zyablik.summary',
+  'zyablik.get.discovery',
+  'zyablik.readyz',
+  'zyablik.status.pending',
+  'zyablik.status.processing',
+  'zyablik.status.delivered',
+  'zyablik.status.failed',
+  'zyablik.status.total',
+  'zyablik.status.totalAttempts',
+  'zyablik.backlog'
+];
+
+const STATUS_FIELDS = [
+  ['zyablik.status.pending', 'pending'],
+  ['zyablik.status.processing', 'processing'],
+  ['zyablik.status.delivered', 'delivered'],
+  ['zyablik.status.failed', 'failed'],
+  ['zyablik.status.total', 'total'],
+  ['zyablik.status.totalAttempts', 'totalAttempts']
+];
+
+function readLines() {
+  const content = fs.readFileSync(templatePath, 'utf8');
+  return { content, lines: content.split('\n') };
+}
+
+function templateItemBlock(lines, key) {
+  const keyLineIndex = lines.findIndex(
+    (line) => /^          key: /.test(line) && line.includes(key)
+  );
+  assert.ok(keyLineIndex !== -1, `template item key not found: ${key}`);
+
+  let start = keyLineIndex;
+  while (start > 0 && !/^        - uuid:/.test(lines[start])) {
+    start--;
+  }
+
+  let end = keyLineIndex + 1;
+  while (end < lines.length) {
+    const line = lines[end];
+    if (/^        - uuid:/.test(line) || /^      [a-z_]+:/.test(line) || /^    - uuid:/.test(line)) {
+      break;
+    }
+    end++;
+  }
+
+  return lines.slice(start, end).join('\n');
+}
+
+test('zabbix template file exists', () => {
+  assert.ok(fs.existsSync(templatePath), 'docs/zabbix-template/zyablik-monitoring-template.yaml must exist');
+});
+
+test('zabbix template has 7.0 export header', () => {
+  const { lines } = readLines();
+  assert.equal(lines[0], 'zabbix_export:');
+  assert.ok(lines.some((line) => line === "  version: '7.0'"), 'zabbix_export version must be 7.0');
+});
+
+test('zabbix template uses spaces, not tabs', () => {
+  const { lines } = readLines();
+  const tabs = lines.filter((line) => line.includes('\t'));
+  assert.deepEqual(tabs, [], 'template must not contain tab characters');
+});
+
+test('template identity is set', () => {
+  const { lines } = readLines();
+  assert.ok(lines.some((line) => line === "      template: 'Zyablik monitoring'"));
+  assert.ok(lines.some((line) => line === "      name: 'Zyablik monitoring'"));
+  assert.ok(lines.some((line) => line === '      groups:'));
+});
+
+test('template contains all expected item keys and they are unique', () => {
+  const { lines } = readLines();
+  const itemKeys = lines
+    .filter((line) => /^          key: /.test(line))
+    .map((line) => line.replace(/^          key: /, '').replace(/^'|'$/g, ''));
+
+  const unique = new Set(itemKeys);
+  assert.equal(itemKeys.length, unique.size, 'item keys must be unique');
+
+  for (const key of EXPECTED_ITEM_KEYS) {
+    assert.ok(unique.has(key), `expected item key is missing: ${key}`);
+  }
+});
+
+test('status items are dependent on zyablik.summary with matching JSONPath', () => {
+  const { lines } = readLines();
+
+  for (const [key, field] of STATUS_FIELDS) {
+    const block = templateItemBlock(lines, key);
+    assert.match(block, /type: DEPENDENT/, `${key} must be a dependent item`);
+    assert.match(block, /delay: '0'/, `${key} must not poll independently`);
+    assert.match(block, /master_item:\n\s+key: zyablik.summary/, `${key} must master on zyablik.summary`);
+    assert.match(block, new RegExp(`parameters:\\n\\s+- '\\$\\.${field}'`), `${key} must extract $.${field} via JSONPath`);
+  }
+});
+
+test('masters are HTTP agent items with status code check', () => {
+  const { lines } = readLines();
+
+  for (const key of ['zyablik.summary', 'zyablik.get.discovery', 'zyablik.readyz']) {
+    const block = templateItemBlock(lines, key);
+    assert.match(block, /type: HTTP_AGENT/, `${key} must be an HTTP agent item`);
+    assert.match(block, /status_codes: '200'/, `${key} must require HTTP 200`);
+  }
+});
+
+test('readyz does not require auth', () => {
+  const { lines } = readLines();
+  const block = templateItemBlock(lines, 'zyablik.readyz');
+  assert.doesNotMatch(block, /Authorization/, 'zyablik.readyz must not send an Authorization header');
+});
+
+test('metrics endpoints use Bearer API key macro', () => {
+  const { lines } = readLines();
+
+  for (const key of ['zyablik.summary', 'zyablik.get.discovery']) {
+    const block = templateItemBlock(lines, key);
+    assert.match(
+      block,
+      /name: Authorization\n\s+value: 'Bearer \{\$ZYABLIK\.API_KEY\}'/,
+      `${key} must use Bearer with the {$ZYABLIK.API_KEY} macro`
+    );
+  }
+});
+
+test('secret macro has no value in the template', () => {
+  const { lines } = readLines();
+  const macroIndex = lines.findIndex((line) => line.includes("'{$ZYABLIK.API_KEY}'"));
+  assert.ok(macroIndex !== -1, 'macro {$ZYABLIK.API_KEY} must be defined');
+
+  let end = macroIndex;
+  while (end < lines.length && !/^        - macro:/.test(lines[end])) {
+    end++;
+  }
+
+  const macroBlock = lines.slice(macroIndex, end);
+  const hasValue = macroBlock.some((line) => /^          value:/.test(line));
+  assert.equal(hasValue, false, 'secret macro {$ZYABLIK.API_KEY} must not carry a value in the template');
+
+  const anySecretValue = lines.some(
+    (line) => /^          value:/.test(line) && /(key|token|secret|password)/i.test(line)
+  );
+  assert.equal(anySecretValue, false, 'template must not define secret-like macro values');
+});
+
+test('template contains no em-dashes (Zabbix YAML import quirk)', () => {
+  // Zabbix 7.2 (symfony/yaml) молча теряет триггеры, если в одиночных
+  // кавычках (описание/event_name) встречается тире U+2014. Живой импорт
+  // проваливал верификацию (ожидалось 4 триггера, создавалось 3).
+  // Вместо «—» используем обычный дефис.
+  const { content } = readLines();
+  const hits = content.split('\n')
+    .map((line, index) => (line.includes('\u2014') ? `${index + 1}: ${line}` : null))
+    .filter(Boolean);
+  assert.deepEqual(hits, [], 'template must not contain em-dash (U+2014)');
+});
+
+test('template contains no real secrets or credentials', () => {
+  const { content } = readLines();
+  const secrets = [];
+
+  content.split('\n').forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('value:') && /['"][A-Za-z0-9+/_=.-]{24,}['"]$/.test(trimmed)) {
+      secrets.push(`${index + 1}: ${trimmed}`);
+    }
+    if (/Bearer\s+[A-Za-z0-9._-]{16,}/.test(line) && !line.includes('{$')) {
+      secrets.push(`${index + 1}: ${trimmed}`);
+    }
+  });
+
+  assert.deepEqual(secrets, [], `template contains credential-like values:\n${secrets.join('\n')}`);
+});
+
+test('LLD rule discovers queue metrics from /api/metrics/discovery', () => {
+  const { lines } = readLines();
+  const block = templateItemBlock(lines, 'zyablik.queue.discovery');
+
+  assert.match(block, /name: 'Zyablik queue metrics discovery'/);
+  assert.match(block, /type: DEPENDENT/);
+  assert.match(block, /master_item:\n\s+key: zyablik\.get\.discovery/, 'LLD rule must master on zyablik.get.discovery');
+  assert.match(block, /parameters:\n\s+- '\$\.data'/, 'LLD rule must extract $.data via JSONPath');
+
+  const prototype = block.match(/item_prototypes:[\s\S]*$/)[0];
+  assert.match(prototype, /key: 'zyablik\.queue\[\{#METRIC\}\]'/, 'item prototype key must use {#METRIC}');
+  assert.match(prototype, /parameters:\n\s+- '\$\.\{#METRIC\}'/, 'item prototype must extract $.{#METRIC} via JSONPath');
+  assert.match(prototype, /master_item:\n\s+key: zyablik\.summary/, 'item prototype must master on zyablik.summary');
+});
+
+test('triggers reference the template host and configured macros', () => {
+  const { lines } = readLines();
+  const triggerIndex = lines.findIndex((line) => line === '  triggers:');
+  assert.ok(triggerIndex !== -1, 'top-level triggers section must exist');
+
+  const triggers = [];
+  for (let i = triggerIndex + 1; i < lines.length; i++) {
+    if (/^    - uuid:/.test(lines[i])) {
+      triggers.push(i);
+    }
+    if (lines[i].startsWith('  graphs:')) {
+      break;
+    }
+  }
+
+  assert.equal(triggers.length, 4, 'template must define exactly 4 triggers');
+
+  const triggerNames = ['Zyablik: бот недоступен', 'Zyablik: очередь не разгружается', 'Zyablik: рост числа ошибок доставки', 'Zyablik: накопление ошибок доставки'];
+  const full = lines.slice(triggerIndex).join('\n');
+
+  for (const name of triggerNames) {
+    assert.ok(full.includes(name), `trigger is missing: ${name}`);
+  }
+
+  const expressions = full.match(/^      expression: '[^']+'/gm) || [];
+  assert.equal(expressions.length, 4, 'each trigger must have an expression');
+  for (const expression of expressions) {
+    assert.match(expression, /\/Zyablik monitoring\//, 'trigger expressions must reference the template host');
+  }
+});
+
+test('graphs are defined for the template host', () => {
+  const { lines } = readLines();
+  const graphIndex = lines.findIndex((line) => line === '  graphs:');
+  assert.ok(graphIndex !== -1, 'top-level graphs section must exist');
+
+  let graphCount = 0;
+  for (let i = graphIndex + 1; i < lines.length; i++) {
+    if (/^    - uuid:/.test(lines[i])) {
+      graphCount++;
+    }
+  }
+
+  assert.equal(graphCount, 2, 'template must define exactly 2 graphs');
+
+  const full = lines.slice(graphIndex).join('\n');
+  const hosts = full.match(/host: '([^']+)'/g) || [];
+  assert.ok(hosts.length > 0, 'graphs must reference items');
+  assert.ok(
+    hosts.every((host) => host === "host: 'Zyablik monitoring'"),
+    'graph items must reference the template host'
+  );
+
+  const itemRefs = full.match(/key: (zyablik\.[A-Za-z.]+)/g) || [];
+  assert.ok(itemRefs.includes('key: zyablik.status.pending'), 'status graph must include pending');
+  assert.ok(itemRefs.includes('key: zyablik.backlog'), 'backlog graph must include backlog');
+});

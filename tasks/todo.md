@@ -1,49 +1,61 @@
-# Task Checklist — Sprint 31 + Sprint 32 (Web Interface: Archive + Navigation Shell)
+# Task Checklist — Sprint 33 + Sprint 34 (Zyablik Zabbix Monitoring Template)
 
-## Sprint 31: Navigation Shell + Archive Backend
+## Sprint 33: Шаблон Zabbix — файл + статическая валидация
 
-- [x] **1. React Router** — `react-router-dom` v6 в package.json, `npm install`
-- [x] **2. App.jsx рефактор** — HashRouter, Routes, Route, дефолтный редирект на `#/dashboard`
-- [x] **3. NavBar** — NavLink компонент, 3 ссылки, active state
-- [x] **4. Settings stub** — заглушка "Раздел в разработке"
-- [x] **5. Archive queries в reader.js** — `archiveMessages()`, `archiveMessageById()`, пагинация, фильтры
-- [x] **6. Archive routes** — `GET /api/archive/messages`, `GET /api/archive/messages/:id`, auth
-- [x] **7. queueStore injection** — опция в `createQueueMonitor()`, передача из `app.js`
+- [ ] **1. Discovery: смена `{#METRIC}`** — `queue.*` → `pending` (вариант X,
+  2026-08-01), JSONPath `$.{#METRIC}`; поправочный ADR к ADR-0034
+- [ ] **2. Скелет шаблона** — `docs/zabbix-template/zyablik-monitoring-template.yaml`:
+  макросы (`{$ZYABLIK.URL}`, `{$ZYABLIK.PORT}`, `{$ZYABLIK.API_KEY}` Secret,
+  `{$ZYABLIK.MAX_FAILED}`, `{$ZYABLIK.BACKLOG_SEC}`), master item `summary`,
+  item `/readyz`
+- [ ] **3. LLD rule + dependent items** — discovery rule на `/api/metrics/discovery`,
+  dependent items по `{#METRIC}` с JSONPath-препроцессингом `$.{#METRIC}`
+- [ ] **4. Триггеры** — недоступность API (HTTP error / `/readyz` != 200),
+  застой очереди (pending не падает за `{$ZYABLIK.BACKLOG_SEC}`),
+  failed rate > `{$ZYABLIK.MAX_FAILED}`, рост totalAttempts/failed;
+  recovery-выражения; пороги через макросы
+- [ ] **5. Графики** — статусы очереди по времени, backlog, failed/delivered
+- [ ] **6. Статический валидатор** — `tests/monitoring/zabbix-template.test.js`
+  (hand-rolled, без внешних зависимостей): наличие обязательных секций,
+  ключей, макросов, триггеров; отсутствие секретов
 
-### Checkpoint: Sprint 31
+### Checkpoint: Sprint 33
 
-- [x] `npm run build` — сборка без ошибок
-- [x] `npm test` — все тесты passing
-- [x] NavBar отображается, роутинг работает
-- [x] Archive API отвечает
+- [ ] `npm test` — все тесты passing (включая новый валидатор)
+- [ ] YAML парсится без ошибок (валидация структуры)
+- [ ] Все 6 метрик, readyz, триггеры и графики покрыты валидатором
+- [ ] Ревью с человеком перед переходом к Sprint 34
 
 ---
 
-## Sprint 32: Archive UI + Retry + Export
+## Sprint 34: Docker CI + документация
 
-- [x] **8. useArchive hook** — data fetching, пагинация, debounce search, abort
-- [x] **9. ArchivePage таблица** — колонки, пагинация, сортировка, loading/empty states
-- [x] **10. Фильтры архива** — поиск, статус, источник, диапазон дат
-- [x] **11. MessageDetail** — детали сообщения, payload JSON, кнопка retry
-- [x] **12. Retry backend** — `POST /api/archive/retry/:id`, validation, `queueStore.enqueue()`
-- [x] **13. Retry UI** — кнопка "Повторить", optimistic UI, toast
-- [x] **14. Export backend** — `GET /api/archive/export?format=csv|json`, streaming
-- [x] **15. Export UI** — кнопка "Экспорт", скачивание CSV/JSON
+- [ ] **1. Docker-окружение тестового Zabbix** — `docs/zabbix-template/test/docker-compose.yml`
+  с Zabbix server 7.2 (и при необходимости web); healthcheck готовности
+- [ ] **2. Скрипт импорта** — `docs/zabbix-template/test/import-and-verify.js`
+  (или node-скрипт): импорт шаблона через Zabbix API, проверка что
+  items/triggers созданы
+- [ ] **3. CI workflow** — `.github/workflows/zabbix-template.yml`:
+  статическая валидация + Docker-импорт, кэш образа, отдельный job
+  (не блокирует verify.yml)
+- [ ] **4. Документация** — `docs/zabbix-monitoring-template.md`: импорт,
+  настройка хоста, макросы, описание триггеров и порогов
+- [ ] **5. ADR-0043 + обновление** — `docs/decisions/ADR-0043-*.md`,
+  README.md (repo map + ADR list), INSTALL.md, docs/project-context.md,
+  tasks/sprints/README.md
 
-### Checkpoint: Sprint 32
+### Checkpoint: Sprint 34
 
-- [x] `npm run build` — сборка без ошибок
-- [x] `npm test` — все тесты passing
-- [x] Archive: таблица, фильтры, пагинация
-- [x] Retry: работает end-to-end
-- [x] Export: скачивание CSV/JSON
+- [ ] CI green: workflow импортирует шаблон, items/triggers созданы
+- [ ] `npm test` — все тесты passing
+- [ ] Документация не противоречит README/INSTALL/ADR
+- [ ] ADR-0043 зафиксирован
 
 ---
 
 ## Final Verification
 
-- [x] `npm test` — все тесты passing
-- [x] `npm run build` (в src/queue-monitor/ui/) — сборка без ошибок
-- [ ] Дашборд работает без регрессий
-- [x] Архив: поиск, фильтры, пагинация, детали, retry, export
-- [x] Настройки: заглушка
+- [ ] `npm test` — все тесты passing
+- [ ] CI: `zabbix-template.yml` green
+- [ ] Шаблон импортируется в тестовый Zabbix, мониторит живой/стейбный бот
+- [ ] Документация полная и непротиворечивая

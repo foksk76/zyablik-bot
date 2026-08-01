@@ -107,12 +107,12 @@ test('discovery returns LLD format with all metrics', () => {
     assert.equal(result.body.data.length, 6);
 
     const metrics = result.body.data.map((item) => item['{#METRIC}']);
-    assert.ok(metrics.includes('queue.pending'));
-    assert.ok(metrics.includes('queue.processing'));
-    assert.ok(metrics.includes('queue.delivered'));
-    assert.ok(metrics.includes('queue.failed'));
-    assert.ok(metrics.includes('queue.total'));
-    assert.ok(metrics.includes('queue.totalAttempts'));
+    assert.ok(metrics.includes('pending'));
+    assert.ok(metrics.includes('processing'));
+    assert.ok(metrics.includes('delivered'));
+    assert.ok(metrics.includes('failed'));
+    assert.ok(metrics.includes('total'));
+    assert.ok(metrics.includes('totalAttempts'));
 
     reader.close();
     fs.unlinkSync(dbPath);

@@ -39,6 +39,8 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-30.md` — ADR-0041 Глобальный фильтр времени — UI Components + Drag-to-Pan
 - `sprint-31.md` — ADR-0042 Web Interface: Navigation Shell + Archive Backend
 - `sprint-32.md` — ADR-0042 Web Interface: Archive UI + Retry + Export
+- `sprint-33.md` — Zabbix Monitoring Template: файл шаблона + статическая валидация
+- `sprint-34.md` — Zabbix Monitoring Template: Docker CI + документация
 
 ## Status
 
@@ -69,6 +71,8 @@ Sprint 29: Planned (ADR-0041: Глобальный фильтр времени �
 Sprint 30: Planned (ADR-0041: Глобальный фильтр времени — UI Components + Drag-to-Pan)
 Sprint 31: Planned (Web Interface: Navigation Shell + Archive Backend)
 Sprint 32: Planned (Web Interface: Archive UI + Retry + Export)
+Sprint 33: Complete (Zabbix Monitoring Template: файл шаблона + статическая валидация)
+Sprint 34: Complete (Zabbix Monitoring Template: Docker CI + документация)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.

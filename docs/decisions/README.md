@@ -57,3 +57,4 @@ ADR фиксируют не только принятое решение, но �
 | [ADR-0040](ADR-0040-ui-improvements-for-queue-monitor.md) | Принято | Улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert→banner, configurable limits, countdown, error boundary) |
 | [ADR-0041](ADR-0041-global-time-filter.md) | Принято | Глобальный фильтр времени для Queue Monitor Dashboard (TimeRangeBar, предустановки, absolute range, drag-to-pan) |
 | [ADR-0042](ADR-0042-web-interface-archive.md) | Принято | Web Interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export) |
+| [ADR-0043](ADR-0043-zabbix-monitoring-template.md) | Принято | Zabbix Monitoring Template: agent-less LLD-шаблон 7.0+, смена `{#METRIC}` на `pending`, полный набор триггеров, тестовый Zabbix 7.2 в Docker |
