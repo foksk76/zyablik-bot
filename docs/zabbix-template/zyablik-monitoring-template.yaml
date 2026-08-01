@@ -84,7 +84,7 @@ zabbix_export:
           type: HTTP_AGENT
           key: zyablik.readyz
           delay: '{$ZYABLIK.POLL_INTERVAL}'
-          history: '0'
+          history: '1d'
           value_type: TEXT
           trends: '0'
           description: 'Healthcheck /readyz без авторизации. Используется триггером доступности бота: не-200 или отсутствие данных переводят элемент в unsupported и срабатывает nodata-триггер.'
@@ -201,7 +201,7 @@ zabbix_export:
           delay: '{$ZYABLIK.POLL_INTERVAL}'
           value_type: UNSIGNED
           description: 'Сумма pending и processing - текущая глубина неразгруженной очереди.'
-          params: 'last(/Zyablik monitoring/zyablik.status.pending)+last(/Zyablik monitoring/zyablik.status.processing)'
+          params: 'last(//zyablik.status.pending)+last(//zyablik.status.processing)'
           tags:
             - tag: scope
               value: queue
@@ -257,6 +257,9 @@ zabbix_export:
         - macro: '{$ZYABLIK.POLL_INTERVAL}'
           value: '30'
           description: 'Интервал опроса HTTP-эндпоинтов, в секундах.'
+        - macro: '{$ZYABLIK.NODATA_SEC}'
+          value: '90'
+          description: 'Окно отсутствия данных /readyz (сек) для триггера "бот недоступен". По умолчанию 3 интервала опроса.'
         - macro: '{$ZYABLIK.BACKLOG_SEC}'
           value: '1800'
           description: 'Окно анализа застоя очереди и роста ошибок, в секундах.'
@@ -265,11 +268,11 @@ zabbix_export:
           description: 'Порог прироста failed/totalAttempts за окно {$ZYABLIK.BACKLOG_SEC} для триггеров.'
   triggers:
     - uuid: d92576f44693461289cdfe923e3eb201
-      expression: 'nodata(/Zyablik monitoring/zyablik.readyz,3*{$ZYABLIK.POLL_INTERVAL})=1'
+      expression: 'nodata(/Zyablik monitoring/zyablik.readyz,{$ZYABLIK.NODATA_SEC})=1'
       name: 'Zyablik: бот недоступен'
       event_name: 'Zyablik: бот недоступен (нет данных /readyz)'
       priority: HIGH
-      description: 'Срабатывает, если /readyz не отвечает 200 на протяжении 3 интервалов опроса - бот не работает или недоступен.'
+      description: 'Срабатывает, если /readyz не отвечает 200 на протяжении {$ZYABLIK.NODATA_SEC} секунд - бот не работает или недоступен.'
       manual_close: 'YES'
       tags:
         - tag: scope

@@ -121,6 +121,17 @@ test('readyz does not require auth', () => {
   assert.doesNotMatch(block, /Authorization/, 'zyablik.readyz must not send an Authorization header');
 });
 
+test('readyz keeps history so the nodata trigger can evaluate', () => {
+  // nodata() в триггере «бот недоступен» требует history: при history: '0'
+  // выражение не вычисляется («item history is disabled») и триггер никогда
+  // не срабатывает. Живой стенд поймал это на отказе бота.
+  const { lines } = readLines();
+  const block = templateItemBlock(lines, 'zyablik.readyz');
+  const history = block.match(/history: '([^']+)'/);
+  assert.ok(history, 'zyablik.readyz must declare history');
+  assert.notEqual(history[1], '0', 'zyablik.readyz history must be enabled for nodata()');
+});
+
 test('metrics endpoints use Bearer API key macro', () => {
   const { lines } = readLines();
 
@@ -229,6 +240,51 @@ test('triggers reference the template host and configured macros', () => {
   }
 });
 
+test('nodata trigger uses a bare-macro period (Zabbix quirk)', () => {
+  // Zabbix 7.x не принимает арифметику в периоде nodata():
+  // nodata(...,3*{$ZYABLIK.POLL_INTERVAL}) и даже nodata(...,3*60)
+  // молча теряют триггер при configuration.import (создаётся 3 из 4).
+  // Работает только константа или голый макрос.
+  const { lines } = readLines();
+  const full = lines.join('\n');
+  const match = full.match(/expression: 'nodata\([^']*'/);
+  assert.ok(match, 'nodata trigger expression must exist');
+  assert.match(
+    match[0],
+    /\{\$ZYABLIK\.NODATA_SEC\}/,
+    'nodata period must be a bare macro {$ZYABLIK.NODATA_SEC}'
+  );
+  assert.doesNotMatch(match[0], /\*\{/, 'nodata period must not use arithmetic with a macro');
+});
+
+test('trigger expressions avoid arithmetic inside function periods', () => {
+  const { lines } = readLines();
+  const triggerIndex = lines.findIndex((line) => line === '  triggers:');
+  assert.ok(triggerIndex !== -1, 'top-level triggers section must exist');
+
+  const full = lines.slice(triggerIndex).join('\n');
+  const expressions = full.match(/^      expression: '[^']+'/gm) || [];
+  for (const expression of expressions) {
+    assert.doesNotMatch(
+      expression,
+      /\*\{/,
+      `expression must not multiply a macro inside a function period: ${expression}`
+    );
+  }
+});
+
+test('NODATA_SEC macro is defined with a numeric default', () => {
+  const { lines } = readLines();
+  const macroIndex = lines.findIndex((line) => line.includes("'{$ZYABLIK.NODATA_SEC}'"));
+  assert.ok(macroIndex !== -1, 'macro {$ZYABLIK.NODATA_SEC} must be defined');
+
+  const macroLines = lines.slice(macroIndex, macroIndex + 4);
+  assert.ok(
+    macroLines.some((line) => /^          value: '[0-9]+'$/.test(line)),
+    '{$ZYABLIK.NODATA_SEC} must have a numeric default'
+  );
+});
+
 test('graphs are defined for the template host', () => {
   const { lines } = readLines();
   const graphIndex = lines.findIndex((line) => line === '  graphs:');
@@ -254,4 +310,21 @@ test('graphs are defined for the template host', () => {
   const itemRefs = full.match(/key: (zyablik\.[A-Za-z.]+)/g) || [];
   assert.ok(itemRefs.includes('key: zyablik.status.pending'), 'status graph must include pending');
   assert.ok(itemRefs.includes('key: zyablik.backlog'), 'backlog graph must include backlog');
+});
+
+test('calculated item backlog uses host-relative //key references', () => {
+  // Zabbix не переписывает params calculated items из имени шаблона в имя
+  // хоста при линковке (в отличие от триггеров): last(/Zyablik monitoring/...)
+  // на хосте становится unsupported. Для шаблонов используется форма //key —
+  // хост берётся у самого calculated item.
+  const { lines } = readLines();
+  const block = templateItemBlock(lines, 'zyablik.backlog');
+
+  assert.match(block, /type: CALCULATED/, 'zyablik.backlog must be a calculated item');
+  assert.match(
+    block,
+    /last\(\/\/zyablik\.status\.pending\)\+last\(\/\/zyablik\.status\.processing\)/,
+    'zyablik.backlog must reference items via host-relative //key form'
+  );
+  assert.doesNotMatch(block, /\/Zyablik monitoring\//, 'zyablik.backlog must not reference the template host');
 });

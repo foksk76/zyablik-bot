@@ -64,6 +64,7 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 | `{$ZYABLIK.PORT}` | `9000` | HTTP-порт бота |
 | `{$ZYABLIK.API_KEY}` | *(пусто, Secret)* | API-ключ для `/api/metrics/*` |
 | `{$ZYABLIK.POLL_INTERVAL}` | `30` | Интервал опроса HTTP-эндпоинтов, сек |
+| `{$ZYABLIK.NODATA_SEC}` | `90` | Окно отсутствия данных `/readyz` для триггера «бот недоступен» (по умолчанию 3 интервала опроса), сек |
 | `{$ZYABLIK.BACKLOG_SEC}` | `1800` | Окно анализа застоя очереди и роста ошибок, сек |
 | `{$ZYABLIK.MAX_FAILED}` | `10` | Порог прироста `failed`/`totalAttempts` за окно |
 
@@ -73,7 +74,7 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 |------|-----|----------|
 | `zyablik.summary` | HTTP agent | `GET {URL}:{PORT}/api/metrics/summary`, Bearer. Мастер для `zyablik.status.*` |
 | `zyablik.get.discovery` | HTTP agent | `GET {URL}:{PORT}/api/metrics/discovery`, Bearer. Мастер для LLD |
-| `zyablik.readyz` | HTTP agent | `GET {URL}:{PORT}/readyz`, без auth. Healthcheck |
+| `zyablik.readyz` | HTTP agent | `GET {URL}:{PORT}/readyz`, без auth. Healthcheck. `history: 1d` — `nodata()` требует history |
 | `zyablik.status.pending` | Dependent | `$.pending` из `zyablik.summary` |
 | `zyablik.status.processing` | Dependent | `$.processing` |
 | `zyablik.status.delivered` | Dependent | `$.delivered` |
@@ -88,13 +89,30 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 
 | Триггер | Выражение (суть) | Severity | Recovery |
 |---------|------------------|----------|----------|
-| Zyablik: бот недоступен | `nodata(zyablik.readyz, 3*{$ZYABLIK.POLL_INTERVAL})` | High | Automatic |
+| Zyablik: бот недоступен | `nodata(zyablik.readyz, {$ZYABLIK.NODATA_SEC})` | High | Automatic |
 | Zyablik: очередь не разгружается | `min(zyablik.status.pending, {$ZYABLIK.BACKLOG_SEC}) > 0` | Average | Automatic |
 | Zyablik: рост числа ошибок доставки | рост `zyablik.status.failed` за окно > `{$ZYABLIK.MAX_FAILED}` | High | Automatic |
 | Zyablik: накопление ошибок доставки | рост `zyablik.status.totalAttempts` за окно > `{$ZYABLIK.MAX_FAILED}` | Warning | Automatic |
 
 Все триггеры `manual_close = YES`. Зависимости: триггер «накопление ошибок»
 зависит от «рост числа ошибок доставки» (не дублирует проблему).
+
+> **Особенность Zabbix:** в периоде функции `nodata()` не допускается
+> арифметика — `nodata(..., 3*{$ZYABLIK.POLL_INTERVAL})` при
+> `configuration.import` молча теряет триггер (создаётся 3 из 4), без ошибки.
+> Поэтому окно вынесено в отдельный макрос `{$ZYABLIK.NODATA_SEC}`.
+>
+> Ещё одно ограничение: calculated items не переписывают ссылки
+> `/Имя-шаблона/item` на хост при линковке (в отличие от триггеров) —
+> `zyablik.backlog` использует host-относительную форму `last(//key)`,
+> где хост берётся у самого calculated item.
+>
+> И `nodata()` требует включённой history у элемента: при `history: '0'`
+> триггер не вычисляется («item history is disabled»). Поэтому у
+> `zyablik.readyz` history оставлена включённой (`1d`).
+>
+> Оба случая проверяются статическим тестом
+> `tests/monitoring/zabbix-template.test.js` и живым импортом в CI.
 
 ## Графики
 
@@ -117,6 +135,28 @@ docker compose down -v
 импортирует шаблон через `configuration.import` (Bearer-авторизация) и
 проверяет создание: шаблон, 10 items, 1 LLD-правило, 4 триггера, 2 графика.
 Exit code 0 — успех.
+
+## Живой стенд
+
+Проверка на реально работающем боте (см. [sprint-35.md](../tasks/sprints/sprint-35.md)):
+
+1. Поднять Zabbix в Docker (как в разделе выше), бота — отдельным процессом
+   с `QUEUE_ENABLED=true`, `MONITOR_ENABLED=true`, `MONITOR_PORT=9000`
+   и `METRICS_API_KEY`. На стенде бот работает как systemd-юнит
+   `zyablik-bot-live.service` (`EnvironmentFile=-/root/zyablik-bot/.env`).
+2. Завести хост: `node docs/zabbix-template/test/stand-host.js` —
+   создаёт/обновляет хост «Zyablik bot stand», привязывает шаблон, задаёт
+   host-level макросы (URL/port через docker bridge gateway, `{$ZYABLIK.API_KEY}`
+   — Secret, ускоренный `POLL_INTERVAL=10`, `NODATA_SEC=30`). Идемпотентен.
+3. Проверить: все items `state=0` и значения совпадают с `/summary` бота;
+   LLD создал `zyablik.queue[...]`; триггеры OK.
+4. Симуляция отказа: остановить бот → «бот недоступен» PROBLEM (High) через
+   `{$ZYABLIK.NODATA_SEC}`; запустить → RECOVERY автоматически.
+
+Проверено 2026-08-01: сбор метрик, LLD, PROBLEM -> RECOVERY (подробности и
+продолжительность в sprint-35.md). Quirka Zabbix, найденные стендом, описаны
+выше (nodata-арифметика, calculated `//key`, history для nodata) и закрыты
+регресс-тестами.
 
 ## CI
 

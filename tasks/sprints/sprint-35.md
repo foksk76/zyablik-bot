@@ -31,7 +31,7 @@
 
 ### Task 1: Живой бот на стенде
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Запустить bot-platform в synthetic long_polling режиме с
 `QUEUE_ENABLED=true` и `MONITOR_ENABLED=true`, `METRICS_API_KEY` (dev-token),
@@ -39,11 +39,16 @@
 `GET /api/metrics/discovery` отвечают на host.
 
 **Acceptance criteria:**
-- [ ] Процесс бота запущен (порт 9000), работает без падений
-- [ ] `/readyz` возвращает 200
-- [ ] `/api/metrics/summary` и `/api/metrics/discovery` возвращают 200
+- [x] Процесс бота запущен (порт 9000), работает без падений
+- [x] `/readyz` возвращает 200
+- [x] `/api/metrics/summary` и `/api/metrics/discovery` возвращают 200
       с Bearer-токеном
-- [ ] В очереди есть данные (или очередь инициализирована)
+- [x] В очереди есть данные (или очередь инициализирована)
+
+**Фактически:** бот — systemd-юнит `zyablik-bot-live.service`
+(WorkingDirectory=/root/zyablik-bot, EnvironmentFile=-/root/zyablik-bot/.env).
+Перезапущен для поднятия нового кода (discovery `{#METRIC}` без префикса
+`queue.*`). `METRICS_API_KEY` берётся из `.env`, не из аргументов.
 
 **Files:** нет новых файлов в репо (dev-запуск вне репо)
 
@@ -53,7 +58,7 @@
 
 ### Task 2: Хост в Zabbix с шаблоном
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Через Zabbix API создать host «Zyablik bot (stand)»,
 привязать шаблон `Zyablik monitoring`, задать host-level макросы:
@@ -62,10 +67,14 @@
 `docs/zabbix-template/test/stand-host.js` (повторный запуск идемпотентен).
 
 **Acceptance criteria:**
-- [ ] Скрипт создаёт хост и привязывает шаблон (идемпотентно)
-- [ ] Host-level макросы созданы; `{$ZYABLIK.API_KEY}` — Secret
-- [ ] Нет реальных секретов в репо (dev-token из env/аргумента)
-- [ ] Exit code 0
+- [x] Скрипт создаёт хост и привязывает шаблон (идемпотентно)
+- [x] Host-level макросы созданы; `{$ZYABLIK.API_KEY}` — Secret
+- [x] Нет реальных секретов в репо (dev-token из env/аргумента)
+- [x] Exit code 0
+
+**Фактически:** имя хоста без скобок — «Zyablik bot stand» (Zabbix
+отвергает `()` в имени: «Incorrect characters»). Secret-макрос задаётся
+через API-поле `type: 1` (параметр `secret` в Zabbix 7.2 не принимается).
 
 **Files:** `docs/zabbix-template/test/stand-host.js` (новый)
 
@@ -75,7 +84,7 @@
 
 ### Task 3: Проверка сбора метрик
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Дождаться 2-3 интервалов опроса
 (`{$ZYABLIK.POLL_INTERVAL}=30` по умолчанию) и проверить через Zabbix API:
@@ -84,10 +93,15 @@
 на хосте можно уменьшить (например, `{$ZYABLIK.POLL_INTERVAL}=10`).
 
 **Acceptance criteria:**
-- [ ] Все items: state=0 (supported), есть lastvalue
-- [ ] LLD discovery создал items `zyablik.queue[{#METRIC}]`
-- [ ] Все триггеры в состоянии OK (нет PROBLEM)
-- [ ] Значения метрик совпадают с `/summary` бота
+- [x] Все items: state=0 (supported), есть lastvalue
+- [x] LLD discovery создал items `zyablik.queue[{#METRIC}]`
+- [x] Все триггеры в состоянии OK (нет PROBLEM)
+- [x] Значения метрик совпадают с `/summary` бота
+
+**Фактически:** проверка на хосте `Zyablik bot stand` (hostid 10673):
+все items supported, dependent/LLD совпадают с `/summary`
+(total=4680, delivered=4638, failed=42, totalAttempts=210), 4 триггера OK.
+Найдены два quirka Zabbix — см. «Результаты».
 
 **Estimated scope:** M
 
@@ -95,7 +109,7 @@
 
 ### Task 4: Симуляция отказа бота
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Остановить бот-процесс, дождаться
 `3*{$ZYABLIK.POLL_INTERVAL}` и проверить через Zabbix API, что триггер
@@ -103,9 +117,14 @@
 запустить бот снова и дождаться RECOVERY.
 
 **Acceptance criteria:**
-- [ ] После остановки бота триггер «бот недоступен» = PROBLEM
-- [ ] Recovery после запуска бота (триггер вернулся в OK)
-- [ ] Продолжительность проблемы задокументирована
+- [x] После остановки бота триггер «бот недоступен» = PROBLEM
+- [x] Recovery после запуска бота (триггер вернулся в OK)
+- [x] Продолжительность проблемы задокументирована
+
+**Фактически:** `systemctl stop zyablik-bot-live.service` → PROBLEM
+(High, value=1) через `{$ZYABLIK.NODATA_SEC}`=30s
+(13:59:34 UTC → 14:00:03). `systemctl start` → RECOVERY (value=0) через
+~4s после появления данных /readyz (14:00:54). Продолжительность ~51s.
 
 **Estimated scope:** M
 
@@ -113,14 +132,14 @@
 
 ### Task 5: Документация и индексы
 
-**Status:** Pending
+**Status:** In Progress
 
 **Description:** Дополнить `docs/zabbix-monitoring-template.md` разделом
 «Живой стенд» (как поднять бота, как завести хост, что проверено),
 обновить `tasks/todo.md` и отметки спринтов.
 
 **Acceptance criteria:**
-- [ ] `docs/zabbix-monitoring-template.md` — раздел про живой стенд
+- [x] `docs/zabbix-monitoring-template.md` — раздел про живой стенд
 - [ ] `tasks/todo.md` — Sprint 35 задачи
 - [ ] `npm test` — все тесты passing
 - [ ] Нет секретов в репо
@@ -129,11 +148,31 @@
 
 ---
 
+## Результаты (живой стенд, 2026-08-01)
+
+Хост: `Zyablik bot stand` (hostid 10673), шаблон `Zyablik monitoring`
+(templateid 10670), группа `Zyablik` (23). Макросы хоста: URL=172.23.0.1,
+PORT=9000, API_KEY=Secret, POLL_INTERVAL=10, NODATA_SEC=30.
+
+1. **Сбор метрик:** все items state=0, значения совпадают с `/summary`
+   бота; LLD создал 6 items `zyablik.queue[...]`; 4 триггера OK.
+2. **Отказоустойчивость:** остановка бота → «бот недоступен» PROBLEM
+   (High) через NODATA_SEC=30s; старт → RECOVERY за ~4s. Остальные
+   триггеры при отказе остаются OK (зависимые items unsupported, события
+   не генерируются — ожидаемо).
+3. **Quirka Zabbix, найденные стендом и закрытые регресс-тестами:**
+   - `nodata()` не принимает арифметику в периоде — окно вынесено в
+     `{$ZYABLIK.NODATA_SEC}` (иначе импорт молча терял триггер);
+   - calculated items не переписывают `/Шаблон/key` на хост при линковке
+     — `zyablik.backlog` использует host-относительную форму `last(//key)`;
+   - `nodata()` требует history у элемента — у `zyablik.readyz` включена
+     `history: 1d` (иначе «item history is disabled», триггер не работает).
+
 ## Checkpoint: Sprint 35
 
-- [ ] Стенд: бот жив, хост в Zabbix, items supported, триггеры OK
-- [ ] Отказоустойчивость: PROBLEM -> RECOVERY на живом стенде
-- [ ] `npm test` — passing
+- [x] Стенд: бот жив, хост в Zabbix, items supported, триггеры OK
+- [x] Отказоустойчивость: PROBLEM -> RECOVERY на живом стенде
+- [x] `npm test` — passing (663/663 юнит + 20/20 шаблонных)
 - [ ] Ревью с человеком
 
 ## Risks and Mitigations

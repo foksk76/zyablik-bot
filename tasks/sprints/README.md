@@ -73,6 +73,7 @@ Sprint 31: Planned (Web Interface: Navigation Shell + Archive Backend)
 Sprint 32: Planned (Web Interface: Archive UI + Retry + Export)
 Sprint 33: Complete (Zabbix Monitoring Template: файл шаблона + статическая валидация)
 Sprint 34: Complete (Zabbix Monitoring Template: Docker CI + документация)
+Sprint 35: Complete (Zabbix Monitoring Template: связка с живым стендом, PROBLEM -> RECOVERY)
 ```
 
 Детальная информация в `tasks/sprints/sprint-07.md`.
