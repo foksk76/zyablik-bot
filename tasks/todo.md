@@ -46,7 +46,7 @@
 
 ### Checkpoint: Sprint 34
 
-- [ ] CI green: workflow импортирует шаблон, items/triggers созданы
+- [x] CI green: workflow импортирует шаблон, items/triggers созданы
 - [x] `npm test` — все тесты passing
 - [x] Документация не противоречит README/INSTALL/ADR
 - [x] ADR-0043 зафиксирован
@@ -83,6 +83,6 @@
 ## Final Verification
 
 - [x] `npm test` — все тесты passing
-- [ ] CI: `zabbix-template.yml` green
+- [x] CI: `zabbix-template.yml` green
 - [x] Шаблон импортируется в тестовый Zabbix, мониторит живой/стейбный бот
 - [x] Документация полная и непротиворечивая
