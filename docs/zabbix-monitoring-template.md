@@ -40,7 +40,7 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
      «Обзор очереди».
 
 Проверка импорта через API (для CI и локальных прогонов):
-`docs/zabbix-template/test/import-and-verify.js`.
+`docs/zabbix-template/scripts/import-and-verify.js`.
 
 ## Настройка хоста
 
@@ -193,9 +193,9 @@ delta-элемент не пишет значений, и виджет може�
 ## Локальный прогон импорта в Docker-Zabbix
 
 ```bash
-cd docs/zabbix-template/test
+cd docs/zabbix-template/scripts
 docker compose up -d --wait
-node ../test/import-and-verify.js
+node import-and-verify.js
 docker compose down -v
 ```
 
@@ -213,7 +213,7 @@ docker compose down -v
    с `QUEUE_ENABLED=true`, `MONITOR_ENABLED=true`, `MONITOR_PORT=9000`
    и `METRICS_API_KEY`. На стенде бот работает как systemd-юнит
    `zyablik-bot-live.service` (`EnvironmentFile=-/root/zyablik-bot/.env`).
-2. Завести хост: `node docs/zabbix-template/test/stand-host.js` —
+2. Завести хост: `node docs/zabbix-template/scripts/stand-host.js` —
    создаёт/обновляет хост «Zyablik bot stand», привязывает шаблон, задаёт
    host-level макросы (URL/port через docker bridge gateway, `{$ZYABLIK.API_KEY}`
    — Secret, ускоренный `POLL_INTERVAL=10`, `NODATA_SEC=30`). Идемпотентен.

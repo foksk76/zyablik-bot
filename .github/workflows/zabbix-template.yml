@@ -54,15 +54,15 @@ jobs:
           node-version: 22
 
       - name: Start test Zabbix 7.2 stack
-        working-directory: docs/zabbix-template/test
+        working-directory: docs/zabbix-template/scripts
         run: docker compose up -d --wait
 
       - name: Import template and verify entities
         env:
           ZABBIX_READY_TIMEOUT_MS: '300000'
-        run: node docs/zabbix-template/test/import-and-verify.js
+        run: node docs/zabbix-template/scripts/import-and-verify.js
 
       - name: Tear down test Zabbix stack
         if: always()
-        working-directory: docs/zabbix-template/test
+        working-directory: docs/zabbix-template/scripts
         run: docker compose down -v

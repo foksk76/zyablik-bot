@@ -286,9 +286,9 @@ Agent-less шаблон мониторинга (ADR-0043) собирает ме�
 Локальная проверка импорта в Docker-Zabbix 7.2:
 
 ```bash
-cd docs/zabbix-template/test
+cd docs/zabbix-template/scripts
 docker compose up -d --wait
-node ../test/import-and-verify.js
+node import-and-verify.js
 docker compose down -v
 ```
 

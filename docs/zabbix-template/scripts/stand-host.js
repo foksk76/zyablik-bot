@@ -6,7 +6,7 @@
 // стенда (ADR-0043, Sprint 35).
 //
 // Запуск (локально, после `docker compose up -d --wait` в этой директории):
-//   ZYABLIK_API_KEY=<dev-token> node docs/zabbix-template/test/stand-host.js
+//   ZYABLIK_API_KEY=<dev-token> node docs/zabbix-template/scripts/stand-host.js
 //
 // Параметры через переменные окружения:
 //   ZABBIX_API_URL          по умолчанию http://localhost:8080/api_jsonrpc.php
@@ -40,6 +40,7 @@ const NODATA_SEC = process.env.ZYABLIK_NODATA_SEC || '30';
 
 const POLL_INTERVAL_MS = 2000;
 const READY_TIMEOUT_MS = Number(process.env.ZABBIX_READY_TIMEOUT_MS || 180000);
+const REQUEST_TIMEOUT_MS = 30000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,9 +57,11 @@ async function api(method, params, auth) {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
     } catch (err) {
-        throw new Error(`API ${method}: сеть недоступна (${err.message})`);
+        const timeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+        throw new Error(`API ${method}: ${timeout ? `таймаут за ${REQUEST_TIMEOUT_MS} мс` : `сеть недоступна (${err.message})`}`);
     }
     const text = await res.text();
     let json;
@@ -99,13 +102,6 @@ function buildMacros() {
 }
 
 async function main() {
-    // Защита от случайного запуска под `node --test`: без живого Zabbix
-    // интеграционный скрипт не должен валить тестовый прогон.
-    if (process.env.NODE_TEST_CONTEXT) {
-        console.log('skip: запуск под node --test, создание хоста пропущено');
-        return;
-    }
-
     if (!API_KEY) {
         throw new Error('Задайте ZYABLIK_API_KEY (dev-токен /api/metrics/*)');
     }

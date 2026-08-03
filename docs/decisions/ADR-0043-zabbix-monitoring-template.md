@@ -116,13 +116,15 @@ item + problems виджеты, см. §2). Шаблонные дашборды 
 
 ### 6. Тестовый Zabbix 7.2 в Docker (Sprint 34)
 
-- `docs/zabbix-template/test/docker-compose.yml` — Zabbix server 7.2,
+- `docs/zabbix-template/scripts/docker-compose.yml` — Zabbix server 7.2,
   healthcheck готовности API
-- `docs/zabbix-template/test/import-and-verify.js` — импорт шаблона через
+- `docs/zabbix-template/scripts/import-and-verify.js` — импорт шаблона через
   Zabbix API (`configuration.import`) и проверка создания items/triggers
   (`item.get`, `trigger.get`)
 - Отдельный workflow `.github/workflows/zabbix-template.yml` — не блокирует
   `verify.yml` (Docker может быть медленным/нестабильным)
+- Скрипты лежат вне каталога `test/`: `node --test` авто-дискаверит
+  `**/test/**/*.js`, и они могли бы молча попадать в основной прогон
 
 ### 7. Guard на расширение поверхности мониторинга
 
@@ -216,8 +218,8 @@ Docker-образ той же версии, что минимум контрак
 - Обновление тестов `tests/queue-monitor/api/metrics.test.js`
 - Новый файл: `docs/zabbix-template/zyablik-monitoring-template.yaml`
 - Новые тесты: `tests/monitoring/zabbix-template.test.js`
-- Новое тестовое окружение: `docs/zabbix-template/test/` (docker-compose,
-  import-and-verify)
+- Новое тестовое окружение: `docs/zabbix-template/scripts/` (docker-compose,
+  import-and-verify, stand-host)
 - Новый CI: `.github/workflows/zabbix-template.yml`
 - Новые документы: `docs/zabbix-monitoring-template.md`, поправки к ADR-0034
 - Обновления: README.md, INSTALL.md, docs/project-context.md,
@@ -231,6 +233,6 @@ Docker-образ той же версии, что минимум контрак
 - `tests/queue-monitor/api/metrics.test.js`: discovery возвращает `{#METRIC}` =
   `pending/...` (без префикса)
 - `tests/monitoring/zabbix-template.test.js`: статическая валидация шаблона
-- `docs/zabbix-template/test/import-and-verify.js`: импорт в Docker-Zabbix 7.2,
+- `docs/zabbix-template/scripts/import-and-verify.js`: импорт в Docker-Zabbix 7.2,
   проверка items/triggers/graphs/dashboard через Zabbix API
 - `.github/workflows/zabbix-template.yml`: CI-прогон обоих уровней
