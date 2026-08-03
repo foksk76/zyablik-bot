@@ -385,7 +385,7 @@ NODE
 - Требуется доступ к Proxmox/серверному контуру.
 - Для будущего inbound webhook потребуется отдельное решение по сетевой публикации endpoint.
 - Для real webhook callback path должны быть определены network, DNS и ports; без этого outbound-only LXC остаётся только для `long_polling`.
-- Reverse proxy и TLS не входят в Task 12.7.
+- Reverse proxy и TLS не входят в Task 12.7. Установка и настройка Nginx reverse proxy для HTTP-серверов бота (ingress `8443`, dashboard `9000`) описана в `docs/runbooks/nginx-reverse-proxy.md`.
 - LXC не должен использоваться для хранения секретов в репозитории.
 - Наличие успешного LXC-прогона достаточно для продолжения работ, если WSL временно недоступен.
 

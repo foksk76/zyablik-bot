@@ -87,7 +87,7 @@ send()
       }
 ```
 
-Recipient key: `${payload.recipientType}:${payload.to}` (например, `user_id:219338126`).
+Recipient key: `${payload.recipientType}:${payload.to}` (например, `user_id:<user_id>`).
 
 ### Интеграция с queue worker
 
@@ -120,7 +120,7 @@ RATE_LIMIT_RECIPIENT=5               # per-recipient requests per window
 Throttle events логируются через `logger.info()`:
 
 ```text
-[info] [rate-limiter] throttled {"key":"user_id:219338126","reason":"recipient","wait_ms":999}
+[info] [rate-limiter] throttled {"key":"user_id:<user_id>","reason":"recipient","wait_ms":999}
 ```
 
 ### Тесты

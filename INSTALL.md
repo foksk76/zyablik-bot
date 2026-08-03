@@ -185,7 +185,7 @@ node src/bot-platform/app.js
 ```bash
 # Получить токен от NanoIDP
 TOKEN=$(curl -s -X POST http://localhost:8000/token \
-  -u 'zabbix-bot:zabbix-bot-secret-2024' \
+  -u 'zabbix-bot:<client-secret>' \
   -d 'grant_type=client_credentials' | jq -r '.access_token')
 
 # Отправить событие
@@ -316,3 +316,41 @@ node src/bot-platform/app.js
 1. Принимать входящие запросы через HTTP-ingress
 2. Ставить сообщения в очередь
 3. Отправлять сообщения через MAX Bot API с retry
+
+## 10. HTTPS через Nginx reverse proxy (опционально)
+
+HTTP-серверы bot-platform (ingress `8443`, dashboard `9000`) по умолчанию
+работают на plain HTTP. TLS-терминирование выполняется внешним reverse proxy
+(ADR-0026). Полная инструкция по установке и настройке Nginx для локального
+стенда — в `docs/runbooks/nginx-reverse-proxy.md`.
+
+Кратко после установки Nginx:
+
+```text
+POST /ingest → https://<stand-host>/ingest → http://127.0.0.1:8443
+dashboard   → https://<stand-host>/        → http://127.0.0.1:9000
+```
+
+Изменения в настройке после включения Nginx:
+
+```bash
+# bot-platform: OAuth2 redirect должен идти через публичный HTTPS-адрес.
+# Secure-флаг session cookie зависит от https:// в этом значении.
+export IDP_REDIRECT_URI=https://<stand-host>/api/auth/callback
+```
+
+```text
+# Zabbix Media type (bot-platform-ingest.js):
+IngestUrl: https://<stand-host>/ingest
+```
+
+```text
+# Zabbix Monitoring template (ADR-0043), если порт 9000 закрыт снаружи:
+# HTTP Agent в шаблоне ходит на {$ZYABLIK.URL}:{$ZYABLIK.PORT} → /api/metrics/*
+{$ZYABLIK.URL}:  https://<stand-host>
+{$ZYABLIK.PORT}: 443
+```
+
+Zabbix server и другие клиенты должны доверять самоподписанному сертификату
+или внутреннему CA (ADR-0026:112). Это касается и Media type, и HTTP Agent
+Monitoring template.

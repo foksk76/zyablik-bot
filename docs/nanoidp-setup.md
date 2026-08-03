@@ -45,7 +45,7 @@ curl http://localhost:8000/.well-known/jwks.json
 
 # Получить токен
 curl -X POST http://localhost:8000/token \
-  -u 'zabbix-bot:zabbix-bot-secret-2024' \
+  -u 'zabbix-bot:<client-secret>' \
   -d 'grant_type=client_credentials'
 ```
 
@@ -69,7 +69,7 @@ oauth:
   audience: "bot-platform"
   clients:
     - client_id: "zabbix-bot"
-      client_secret: "zabbix-bot-secret-2024"
+      client_secret: "<client-secret>"
       description: "Zabbix to MAX bot-platform M2M client"
 ```
 

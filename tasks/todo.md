@@ -1,4 +1,4 @@
-# Task Checklist — Sprint 33 + 34 + 35 (Zyablik Zabbix Monitoring Template)
+# Task Checklist — Sprint 33 + 34 + 35 (Zyablik Zabbix Monitoring Template) + Sprint 36 (Nginx reverse proxy)
 
 ## Sprint 33: Шаблон Zabbix — файл + статическая валидация
 
@@ -86,3 +86,32 @@
 - [x] CI: `zabbix-template.yml` green
 - [x] Шаблон импортируется в тестовый Zabbix, мониторит живой/стейбный бот
 - [x] Документация полная и непротиворечивая
+
+---
+
+## Sprint 36: Nginx reverse proxy — HTTPS для HTTP-серверов bot-platform
+
+Детали: [sprint-36.md](sprints/sprint-36.md), ADR-0044, runbook
+`docs/runbooks/nginx-reverse-proxy.md`.
+
+- [x] **1. Установка Nginx + self-signed сертификат** — `nginx` активен,
+      сертификат с SAN (DNS+IP) в `/etc/nginx/ssl/`, ключ 600
+- [x] **2. Конфигурация Nginx (443, path-based)** — `conf.d/zyablik-bot.conf`:
+      `listen 443 ssl http2`, `/ingest` → 8443, `/` → 9000; `nginx -t` pass;
+      `curl -k https://<stand-host>/readyz` и `POST /ingest` → 200
+- [x] **3. bot-platform под HTTPS** — `IDP_REDIRECT_URI=https://<stand-host>/api/auth/callback`
+      (Secure cookie), dashboard по https, OAuth2 login работает
+- [x] **4. Клиенты** — Zabbix Media type `IngestUrl=https://<stand-host>/ingest`,
+      доверие сертификату, test send доставлен в МАХ
+- [x] **5. Firewall** — снаружи только `22`/`443`, `8443`/`9000` закрыты
+- [x] **6. Проверка e2e + результаты** — checklist runbook (раздел 7) пройден,
+      результаты в `docs/test-runs/`
+
+### Checkpoint: Sprint 36
+
+- [x] `nginx -t`, readyz/ingest по HTTPS — 200
+- [x] Zabbix test send по HTTPS — доставлено в МАХ
+- [x] Dashboard по HTTPS: UI + OAuth2 login
+- [x] Firewall: `8443`/`9000` закрыты снаружи
+- [x] `npm test` — все тесты passing
+- [ ] Ревью с человеком
