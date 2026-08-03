@@ -1,0 +1,71 @@
+name: Zabbix template
+
+# Проверка шаблона мониторинга Zyablik (ADR-0043):
+#   1) статический валидатор (node --test);
+#   2) живой импорт в тестовый Zabbix 7.2 (Docker) через Zabbix API
+#      с проверкой созданных entities.
+#
+# Отдельный workflow: Docker Zabbix может быть медленным/нестабильным,
+# поэтому не блокирует основной verify.yml.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'docs/zabbix-template/**'
+      - 'src/queue-monitor/api/metrics.js'
+      - 'tests/queue-monitor/api/metrics.test.js'
+      - 'tests/monitoring/**'
+      - '.github/workflows/zabbix-template.yml'
+  workflow_dispatch:
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run static validator (npm test)
+        run: npm test
+
+  docker-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: static-validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Start test Zabbix 7.2 stack
+        working-directory: docs/zabbix-template/scripts
+        run: docker compose up -d --wait
+
+      - name: Import template and verify entities
+        env:
+          ZABBIX_READY_TIMEOUT_MS: '300000'
+        run: node docs/zabbix-template/scripts/import-and-verify.js
+
+      - name: Tear down test Zabbix stack
+        if: always()
+        working-directory: docs/zabbix-template/scripts
+        run: docker compose down -v

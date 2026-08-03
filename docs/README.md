@@ -4,10 +4,10 @@
 
 ## Быстрый Вход
 
-- [`live-identity-bot.md`](live-identity-bot.md) — текущий статус проекта.
-- [`identity-plugin/`](identity-plugin/) — Identity Plugin документация и sprint plan.
 - [`project-context.md`](project-context.md) — текущий scope, принятые части и открытые follow-up.
+- [`identity-plugin/`](identity-plugin/) — Identity Plugin документация и sprint plan.
 - [`zabbix-media-type.md`](zabbix-media-type.md) — настройка Zabbix Media type `MAX`.
+- [`zabbix-monitoring-template.md`](zabbix-monitoring-template.md) — agent-less шаблон мониторинга (ADR-0043).
 - [`test-runs/README.md`](test-runs/README.md) — карта обезличенных прогонов.
 - [`decisions/README.md`](decisions/README.md) — индекс ADR.
 
@@ -19,7 +19,7 @@
 
 ## Планы
 
-- [`../tasks/sprints/`](../tasks/sprints/) — sprint plans для Identity Plugin live реализации.
+- [`../tasks/sprints/`](../tasks/sprints/) — sprint plans: bot-platform, queue-monitor, web interface, Zabbix monitoring template.
 
 ## Важное Разделение
 

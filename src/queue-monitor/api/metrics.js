@@ -88,33 +88,36 @@ function createMetricsRoutes(options = {}) {
     }
 
     function discovery(_ctx) {
+        // ADR-0043: {#METRIC} без префикса queue. — совпадает с именами полей
+        // /summary, чтобы JSONPath $.{#METRIC} в dependent items LLD-шаблона
+        // читал значение из master item.
         return {
             statusCode: 200,
             body: {
                 status: 'ok',
                 data: [
                     {
-                        '{#METRIC}': 'queue.pending',
+                        '{#METRIC}': 'pending',
                         '{#LABEL}': 'Ожидают отправки'
                     },
                     {
-                        '{#METRIC}': 'queue.processing',
+                        '{#METRIC}': 'processing',
                         '{#LABEL}': 'В обработке'
                     },
                     {
-                        '{#METRIC}': 'queue.delivered',
+                        '{#METRIC}': 'delivered',
                         '{#LABEL}': 'Доставлено'
                     },
                     {
-                        '{#METRIC}': 'queue.failed',
+                        '{#METRIC}': 'failed',
                         '{#LABEL}': 'Ошибки'
                     },
                     {
-                        '{#METRIC}': 'queue.total',
+                        '{#METRIC}': 'total',
                         '{#LABEL}': 'Всего сообщений'
                     },
                     {
-                        '{#METRIC}': 'queue.totalAttempts',
+                        '{#METRIC}': 'totalAttempts',
                         '{#LABEL}': 'Всего попыток'
                     }
                 ]

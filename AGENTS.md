@@ -48,6 +48,16 @@ docs/runbooks/live-identity-bot.md
 docs/identity-plugin/
 ```
 
+Если меняется Zabbix monitoring template:
+
+```text
+docs/zabbix-template/zyablik-monitoring-template.yaml
+docs/zabbix-template/scripts/
+docs/zabbix-monitoring-template.md
+tests/monitoring/zabbix-template.test.js
+docs/decisions/ADR-0043-zabbix-monitoring-template.md
+```
+
 Если меняется bot-platform (архитектура):
 
 ```text
@@ -78,6 +88,7 @@ ADR-0039  rate limiting для auth-эндпоинтов dashboard (sliding wind
 ADR-0040  улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary)
 ADR-0041  глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
 ADR-0042  web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
+ADR-0043  Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+, смена {#METRIC} на pending, тестовый Zabbix 7.2 в Docker)
 ```
 
 ## Каноничные источники
@@ -105,6 +116,8 @@ docs/ideas/                      pre-ADR idea documents
 docs/identity-plugin/            Identity Plugin документация
 docs/test-runs/                  результаты прогонов
 docs/assets/                     логотип и статические артефакты
+docs/zabbix-template/            Zabbix monitoring template (ADR-0043) + скрипты
+tests/monitoring/                статические тесты шаблона (ADR-0043)
 tasks/sprints/                   task breakdown
 systemd/                         unit-файлы для bot-platform
 LICENSE                          лицензия Apache-2.0 (EN)

@@ -35,6 +35,10 @@ src/queue-monitor/ui/dist/
 .local/agent-skills/
 vendor/agent-skills/
 
+# Local tooling artifacts (opencode, playwright MCP)
+.opencode/
+.playwright-mcp/
+
 # Secrets and local exports
 *token*
 *secret*

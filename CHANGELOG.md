@@ -4,6 +4,37 @@
 
 Формат: версия, дата, краткое описание изменений.
 
+## [Unreleased]
+
+### Added
+- Queue Monitor Dashboard (ADR-0034): readonly SQLite replica, `/api/metrics/*` endpoints (summary, discovery, timeseries, top, errors), `/readyz`, Bearer Token auth, stdlib HTTP server, React SPA UI
+- Session auth как альтернатива Bearer для dashboard metrics (ADR-0035)
+- Дизайн-система для React UI queue-monitor: design tokens, shadcn/ui, Lucide, Storybook (ADR-0036)
+- SSRF-защита IdP-эндпоинтов + `IDP_RELAX_SSRF` для MVP стенда (ADR-0037)
+- Hand-rolled JWT-verifier для ingress layer, RS256/384/512, JWKS cache (ADR-0038)
+- Rate limiting для auth-эндпоинтов dashboard, sliding window + concurrency cap (ADR-0039)
+- Улучшения UI: error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary, dark/light theme (ADR-0040)
+- Глобальный фильтр времени: TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan (ADR-0041)
+- Web interface: navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export) (ADR-0042)
+- Zabbix Monitoring Template: agent-less LLD-шаблон 7.0+ на `/api/metrics/*` и `/readyz`, смена `{#METRIC}` на `pending`, триггеры/графики/дашборд, тестовый Zabbix 7.2 в Docker (ADR-0043)
+
+### Changed
+- `{#METRIC}` discovery: префикс `queue.` удалён — ключи совпадают с полями `/summary` (ADR-0043, breaking change)
+- Dashboard-сервер объединён с bot-platform через `src/queue-monitor/` facade и координацию shutdown
+
+### Documentation
+- ADR-0034..0043 добавлены в `docs/decisions/`
+- `docs/zabbix-monitoring-template.md` — импорт шаблона, макросы, триггеры, quirka Zabbix
+- `INSTALL.md` — разделы dashboard, мониторинг Zabbix, очередь, ingress
+- Design tokens и компоненты задокументированы (Storybook)
+
+### Fixed
+- Ограничение `limit` в SQLite-запросах (clamp, защита от `LIMIT -1`)
+- Парсинг malformed URI в `parseQuery` — не роняет процесс
+- Graceful shutdown: координация worker/queue/ingress (BUG C)
+- Stale processing-строки после краша процесса (BUG A, ADR-0028)
+- Skip failed update вместо блокировки батча в long polling (BUG B)
+
 ## [1.0.0] - 2026-07-20
 
 ### Added

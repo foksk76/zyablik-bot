@@ -62,6 +62,7 @@ src/zabbix-media-type/bot-platform-ingest.js — через bot-platform (Zabbix
 docs/             проектная и эксплуатационная документация
 docs/decisions/   ADR и принятые решения
 docs/identity-plugin/  Identity Plugin документация
+docs/zabbix-template/  Zabbix monitoring template (ADR-0043) + тестовый стек
 examples/         обезличенные примеры параметров и чек-листы
 src/              исходники webhook, bot-platform и queue-monitor
 systemd/          unit-файлы для bot-platform
@@ -138,6 +139,8 @@ Queue Monitor Dashboard (ADR-0034)
 - ADR-0039: rate limiting для auth-эндпоинтов dashboard (sliding window + concurrency cap)
 - ADR-0040: улучшения UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary)
 - ADR-0041: глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
+- ADR-0042: web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
+- ADR-0043: Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+ с дашбордом «Обзор очереди», смена `{#METRIC}` на `pending`, тестовый Zabbix 7.2 в Docker)
 
 ## Документация
 
@@ -148,6 +151,7 @@ INSTALL.md
 docs/live-identity-bot.md
 docs/identity-plugin/
 docs/zabbix-media-type.md
+docs/zabbix-monitoring-template.md
 docs/runbooks/live-identity-bot.md
 docs/decisions/README.md
 tasks/sprints/

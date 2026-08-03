@@ -1,0 +1,78 @@
+version: '3.8'
+
+# Тестовое окружение Zabbix 7.2 для проверки импорта шаблона
+# `zyablik-monitoring-template.yaml` (ADR-0043).
+#
+# Запуск:
+#   docker compose up -d --wait
+#   node docs/zabbix-template/scripts/import-and-verify.js
+#
+# Стек повторяет официальный zabbix-docker (server + web + db-init):
+#   https://github.com/zabbix/zabbix-docker/blob/master/compose_pgsql.yaml
+#
+# Параметры по умолчанию — только для локальной проверки и CI.
+# Реальные учётные данные на проде не используются (см. AGENTS.md).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabbix -d zabbix"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  zabbix-db-init:
+    image: zabbix/zabbix-server-pgsql:ubuntu-7.2-latest
+    command: init_db_only
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:ubuntu-7.2-latest
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zabbix-db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.2-latest
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_PORT: '10051'
+      PHP_TZ: Europe/Riga
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      zabbix-server:
+        condition: service_started
+    restart: unless-stopped

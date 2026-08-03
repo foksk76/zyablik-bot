@@ -109,6 +109,14 @@ bot-platform (Node.js)
 {
   "data": [
     {
+      "{#METRIC}": "pending",
+      "{#LABEL}": "Ожидают отправки"
+    },
+    {
+      "{#METRIC}": "processing",
+      "{#LABEL}": "В обработке"
+    },
+    {
       "{#METRIC}": "delivered",
       "{#LABEL}": "Доставлено"
     },
@@ -117,16 +125,29 @@ bot-platform (Node.js)
       "{#LABEL}": "Ошибки"
     },
     {
-      "{#METRIC}": "processing",
-      "{#LABEL}": "В обработке"
+      "{#METRIC}": "total",
+      "{#LABEL}": "Всего сообщений"
     },
     {
-      "{#METRIC}": "pending",
-      "{#LABEL}": "Ожидают"
+      "{#METRIC}": "totalAttempts",
+      "{#LABEL}": "Всего попыток"
     }
   ]
 }
 ```
+
+> **Поправка от 2026-08-01 (решение ADR-0043):** ключи `{#METRIC}` не имеют
+> префикса и их шесть (`pending`, `processing`, `delivered`, `failed`,
+> `total`, `totalAttempts`) — совпадают с именами полей `/summary` для
+> JSONPath в dependent items. Реализация `src/queue-monitor/api/metrics.js`
+> приведена к этому целевому состоянию в Sprint 33 (ADR-0043); промежуточная
+> форма с префиксом `queue.` в репозитории больше не существует.
+>
+> **История:** первоначальная версия ADR описывала четыре ключа без
+> префикса (`delivered`, `failed`, `processing`, `pending`). Промежуточная
+> поправка от 2026-08-01 уточняла реализацию — шесть ключей с префиксом
+> `queue.`. Префикс отменён решением ADR-0043 (Zabbix Monitoring Template):
+> он не нёс нагрузки, все метрики из одной очереди.
 
 ### Схема queue (для reader)
 
