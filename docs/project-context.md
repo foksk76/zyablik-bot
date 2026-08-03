@@ -165,6 +165,16 @@ src/bot-platform/app.js                — Wiring: ingress + queue в одном
 
 Конфигурация (переменные окружения):
 
+> С Sprint 37-41 управляемые настройки перенесены в файл конфигурации
+> `zyablik.config.json` (источник правды, ADR-0045): разделы `bot.*`,
+> `queue.*`, `ingress.*`, `monitor.*`, `plugins.<name>.*`. Секреты в файле —
+> только `$VAR`-ссылки. В `.env` остаются bootstrap (`ZYABLIK_CONFIG`),
+> секреты и неизменяемая база (`MAX_API_URL`, IdP-регистрация). Полный
+> маппинг env→файл, `--generate-config` и сценарии — в
+> `docs/runbooks/config-file.md`, управление через web UI «Настройки»
+> (ADR-0046, `/api/config/*`). Ниже — исторический вид переменных,
+> которые больше не управляются через env (значения из файла).
+
 ```text
 QUEUE_ENABLED=false         — включение очереди (по умолчанию false)
 QUEUE_MAX_ATTEMPTS=5        — максимальное количество попыток доставки

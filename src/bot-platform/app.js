@@ -240,7 +240,11 @@ async function startIngressAndQueue(config, options, io) {
       environment,
       dbPath: monitorDbPath,
       queueStore,
-      logger: options.logger || console
+      logger: options.logger || console,
+      // ADR-0046: конфигурация для /api/config/* (configPath, плагины, рестарт).
+      configPath: options.configPath,
+      plugins: options.plugins || [],
+      configRestart: options.configRestart
     });
 
     await monitor.start();
@@ -315,11 +319,18 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
   const app = createBotPlatformApp(environment);
   const config = app.core.config;
 
+  // ADR-0046: плагины и configPath для /api/config/* dashboard.
+  const ingressOptions = {
+    ...options,
+    plugins: app.plugins,
+    configPath: app.core.configPath
+  };
+
   if (argv.length === 0) {
     if (config.maxTransportMode === 'long_polling') {
       startBotPlatformService(environment);
 
-      const shutdownHandle = await startIngressAndQueue(config, options, io);
+      const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 
       const shutdownIo = options.io || io;
       const onSignal = async () => {
@@ -339,7 +350,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
   if (isLiveCommand(argv)) {
     try {
-      const shutdownHandle = await startIngressAndQueue(config, options, io);
+      const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 
       const startLiveService = typeof options.startLiveBotPlatformService === 'function'
         ? options.startLiveBotPlatformService

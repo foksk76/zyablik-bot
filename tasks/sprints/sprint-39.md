@@ -43,7 +43,7 @@ SettingsPage (Sprint 40). Внутренний контракт событий �
 
 ### Task 1: `configSchema` плагина + валидация в plugin-loader
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Контракт `configSchema` в plugin-loader
 (`src/bot-platform/core/plugin-loader.js:39`): валидация схемы на загрузке
@@ -78,7 +78,7 @@ SettingsPage (Sprint 40). Внутренний контракт событий �
 
 ### Task 2: Merged-схема
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `getMergedConfigSchema()` — системная схема + схемы
 плагинов; используется валидатором файла и в `/api/config/schema`.
@@ -99,7 +99,7 @@ SettingsPage (Sprint 40). Внутренний контракт событий �
 
 ### Task 3: API — просмотр и схема
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `GET /api/config` — effective-конфиг (секреты — только
 статус/маска). `GET /api/config/schema` — merged-схема (для рендера форм).
@@ -121,7 +121,7 @@ SettingsPage (Sprint 40). Внутренний контракт событий �
 
 ### Task 4: API — stage, apply, rollback, status
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `GET/PUT /api/config/stage` (staged-снапшот, diff),
 `POST /api/config/apply` (202 + status polling), `POST /api/config/rollback`,
@@ -148,7 +148,7 @@ single-flight (409) + sliding-window rate limit (ADR-0039). Вызывают
 
 ### Task 5: API — export/import
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `GET /api/config/export` — дамп конфига для резервной
 копии (секреты — `$VAR`-ссылки). `POST /api/config/import` — импорт:
@@ -172,10 +172,10 @@ single-flight (409) + sliding-window rate limit (ADR-0039). Вызывают
 
 ## Checkpoint: Sprint 39
 
-- [ ] Полный API-флоу e2e: schema → stage → apply → status (confirmed) →
+- [x] Полный API-флоу e2e: schema → stage → apply → status (confirmed) →
       rollback; import/export
-- [ ] Секреты не появляются в ответах API (docs-leak-guard + интеграционные)
-- [ ] 409/429 работают; npm test зелёный
+- [x] Секреты не появляются в ответах API (docs-leak-guard + интеграционные)
+- [x] 409/429 работают; npm test зелёный (837 pass)
 - [ ] Ревью с человеком
 
 ## Risks and Mitigations

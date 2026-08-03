@@ -185,7 +185,7 @@ function preValidateConfigFile(rawConfig, options = {}) {
     }
 
     const fileConfig = prepared.config;
-    const validation = validateConfigFile(fileConfig);
+    const validation = validateConfigFile(fileConfig, { plugins: options.plugins });
     if (validation.errors.length > 0) {
         throw createConfigError(CONFIG_VALIDATION_ERROR_CODE, 'Конфиг-файл не прошёл валидацию', {
             errors: validation.errors,
@@ -245,7 +245,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
     const { lkgPath, configPath: activePath } = serviceFilePaths(configPath);
 
     // 1. pre-validate (не трогает активный конфиг при отказе).
-    const { hash } = preValidateConfigFile(fileConfig, { environment });
+    const { hash } = preValidateConfigFile(fileConfig, { environment, plugins: options.plugins });
 
     // 2. lkg = копия активного (до записи нового).
     const activeConfig = readJsonFile(activePath);

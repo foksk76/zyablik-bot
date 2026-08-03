@@ -268,9 +268,10 @@ function readConfigFile(configPath) {
 }
 
 // Сборка effective-конфига из defaults + файла + .env-слоя.
+// options: { plugins } — для merged-валидации plugins-секции (ADR-0046).
 // Возвращает { config (плоский), sections, warnings } или выбрасывает
 // CONFIG_VALIDATION_ERROR / CONFIG_SECRET_VAR_UNRESOLVED.
-function buildConfigFromFile(rawConfig, environment, configPath) {
+function buildConfigFromFile(rawConfig, environment, configPath, options = {}) {
     const prepared = prepareConfigForLoad(rawConfig);
     if (prepared.error) {
         throw createConfigError(CONFIG_VALIDATION_ERROR_CODE, prepared.error, {
@@ -280,7 +281,7 @@ function buildConfigFromFile(rawConfig, environment, configPath) {
     }
 
     const fileConfig = prepared.config;
-    const validation = validateConfigFile(fileConfig);
+    const validation = validateConfigFile(fileConfig, { plugins: options.plugins });
     if (validation.errors.length > 0) {
         throw createConfigError(CONFIG_VALIDATION_ERROR_CODE, 'Конфиг-файл не прошёл валидацию', {
             configPath,
@@ -372,7 +373,7 @@ function loadConfig(options = {}) {
             });
         }
 
-        const built = buildConfigFromFile(rawConfig, environment, resolvedPath);
+        const built = buildConfigFromFile(rawConfig, environment, resolvedPath, options);
         return {
             configPath: resolvedPath,
             fileExists: true,

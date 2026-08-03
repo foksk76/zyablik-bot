@@ -6,6 +6,22 @@ const path = require('node:path');
 
 const moduleName = 'plugin-loader';
 
+// ADR-0046: допустимые ключи поля configSchema плагина и типы значений.
+const CONFIG_SCHEMA_FIELD_KEYS = Object.freeze([
+  'type',
+  'default',
+  'required',
+  'secret',
+  'enum',
+  'min',
+  'max',
+  'nullable',
+  'description',
+  'section'
+]);
+
+const CONFIG_SCHEMA_VALUE_TYPES = new Set(['string', 'number', 'boolean', 'enum', 'list']);
+
 function loadPlugins(pluginsDir) {
   const plugins = [];
 
@@ -68,6 +84,82 @@ function validatePlugin(plugin, dirName) {
       );
     }
   }
+
+  // ADR-0046: configSchema опционален (плагин без схемы невидим в Settings UI).
+  if (plugin.configSchema !== undefined) {
+    validateConfigSchema(plugin.configSchema, plugin.name);
+  }
+}
+
+// ADR-0046: валидация configSchema плагина при загрузке.
+// Формат поля: { type, default, required, secret, enum, min, max, nullable,
+// description, section }. Схема описывает ветку plugins.<name>.*.
+function validateConfigSchema(configSchema, pluginName) {
+  if (configSchema === null || typeof configSchema !== 'object' || Array.isArray(configSchema)) {
+    throw new Error(
+      `Plugin "${pluginName}" configSchema must be an object`
+    );
+  }
+
+  for (const [key, field] of Object.entries(configSchema)) {
+    if (field === null || typeof field !== 'object' || Array.isArray(field)) {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" must be an object`
+      );
+    }
+
+    for (const fieldKey of Object.keys(field)) {
+      if (!CONFIG_SCHEMA_FIELD_KEYS.includes(fieldKey)) {
+        throw new Error(
+          `Plugin "${pluginName}" configSchema field "${key}" has unknown key "${fieldKey}"`
+        );
+      }
+    }
+
+    if (field.type !== undefined && !CONFIG_SCHEMA_VALUE_TYPES.has(field.type)) {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" has invalid type "${field.type}"`
+      );
+    }
+
+    if (field.enum !== undefined && (!Array.isArray(field.enum) || field.enum.length === 0)) {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" "enum" must be a non-empty array`
+      );
+    }
+
+    if (field.min !== undefined && typeof field.min !== 'number') {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" "min" must be a number`
+      );
+    }
+
+    if (field.max !== undefined && typeof field.max !== 'number') {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" "max" must be a number`
+      );
+    }
+
+    for (const boolKey of ['required', 'secret', 'nullable']) {
+      if (field[boolKey] !== undefined && typeof field[boolKey] !== 'boolean') {
+        throw new Error(
+          `Plugin "${pluginName}" configSchema field "${key}" "${boolKey}" must be a boolean`
+        );
+      }
+    }
+
+    if (field.description !== undefined && typeof field.description !== 'string') {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" "description" must be a string`
+      );
+    }
+
+    if (field.section !== undefined && typeof field.section !== 'string') {
+      throw new Error(
+        `Plugin "${pluginName}" configSchema field "${key}" "section" must be a string`
+      );
+    }
+  }
 }
 
 function buildRouteMap(plugins) {
@@ -100,6 +192,7 @@ module.exports = {
   moduleName,
   loadPlugins,
   validatePlugin,
+  validateConfigSchema,
   buildRouteMap,
   createPluginLoader
 };

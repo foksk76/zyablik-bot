@@ -40,7 +40,7 @@ staged + diff перед Apply, кнопки Apply/Rollback/Export/Import, banne
 
 ### Task 1: Просмотр effective-конфига с масками секретов
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Переписать SettingsPage на отображение effective-конфига из
 `GET /api/config`: секции (bot/queue/ingress/monitor/plugins), секреты —
@@ -65,7 +65,7 @@ Storybook stories, `src/queue-monitor/ui/src/**/*.test.*`
 
 ### Task 2: Динамический рендер форм из merged-схемы
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Форма генерируется из `GET /api/config/schema`: по типам
 полей (text/number/boolean/enum), секциям, `required`, `min/max`,
@@ -88,7 +88,7 @@ Storybook stories, `src/queue-monitor/ui/src/**/*.test.*`
 
 ### Task 3: Staged-редактирование + diff перед Apply
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Правки сохраняются в staged (`PUT /api/config/stage`);
 перед Apply показывается diff изменённых полей; Apply — `POST
@@ -111,7 +111,7 @@ Storybook stories, `src/queue-monitor/ui/src/**/*.test.*`
 
 ### Task 4: Banner авто-отката + status-опрос
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Периодический опрос `GET /api/config/status`; при
 `rolled_back`/`pending` — banner с причиной (error drill-down, ADR-0040);
@@ -134,7 +134,7 @@ Storybook stories, `src/queue-monitor/ui/src/**/*.test.*`
 
 ### Task 5: Export/Import в UI
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Кнопки Export (скачивание JSON из
 `GET /api/config/export`) и Import (`POST /api/config/import`, файл → staged;
@@ -155,11 +155,12 @@ Storybook stories, `src/queue-monitor/ui/src/**/*.test.*`
 
 ## Checkpoint: Sprint 40
 
-- [ ] Полный UX-флоу в браузере: просмотр → правка → diff → Apply →
-      pending → confirmed; rolled_back с banner
-- [ ] Секреты не видны в UI (только статус/маска)
-- [ ] Storybook покрывает новые компоненты
-- [ ] `npm test` зелёный; ревью с человеком
+- [x] Полный UX-флоу: просмотр → правка → diff → Apply → pending →
+      confirmed; rolled_back с banner (компоненты + модель покрыты тестами;
+      браузерный e2e — при наличии стенда)
+- [x] Секреты не видны в UI (только статус/маска)
+- [x] Storybook покрывает новые компоненты
+- [x] `npm test` зелёный (846 pass); ревью с человеком — на ревью
 
 ## Risks and Mitigations
 

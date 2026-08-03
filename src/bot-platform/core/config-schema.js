@@ -443,6 +443,76 @@ function validateSecretField(field, value) {
     return 'секрет задаётся только $VAR-ссылкой или пустым значением';
 }
 
+// --- Merged-схема (ADR-0046) ---
+
+// Merged-схема = системная схема + configSchema плагинов.
+// Формат: { bot, queue, ingress, monitor, plugins: { <name>: configSchema } }.
+// Плагин без configSchema в merged-схему не попадает (невидим в Settings UI).
+function getMergedConfigSchema(plugins = []) {
+    const pluginSchemas = {};
+
+    for (const plugin of plugins) {
+        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
+            pluginSchemas[plugin.name] = plugin.configSchema;
+        }
+    }
+
+    return {
+        ...SYSTEM_SCHEMA,
+        plugins: pluginSchemas
+    };
+}
+
+// Валидация ветки plugins.<name>.* по configSchema плагина.
+// Возвращает { errors, warnings } (пустые, если схема не объявлена).
+function validatePluginSection(pluginName, configSchema, sectionValue) {
+    const errors = [];
+    const warnings = [];
+
+    if (sectionValue === undefined || sectionValue === null) {
+        return { errors, warnings };
+    }
+
+    if (typeof sectionValue !== 'object' || Array.isArray(sectionValue)) {
+        errors.push({ section: 'plugins', key: pluginName, reason: 'ветка плагина должна быть объектом' });
+        return { errors, warnings };
+    }
+
+    if (!configSchema || typeof configSchema !== 'object') {
+        // Схема не объявлена — структурная проверка уже сделана; ключи warn+ignore.
+        for (const key of Object.keys(sectionValue)) {
+            warnings.push({
+                section: 'plugins',
+                key: `${pluginName}.${key}`,
+                reason: 'у плагина нет configSchema — ключ не проверяется (warn + ignore)'
+            });
+        }
+        return { errors, warnings };
+    }
+
+    for (const [key, field] of Object.entries(configSchema)) {
+        if (sectionValue[key] === undefined) {
+            continue;
+        }
+        const value = sectionValue[key];
+
+        if (field.secret) {
+            const secretReason = validateSecretField(field, value);
+            if (secretReason) {
+                errors.push({ section: 'plugins', key: `${pluginName}.${key}`, reason: secretReason });
+                continue;
+            }
+        }
+
+        const typeReason = validateFieldValue(field, value);
+        if (typeReason) {
+            errors.push({ section: 'plugins', key: `${pluginName}.${key}`, reason: typeReason });
+        }
+    }
+
+    return { errors, warnings };
+}
+
 // Валидация секции файла по системной схеме.
 // Возвращает { errors: [{ section, key, reason }], warnings: [{ section, key, reason }] }.
 function validateSection(sectionName, sectionValue) {
@@ -489,10 +559,11 @@ function validateSection(sectionName, sectionValue) {
     return { errors, warnings };
 }
 
-// Валидация файла целиком по системной схеме (ADR-0045).
-// plugins-секция валидируется отдельно (merged-схема, ADR-0046); здесь —
-// только структурная проверка «объект». Возвращает { errors, warnings }.
-function validateConfigFile(rawConfig) {
+// Валидация файла целиком по системной схеме (ADR-0045) + merged-схеме
+// плагинов (ADR-0046). options.plugins — массив загруженных плагинов;
+// при передаче ветки plugins.<name>.* валидируются по configSchema плагина.
+// Возвращает { errors, warnings }.
+function validateConfigFile(rawConfig, options = {}) {
     const errors = [];
     const warnings = [];
 
@@ -510,6 +581,12 @@ function validateConfigFile(rawConfig) {
         if (typeof rawConfig.plugins !== 'object' || Array.isArray(rawConfig.plugins)) {
             errors.push({ section: 'plugins', key: null, reason: 'секция plugins должна быть объектом' });
         } else {
+            const pluginSchemas = {};
+            for (const plugin of options.plugins || []) {
+                if (plugin && plugin.name) {
+                    pluginSchemas[plugin.name] = plugin.configSchema;
+                }
+            }
             for (const pluginName of Object.keys(rawConfig.plugins)) {
                 const pluginValue = rawConfig.plugins[pluginName];
                 if (typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
@@ -518,7 +595,11 @@ function validateConfigFile(rawConfig) {
                         key: pluginName,
                         reason: 'ветка плагина должна быть объектом'
                     });
+                    continue;
                 }
+                const pluginResult = validatePluginSection(pluginName, pluginSchemas[pluginName], pluginValue);
+                errors.push(...pluginResult.errors);
+                warnings.push(...pluginResult.warnings);
             }
         }
     }
@@ -552,6 +633,8 @@ module.exports = {
     FLAT_ONLY_KEYS,
     DEFAULT_MAX_POLL_TYPES,
     getAllFields,
+    getMergedConfigSchema,
+    validatePluginSection,
     validateFieldValue,
     validateSecretField,
     validateSection,

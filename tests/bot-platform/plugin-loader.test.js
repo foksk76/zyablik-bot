@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   loadPlugins,
   validatePlugin,
+  validateConfigSchema,
   buildRouteMap,
   createPluginLoader
 } = require('../../src/bot-platform/core/plugin-loader');
@@ -134,4 +135,157 @@ test('createPluginLoader returns empty arrays for nonexistent directory', () => 
   assert.ok(Array.isArray(result.plugins));
   assert.equal(result.plugins.length, 0);
   assert.deepEqual(result.routes, {});
+});
+
+// --- configSchema (ADR-0046) ---
+
+test('identity plugin exposes configSchema', () => {
+  const plugins = loadPlugins(pluginsDir);
+
+  assert.equal(plugins[0].name, 'identity');
+  assert.deepEqual(plugins[0].configSchema, {});
+});
+
+test('validateConfigSchema accepts empty schema', () => {
+  assert.doesNotThrow(() => validateConfigSchema({}, 'test'));
+});
+
+test('validateConfigSchema accepts valid field schema', () => {
+  const schema = {
+    retryTimeout: {
+      type: 'number',
+      default: 30,
+      min: 1,
+      max: 3600,
+      required: false,
+      description: 'Таймаут ретрая, секунды'
+    }
+  };
+
+  assert.doesNotThrow(() => validateConfigSchema(schema, 'test'));
+});
+
+test('validateConfigSchema accepts secret and enum fields', () => {
+  const schema = {
+    mode: {
+      type: 'enum',
+      enum: ['a', 'b'],
+      default: 'a'
+    },
+    token: {
+      type: 'string',
+      secret: true
+    }
+  };
+
+  assert.doesNotThrow(() => validateConfigSchema(schema, 'test'));
+});
+
+test('validateConfigSchema rejects non-object schema', () => {
+  assert.throws(
+    () => validateConfigSchema(null, 'test'),
+    /configSchema must be an object/
+  );
+  assert.throws(
+    () => validateConfigSchema('x', 'test'),
+    /configSchema must be an object/
+  );
+  assert.throws(
+    () => validateConfigSchema([], 'test'),
+    /configSchema must be an object/
+  );
+});
+
+test('validateConfigSchema rejects non-object field', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: 'bar' }, 'test'),
+    /configSchema field "foo" must be an object/
+  );
+});
+
+test('validateConfigSchema rejects unknown field key', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', bogus: true } }, 'test'),
+    /field "foo" has unknown key "bogus"/
+  );
+});
+
+test('validateConfigSchema rejects invalid type', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'date' } }, 'test'),
+    /has invalid type "date"/
+  );
+});
+
+test('validateConfigSchema rejects empty enum', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'enum', enum: [] } }, 'test'),
+    /"enum" must be a non-empty array/
+  );
+});
+
+test('validateConfigSchema rejects non-number min/max', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'number', min: 'x' } }, 'test'),
+    /"min" must be a number/
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'number', max: 'x' } }, 'test'),
+    /"max" must be a number/
+  );
+});
+
+test('validateConfigSchema rejects non-boolean flags', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', required: 'yes' } }, 'test'),
+    /"required" must be a boolean/
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', secret: 1 } }, 'test'),
+    /"secret" must be a boolean/
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', nullable: 1 } }, 'test'),
+    /"nullable" must be a boolean/
+  );
+});
+
+test('validateConfigSchema rejects non-string description and section', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', description: 42 } }, 'test'),
+    /"description" must be a string/
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'string', section: 42 } }, 'test'),
+    /"section" must be a string/
+  );
+});
+
+test('validatePlugin accepts plugin with valid configSchema', () => {
+  const plugin = {
+    name: 'test',
+    routes: { foo: () => {} },
+    configSchema: { retryTimeout: { type: 'number', default: 5 } }
+  };
+
+  assert.doesNotThrow(() => validatePlugin(plugin, 'test'));
+});
+
+test('validatePlugin rejects plugin with invalid configSchema', () => {
+  const plugin = {
+    name: 'test',
+    routes: { foo: () => {} },
+    configSchema: { retryTimeout: { type: 'date' } }
+  };
+
+  assert.throws(
+    () => validatePlugin(plugin, 'test'),
+    /has invalid type "date"/
+  );
+});
+
+test('validatePlugin accepts plugin without configSchema', () => {
+  const plugin = { name: 'test', routes: { foo: () => {} } };
+
+  assert.doesNotThrow(() => validatePlugin(plugin, 'test'));
 });

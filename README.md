@@ -157,6 +157,9 @@ docs/zabbix-media-type.md
 docs/zabbix-monitoring-template.md
 docs/runbooks/live-identity-bot.md
 docs/runbooks/nginx-reverse-proxy.md
+docs/runbooks/config-file.md
+Dockerfile
+docker-compose.yml
 docs/decisions/README.md
 tasks/sprints/
 CHANGELOG.md

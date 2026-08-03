@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const {
     SYSTEM_SCHEMA,
     SYSTEM_SECTION_KEYS,
+    getMergedConfigSchema,
+    validatePluginSection,
     validateFieldValue,
     validateSecretField,
     validateSection,
@@ -134,4 +136,86 @@ test('defaultsFromSchema возвращает дефолты по flat-ключ�
     assert.equal(defaults.monitorPort, 9000);
     assert.equal(defaults.idpRelaxSsrf, null);
     assert.deepEqual(defaults.maxPollTypes, ['message_created', 'bot_started', 'bot_added']);
+});
+
+// --- Merged-схема (ADR-0046) ---
+
+test('getMergedConfigSchema: без плагинов — только системные секции + пустые plugins', () => {
+    const merged = getMergedConfigSchema([]);
+    assert.deepEqual(SYSTEM_SECTION_KEYS, Object.keys(merged).filter((k) => k !== 'plugins'));
+    assert.deepEqual(merged.plugins, {});
+    assert.ok(merged.bot.logLevel);
+});
+
+test('getMergedConfigSchema: включает configSchema плагинов', () => {
+    const plugins = [
+        { name: 'identity', configSchema: {} },
+        { name: 'alerts', configSchema: { timeout: { type: 'number', default: 5 } } },
+        { name: 'no-schema' }
+    ];
+    const merged = getMergedConfigSchema(plugins);
+    assert.deepEqual(merged.plugins.identity, {});
+    assert.ok(merged.plugins.alerts.timeout);
+    assert.equal(merged.plugins.noSchema, undefined);
+    assert.equal(merged.plugins['no-schema'], undefined);
+});
+
+test('getMergedConfigSchema: identity без рантайм-полей — пустая ветка', () => {
+    const merged = getMergedConfigSchema([{ name: 'identity', configSchema: {} }]);
+    assert.deepEqual(merged.plugins.identity, {});
+});
+
+test('validatePluginSection: валидные значения плагина — без ошибок', () => {
+    const schema = { timeout: { type: 'number', min: 1, max: 60 } };
+    const result = validatePluginSection('alerts', schema, { timeout: 30 });
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.warnings.length, 0);
+});
+
+test('validatePluginSection: невалидный тип — ошибка', () => {
+    const schema = { timeout: { type: 'number', min: 1, max: 60 } };
+    const result = validatePluginSection('alerts', schema, { timeout: 'x' });
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].key, 'alerts.timeout');
+});
+
+test('validatePluginSection: литеральный секрет плагина — ошибка', () => {
+    const schema = { token: { type: 'string', secret: true } };
+    const result = validatePluginSection('alerts', schema, { token: 'literal-secret' });
+    assert.equal(result.errors.length, 1);
+    assert.ok(result.errors[0].reason.includes('$VAR'));
+});
+
+test('validatePluginSection: без схемы — warning (ключ не проверяется)', () => {
+    const result = validatePluginSection('alerts', null, { whatever: 1 });
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.warnings.length, 1);
+});
+
+test('validateConfigFile: plugins ветка валидируется по merged-схеме', () => {
+    const plugins = [{ name: 'alerts', configSchema: { timeout: { type: 'number', min: 1 } } }];
+    const result = validateConfigFile(
+        { plugins: { alerts: { timeout: 'x' } } },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].key, 'alerts.timeout');
+});
+
+test('validateConfigFile: валидная plugins-ветка без ошибок', () => {
+    const plugins = [{ name: 'alerts', configSchema: { timeout: { type: 'number', min: 1 } } }];
+    const result = validateConfigFile(
+        { plugins: { alerts: { timeout: 5 } } },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 0);
+});
+
+test('validateConfigFile: плагин без схемы — warning, не ошибка', () => {
+    const result = validateConfigFile(
+        { plugins: { legacy: { foo: 1 } } },
+        { plugins: [{ name: 'legacy' }] }
+    );
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.warnings.length, 1);
 });

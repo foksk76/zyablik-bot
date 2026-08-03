@@ -46,3 +46,4 @@ vendor/agent-skills/
 !docs/decisions/ADR-0013-safe-logger-secret-redaction.md
 *.bak
 *.tmp
+src/queue-monitor/ui/storybook-static/

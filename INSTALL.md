@@ -22,11 +22,12 @@ JWT-токен с claim source (например, entitlements: ["zabbix"])
 
 Токены и реальные идентификаторы не хранить в репозитории.
 
-> Конфигурация ниже задаётся переменными окружения. Планируется перевод на
-> файл конфигурации `zyablik.config.json` как источник правды с управлением
-> через web UI (ADR-0045, ADR-0046): управляемые настройки переедут в файл,
-> в `.env` останутся только bootstrap (`ZYABLIK_CONFIG`), секреты и
-> неизменяемая база (`MAX_API_URL`, IdP-регистрация).
+> Конфигурация бота — файл `zyablik.config.json` как источник правды для
+> управляемых настроек (ADR-0045), управление через web UI «Настройки»
+> (ADR-0046). В `.env` остаются bootstrap (`ZYABLIK_CONFIG`), секреты
+> (`$VAR`-ссылки в файле) и неизменяемая база (`MAX_API_URL`,
+> IdP-регистрация). Быстрый старт: раздел 10; полный runbook —
+> `docs/runbooks/config-file.md`.
 
 ## 1. Подготовить рабочую копию
 
@@ -323,7 +324,63 @@ node src/bot-platform/app.js
 2. Ставить сообщения в очередь
 3. Отправлять сообщения через MAX Bot API с retry
 
-## 10. HTTPS через Nginx reverse proxy (опционально)
+## 10. Конфигурация файлом + docker compose (ADR-0045/0046)
+
+Управляемые настройки бота задаются файлом `zyablik.config.json` (источник
+правды), а не env-переменными. В `.env` остаются bootstrap
+(`ZYABLIK_CONFIG`), секреты (`MAX_BOT_TOKEN`, `METRICS_API_KEY`,
+`SESSION_SECRET`, `IDP_CLIENT_SECRET` — в файле они только `$VAR`-ссылками)
+и неизменяемая база (`MAX_API_URL`, IdP-регистрация).
+
+### 10.1 Первый запуск: --generate-config
+
+Из существующего `.env`-стенда создаётся первый конфиг-файл:
+
+```bash
+# Просмотр без записи:
+node src/bot-platform/app.js --generate-config --dry-run
+
+# Запись ./config/zyablik.config.json (не перезаписывает существующий):
+node src/bot-platform/app.js --generate-config
+```
+
+### 10.2 Структура файла
+
+```json
+{
+  "version": 1,
+  "bot": { "logLevel": "info", "maxTransportMode": "long_polling",
+           "maxBotToken": "$MAX_BOT_TOKEN" },
+  "queue": { "queueEnabled": false },
+  "ingress": { "ingressEnabled": false },
+  "monitor": { "monitorEnabled": true, "monitorPort": 9000,
+               "metricsApiKey": "$METRICS_API_KEY",
+               "sessionSecret": "$SESSION_SECRET" },
+  "plugins": {}
+}
+```
+
+Секреты — только `$VAR`-ссылки формата `^$[A-Z0-9_]+$`. Схема и версия —
+в `docs/runbooks/config-file.md`.
+
+### 10.3 Управление через web UI
+
+Dashboard → **Настройки**: просмотр effective-конфига (секреты — только
+статус «задан/не задан»), форма из merged-схемы, staged → diff → Apply
+(рестарт) → `pending/confirmed/rolled_back`, Rollback, Export/Import.
+
+### 10.4 Запуск в docker (стенд, ADR-0044)
+
+```bash
+docker compose up -d --build
+docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
+```
+
+`./config` монтируется writable volume; Stage/Apply/Rollback пишут
+`.lkg`/`.pending`/`.staged` рядом с активным конфигом. Dashboard —
+`http://localhost:9000/`, ingress — `http://localhost:8443`.
+
+## 11. HTTPS через Nginx reverse proxy (опционально)
 
 HTTP-серверы bot-platform (ingress `8443`, dashboard `9000`) по умолчанию
 работают на plain HTTP. TLS-терминирование выполняется внешним reverse proxy

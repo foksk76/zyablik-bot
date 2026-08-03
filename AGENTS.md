@@ -109,7 +109,15 @@ src/queue-monitor/ui/src/pages/SettingsPage.jsx
 ```text
 docs/runbooks/nginx-reverse-proxy.md
 docs/decisions/ADR-0044-nginx-reverse-proxy.md
-INSTALL.md (раздел 10)
+INSTALL.md (раздел 11)
+```
+
+Если меняется конфигурация (config file / schema-driven web UI) и стенд:
+
+```text
+docs/runbooks/config-file.md
+Dockerfile
+docker-compose.yml
 ```
 
 ## Каноничные источники

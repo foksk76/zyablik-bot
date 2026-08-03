@@ -37,18 +37,18 @@ compose (дизайн-ограничение) с volume `./config`, перепи
 
 ### Task 1: docker compose — volume ./config и секреты
 
-**Status:** Pending
+**Status:** In Progress
 
 **Description:** Проверить/обновить docker-стенд (дизайн-ограничение):
 writable volume `./config` (host-каталог), `ZYABLIK_CONFIG` в env контейнера,
 секреты — docker secrets/env (не литералы в compose/файле).
 
 **Acceptance criteria:**
-- [ ] `./config` — writable volume в контейнере
-- [ ] Секреты приходят из env/docker secrets
-- [ ] Стенд стартует с `zyablik.config.json` (apply/rollback работает)
+- [x] `./config` — writable volume в контейнере (`docker-compose.yml`, `VOLUME /opt/zyablik-bot/config`)
+- [x] Секреты приходят из env/docker secrets (`env_file: .env`, `$VAR`-маппинг в `environment`)
+- [ ] Стенд стартует с `zyablik.config.json` (apply/rollback работает) — проверить на живом стенде
 
-**Files:** `docker-compose.yml`, `docker-compose*.yml`, стенд, `INSTALL.md`
+**Files:** `docker-compose.yml`, `Dockerfile`, стенд, `INSTALL.md`
 
 **Dependencies:** Sprint 38
 
@@ -58,7 +58,7 @@ writable volume `./config` (host-каталог), `ZYABLIK_CONFIG` в env кон
 
 ### Task 2: INSTALL/README/CHANGELOG/project-context под конфиг-файл
 
-**Status:** Pending
+**Status:** In Progress
 
 **Description:** Переписать INSTALL: конфиг-файл как основной способ
 (структура, секции, `$VAR`, `version`, staged/apply/rollback,
@@ -67,8 +67,9 @@ CHANGELOG — запись о переходе, `docs/project-context.md` — с
 Синхронизация с AGENTS.md (блок «меняется конфигурация» уже добавлен).
 
 **Acceptance criteria:**
-- [ ] INSTALL описывает конфиг-файл без противоречий ADR-0045/0046
-- [ ] README/CHANGELOG/project-context обновлены
+- [x] INSTALL описывает конфиг-файл без противоречий ADR-0045/0046 (раздел 10, `--generate-config`, структура, UI-управление)
+- [x] README/CHANGELOG обновлены (README — runbook + Dockerfile/compose в списке, CHANGELOG — записи)
+- [ ] `docs/project-context.md` — статус этапа
 - [ ] docs-leak-guard зелёный (без реальных адресов/секретов)
 
 **Files:** `INSTALL.md`, `README.md`, `CHANGELOG.md`,
@@ -82,7 +83,7 @@ CHANGELOG — запись о переходе, `docs/project-context.md` — с
 
 ### Task 3: Runbook конфигурации + миграция стенда
 
-**Status:** Pending
+**Status:** In Progress
 
 **Description:** `docs/runbooks/config-file.md`: сценарии — миграция с
 `.env` (через `--generate-config`), ежедневная правка, apply/rollback,
@@ -90,8 +91,8 @@ CHANGELOG — запись о переходе, `docs/project-context.md` — с
 результаты — в `docs/test-runs/`.
 
 **Acceptance criteria:**
-- [ ] Runbook покрывает: миграцию, apply/rollback, авто-откат,
-      восстановление, права `./config`
+- [x] Runbook покрывает: миграцию, apply/rollback, авто-откат,
+      восстановление, права `./config` (`docs/runbooks/config-file.md`)
 - [ ] Живой стенд мигрирован на файл; результат зафиксирован в
       `docs/test-runs/`
 - [ ] docs-leak-guard зелёный
