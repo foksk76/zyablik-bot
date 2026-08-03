@@ -30,9 +30,9 @@
 
 ## Sprint 34: Docker CI + документация
 
-- [x] **1. Docker-окружение тестового Zabbix** — `docs/zabbix-template/test/docker-compose.yml`
+- [x] **1. Docker-окружение тестового Zabbix** — `docs/zabbix-template/scripts/docker-compose.yml`
   с Zabbix server 7.2 (и при необходимости web); healthcheck готовности
-- [x] **2. Скрипт импорта** — `docs/zabbix-template/test/import-and-verify.js`
+- [x] **2. Скрипт импорта** — `docs/zabbix-template/scripts/import-and-verify.js`
   (или node-скрипт): импорт шаблона через Zabbix API, проверка что
   items/triggers созданы
 - [x] **3. CI workflow** — `.github/workflows/zabbix-template.yml`:
@@ -60,7 +60,7 @@
 - [x] **1. Живой бот на стенде** — bot-platform с `QUEUE_ENABLED`,
   `MONITOR_ENABLED`, `MONITOR_PORT=9000` (systemd `zyablik-bot-live.service`);
   `/readyz`, `/api/metrics/summary`, `/api/metrics/discovery` отвечают
-- [x] **2. Хост в Zabbix с шаблоном** — `docs/zabbix-template/test/stand-host.js`
+- [x] **2. Хост в Zabbix с шаблоном** — `docs/zabbix-template/scripts/stand-host.js`
   (идемпотентен): «Zyablik bot stand», шаблон, host-level макросы,
   `{$ZYABLIK.API_KEY}` Secret
 - [x] **3. Проверка сбора метрик** — все items supported, значения совпадают

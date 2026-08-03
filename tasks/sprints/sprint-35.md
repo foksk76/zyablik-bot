@@ -13,7 +13,7 @@
 
 **Границы:** только локальный стенд (Docker-Zabbix + bot-platform).
 Изменений в `src/` не требуется, кроме возможных мелких правок скриптов
-проверки в `docs/zabbix-template/test/`.
+проверки в `docs/zabbix-template/scripts/`.
 
 ## Architecture Decisions
 
@@ -64,7 +64,7 @@
 привязать шаблон `Zyablik monitoring`, задать host-level макросы:
 `{$ZYABLIK.URL}=http://172.23.0.1`, `{$ZYABLIK.PORT}=9000`,
 `{$ZYABLIK.API_KEY}` (Secret, dev-token). Скрипт —
-`docs/zabbix-template/test/stand-host.js` (повторный запуск идемпотентен).
+`docs/zabbix-template/scripts/stand-host.js` (повторный запуск идемпотентен).
 
 **Acceptance criteria:**
 - [x] Скрипт создаёт хост и привязывает шаблон (идемпотентно)
@@ -76,7 +76,7 @@
 отвергает `()` в имени: «Incorrect characters»). Secret-макрос задаётся
 через API-поле `type: 1` (параметр `secret` в Zabbix 7.2 не принимается).
 
-**Files:** `docs/zabbix-template/test/stand-host.js` (новый)
+**Files:** `docs/zabbix-template/scripts/stand-host.js` (новый)
 
 **Estimated scope:** M
 
@@ -186,7 +186,7 @@ PORT=9000, API_KEY=Secret, POLL_INTERVAL=10, NODATA_SEC=30.
 ## Файлы для изменения (сводка)
 
 ```
-docs/zabbix-template/test/stand-host.js      (новый)
+docs/zabbix-template/scripts/stand-host.js      (новый)
 docs/zabbix-monitoring-template.md           (модификация — живой стенд)
 tasks/todo.md                                (модификация)
 tasks/sprints/README.md                      (модификация — Sprint 35)

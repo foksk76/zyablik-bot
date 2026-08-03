@@ -62,6 +62,7 @@ src/zabbix-media-type/bot-platform-ingest.js — через bot-platform (Zabbix
 docs/             проектная и эксплуатационная документация
 docs/decisions/   ADR и принятые решения
 docs/identity-plugin/  Identity Plugin документация
+docs/zabbix-template/  Zabbix monitoring template (ADR-0043) + тестовый стек
 examples/         обезличенные примеры параметров и чек-листы
 src/              исходники webhook, bot-platform и queue-monitor
 systemd/          unit-файлы для bot-platform

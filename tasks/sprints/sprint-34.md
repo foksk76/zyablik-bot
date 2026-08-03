@@ -38,13 +38,13 @@ server 7.0 (и web при необходимости) для локальной 
 Healthcheck готовности server.
 
 **Acceptance criteria:**
-- [x] `docker-compose.yml` (в `docs/zabbix-template/test/`) поднимает
+- [x] `docker-compose.yml` (в `docs/zabbix-template/scripts/`) поднимает
       Zabbix server 7.2
 - [x] Server доступен по API после healthcheck (не сразу после старта)
 - [x] Запуск: `docker compose up -d` — без ошибок
 - [x] Шаги/инструкция для локального прогона зафиксированы
 
-**Files:** `docs/zabbix-template/test/docker-compose.yml` (новый)
+**Files:** `docs/zabbix-template/scripts/docker-compose.yml` (новый)
 
 **Dependencies:** Sprint 33 (шаблон)
 
@@ -61,14 +61,14 @@ Healthcheck готовности server.
 (`zyablik.summary`, `zyablik.readyz`, dependent items), triggers, graphs.
 
 **Acceptance criteria:**
-- [x] Скрипт `docs/zabbix-template/test/import-and-verify.js` (или .sh)
+- [x] Скрипт `docs/zabbix-template/scripts/import-and-verify.js` (или .sh)
       импортирует шаблон через Zabbix API
 - [x] Проверяет через `configuration.get` / `item.get` / `trigger.get`, что
       entities созданы
 - [x] Возвращает exit code 0 при успехе, ненулевой при провале
 - [x] Локальный запуск: `npm run` или прямой вызов — документирован
 
-**Files:** `docs/zabbix-template/test/import-and-verify.js` (новый)
+**Files:** `docs/zabbix-template/scripts/import-and-verify.js` (новый)
 
 **Dependencies:** Task 1
 
@@ -191,8 +191,8 @@ severity, локальный прогон Docker-теста, guard на расш
 ## Файлы для изменения (сводка)
 
 ```
-docs/zabbix-template/test/docker-compose.yml      (новый)
-docs/zabbix-template/test/import-and-verify.js    (новый)
+docs/zabbix-template/scripts/docker-compose.yml      (новый)
+docs/zabbix-template/scripts/import-and-verify.js    (новый)
 .github/workflows/zabbix-template.yml             (новый)
 docs/zabbix-monitoring-template.md                (новый)
 docs/decisions/ADR-0043-*.md                      (создан 2026-08-01)

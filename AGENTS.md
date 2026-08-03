@@ -48,6 +48,16 @@ docs/runbooks/live-identity-bot.md
 docs/identity-plugin/
 ```
 
+Если меняется Zabbix monitoring template:
+
+```text
+docs/zabbix-template/zyablik-monitoring-template.yaml
+docs/zabbix-template/scripts/
+docs/zabbix-monitoring-template.md
+tests/monitoring/zabbix-template.test.js
+docs/decisions/ADR-0043-zabbix-monitoring-template.md
+```
+
 Если меняется bot-platform (архитектура):
 
 ```text
@@ -106,6 +116,8 @@ docs/ideas/                      pre-ADR idea documents
 docs/identity-plugin/            Identity Plugin документация
 docs/test-runs/                  результаты прогонов
 docs/assets/                     логотип и статические артефакты
+docs/zabbix-template/            Zabbix monitoring template (ADR-0043) + скрипты
+tests/monitoring/                статические тесты шаблона (ADR-0043)
 tasks/sprints/                   task breakdown
 systemd/                         unit-файлы для bot-platform
 LICENSE                          лицензия Apache-2.0 (EN)

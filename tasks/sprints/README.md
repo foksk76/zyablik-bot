@@ -41,6 +41,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-32.md` — ADR-0042 Web Interface: Archive UI + Retry + Export
 - `sprint-33.md` — Zabbix Monitoring Template: файл шаблона + статическая валидация
 - `sprint-34.md` — Zabbix Monitoring Template: Docker CI + документация
+- `sprint-35.md` — Zabbix Monitoring Template: связка с живым стендом
 
 ## Status
 
@@ -67,13 +68,13 @@ Sprint 25: Complete (ADR-0038: Тесты для hand-rolled JWT-verifier — oi
 Sprint 26: Complete (Queue Monitor UI Polish — Lucide Icons, fontWeights, CSS-переменные shadcn/ui)
 Sprint 27: Complete (ADR-0040: Queue Monitor UX — error drill-down, session redirect, alert cleanup)
 Sprint 28: Complete (ADR-0040: Queue Monitor Polish — configurable limits, countdown, error boundary)
-Sprint 29: Planned (ADR-0041: Глобальный фильтр времени — Backend + State Management)
-Sprint 30: Planned (ADR-0041: Глобальный фильтр времени — UI Components + Drag-to-Pan)
-Sprint 31: Planned (Web Interface: Navigation Shell + Archive Backend)
-Sprint 32: Planned (Web Interface: Archive UI + Retry + Export)
+Sprint 29: Complete (ADR-0041: Глобальный фильтр времени — Backend + State Management)
+Sprint 30: Complete (ADR-0041: Глобальный фильтр времени — UI Components + Drag-to-Pan)
+Sprint 31: Complete (Web Interface: Navigation Shell + Archive Backend)
+Sprint 32: Complete (Web Interface: Archive UI + Retry + Export)
 Sprint 33: Complete (Zabbix Monitoring Template: файл шаблона + статическая валидация)
 Sprint 34: Complete (Zabbix Monitoring Template: Docker CI + документация)
 Sprint 35: Complete (Zabbix Monitoring Template: связка с живым стендом, PROBLEM -> RECOVERY)
 ```
 
-Детальная информация в `tasks/sprints/sprint-07.md`.
+Детальная информация в `tasks/sprints/sprint-35.md`.

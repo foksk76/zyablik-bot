@@ -1,5 +1,10 @@
 # Implementation Plan: Zyablik Zabbix Monitoring Template
 
+> **Статус: исторический план.** Все задачи выполнены; чек-листы ниже
+> оставлены как история планирования. Фактическое состояние — `tasks/todo.md`
+> и `tasks/sprints/sprint-33..35.md` (все пункты Done, `npm test` зелёный,
+> живой стенд: PROBLEM -> RECOVERY подтверждён).
+
 ## Overview
 
 Open-source Zabbix 7.0+ шаблон для мониторинга Zyablik bot через готовую
