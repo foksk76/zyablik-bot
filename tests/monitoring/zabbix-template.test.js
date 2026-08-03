@@ -154,7 +154,7 @@ test('secret macro has no value in the template', () => {
   const macroIndex = lines.findIndex((line) => line.includes("'{$ZYABLIK.API_KEY}'"));
   assert.ok(macroIndex !== -1, 'macro {$ZYABLIK.API_KEY} must be defined');
 
-  let end = macroIndex;
+  let end = macroIndex + 1;
   while (end < lines.length && !/^        - macro:/.test(lines[end])) {
     end++;
   }
