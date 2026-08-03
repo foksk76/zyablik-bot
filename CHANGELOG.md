@@ -29,6 +29,8 @@
 - `INSTALL.md` — разделы dashboard, мониторинг Zabbix, очередь, ingress
 - `docs/runbooks/nginx-reverse-proxy.md` — установка и настройка Nginx reverse proxy для HTTP-серверов бота (ingress `8443`, dashboard `9000`, TLS-терминирование, ADR-0044)
 - ADR-0044 — Nginx reverse proxy для HTTP-серверов bot-platform
+- ADR-0045 — файл конфигурации как источник правды (`zyablik.config.json`, `loadConfig`, `$VAR`-секреты, Stage→Apply→рестарт, авто-откат)
+- ADR-0046 — schema-driven управление конфигурацией в web UI (configSchema у плагинов, `/api/config/*`, секреты — только статус)
 - Design tokens и компоненты задокументированы (Storybook)
 
 ### Fixed

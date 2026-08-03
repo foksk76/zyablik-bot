@@ -43,6 +43,11 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-34.md` — Zabbix Monitoring Template: Docker CI + документация
 - `sprint-35.md` — Zabbix Monitoring Template: связка с живым стендом
 - `sprint-36.md` — Nginx reverse proxy: HTTPS для HTTP-серверов bot-platform (ADR-0044)
+- `sprint-37.md` — Конфигурация (ADR-0045): file-first ядро — loadConfig, $VAR, версия/миграция, --generate-config
+- `sprint-38.md` — Конфигурация (ADR-0045): применение — staged, apply, rollback, авто-откат
+- `sprint-39.md` — Schema-driven конфигурация (ADR-0046): configSchema, merged-схема, /api/config/*
+- `sprint-40.md` — SettingsPage UI (ADR-0046): динамические формы из merged-схемы
+- `sprint-41.md` — Конфигурация (ADR-0045/0046): интеграция, стенд и документация
 
 ## Status
 
@@ -77,6 +82,11 @@ Sprint 33: Complete (Zabbix Monitoring Template: файл шаблона + ст�
 Sprint 34: Complete (Zabbix Monitoring Template: Docker CI + документация)
 Sprint 35: Complete (Zabbix Monitoring Template: связка с живым стендом, PROBLEM -> RECOVERY)
 Sprint 36: Complete (Nginx reverse proxy: HTTPS для HTTP-серверов bot-platform, ADR-0044)
+Sprint 37: Pending (ADR-0045: file-first ядро — loadConfig, $VAR, версия/миграция, --generate-config)
+Sprint 38: Pending (ADR-0045: применение — staged, apply, rollback, авто-откат)
+Sprint 39: Pending (ADR-0046: configSchema, merged-схема, /api/config/*)
+Sprint 40: Pending (ADR-0046: SettingsPage UI — динамические формы из merged-схемы)
+Sprint 41: Pending (ADR-0045/0046: интеграция, стенд и документация)
 ```
 
-Детальная информация в `tasks/sprints/sprint-36.md`.
+Детальная информация в `tasks/sprints/sprint-41.md`.

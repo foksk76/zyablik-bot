@@ -1,5 +1,14 @@
 # Конфигурация: файл как источник правды + schema-driven web UI
 
+> **Внимание:** этот pre-ADR idea document заменён принятыми решениями:
+> [ADR-0045](../decisions/ADR-0045-config-file-source-of-truth.md) (file-first
+> ядро) и [ADR-0046](../decisions/ADR-0046-schema-driven-config-webui.md)
+> (schema-driven web UI). Часть «Open Questions» закрыта ADR — они отмечены
+> в соответствующем разделе. Дополнительные решения в ходе ревью (авто-откат
+> вариант A, секреты — только просмотр статуса, `version`/миграция файла,
+> `nullable`, полный инвентарь `.env`, reject литеральных секретов) —
+> в ADR-0045/0046.
+
 ## Problem Statement
 
 How Might We дать оператору в продакшне единый способ вносить, хранить и
@@ -20,28 +29,31 @@ web UI с просмотром, изменением, применением, и
 
 Три решения принято в ходе рефайна:
 
-1. **Источник правды — файл `zyablik.config.json`** (env уходит). Env
-   остаётся только для bootstrap (`ZYABLIK_CONFIG` — путь до файла) и для
-   секретов через `$VAR`-ссылки в файле (значения живут в окружении /
-   docker secrets, а не в самом файле).
+1. **Источник правды — файл `zyablik.config.json`** для управляемых настроек.
+   Env остаётся как слой развёртывания: bootstrap (`ZYABLIK_CONFIG` — путь
+   до файла), секреты через `$VAR`-ссылки в файле (значения живут в `.env` /
+   docker secrets, а не в самом файле) и базовая неизменяемая конфигурация
+   (`NODE_EXTRA_CA_CERTS`).
 2. **Stage → Apply → перезапуск процесса.** Никакого hot-reload. Изменения
    в UI попадают в staged-состояние, явная кнопка Apply пишет файл,
-   валидирует и рестартует процесс (systemd `Restart=on-failure` /
-   docker restart policy). Процесс один и владеет всеми сервисами
+   валидирует и рестартует процесс через сервис-менеджер (не `on-failure` —
+   см. Open Questions Q3). Процесс один и владеет всеми сервисами
    (ingress + worker + monitor), поэтому полный рестарт применяет всё.
-3. **Секреты маскируются, отдельный flow.** Ключи с `secret: true` не
-   возвращаются в API-списках, не попадают в экспорт (заменяются на
-   `$VAR`/маску), в UI показываются `••••`, reveal — по клику с
-   подтверждением и аудитом.
+3. **Секреты в UI — только просмотр статуса** (решение по Open Question).
+   Ключи с `secret: true` не возвращаются в API-списках, не попадают в
+   экспорт (заменяются на `$VAR`-ссылку), в UI показываются `••••` и факт
+   «задан / не задан». Значение и имя `$VAR` через UI не меняются и не
+   раскрываются — секреты задаются в `.env`/docker secret при деплое.
+   Reveal-flow убран.
 
 ### Ядро (A): file-first конфиг
 
 - `config.js` переписывается на трёхслойный мерж: **defaults → файл →
-  bootstrap-env**. `createBotPlatformConfig(env)` становится
-  `loadConfig(filePath, env)`; `$VAR`-ссылки резолвятся из `process.env`
-  при загрузке. Валидация — единая схема (тип, default, required, secret,
-  enum, min/max) для всех секций: `bot`, `queue`, `ingress`, `monitor`,
-  `plugins`.
+  .env (bootstrap + секреты + неизменяемая база)**. `createBotPlatformConfig(env)` становится
+  `loadConfig(options)` (см. ADR-0045); `$VAR`-ссылки резолвятся из
+  `process.env` при загрузке. Валидация — единая схема (тип, default,
+  required, secret, enum, min/max) для всех секций: `bot`, `queue`, `ingress`,
+  `monitor`, `plugins`.
 - Tri-state: `zyablik.config.json` (current) + `zyablik.config.json.lkg`
   (last-known-good, для отката) + staged-состояние.
 - Всё применение/импорт/откат логируется через ADR-0029 audit.
@@ -54,7 +66,8 @@ web UI с просмотром, изменением, применением, и
 
 - Плагин рядом с `routes` объявляет `configSchema` (см.
   `src/bot-platform/plugins/identity/index.js:7` как первый кандидат).
-  `plugin-loader.js:9` валидирует схему при загрузке.
+  `plugin-loader.js` валидирует схему при загрузке (в `validatePlugin`,
+  `plugin-loader.js:39`).
 - Web UI рендерит формы динамически из схемы (`GET /api/config/schema` —
   merged системная + плагинные схемы). Новый плагин с настройками
   появляется в UI без правки фронта.
@@ -69,7 +82,7 @@ web UI с просмотром, изменением, применением, и
 - `POST /api/config/rollback` — восстановить lkg
 - `GET  /api/config/export` / `POST /api/config/import` — JSON (экспорт
   редактирован, импорт → валидация → staged + diff-превью)
-- `POST /api/config/secret/reveal` — разовое раскрытие секрета (аудит)
+- `GET  /api/config/status` — авто-откат/карантин: факт, причины, banner
 
 ## Key Assumptions to Validate
 
@@ -96,7 +109,8 @@ web UI с просмотром, изменением, применением, и
 - Tri-state current / staged / lkg + Apply (запись файла + рестарт) + rollback
 - Schema-driven: `configSchema` у плагина `identity`, `plugin-loader`
   валидирует схемы, динамический рендер форм в `SettingsPage.jsx`
-- Маскирование секретов + reveal-flow с аудитом (ADR-0029)
+- Маскирование секретов + просмотр статуса «задан / не задан» в UI
+  (редактирование и раскрытие секретов через UI — вне MVP)
 - Импорт/экспорт JSON: экспорт редактированный, импорт → валидация →
   staged → diff-превью
 - Новые API `/api/config/*` на dashboard-сервере под существующим auth
@@ -115,12 +129,16 @@ web UI с просмотром, изменением, применением, и
 
 - **Секреты в файле открытым текстом** — нет: остаются в окружении / docker
   secrets, в файле только `$VAR`-ссылки
+- **Редактирование и раскрытие секретов через UI** — нет (решение «только
+  просмотр статуса»): значения и имена `$VAR` задаются в `.env`/docker secret
+  при деплое; UI показывает факт «задан / не задан» и маску, reveal-flow убран
 - **Env как слой переопределения настроек** — революция принята: файл —
-  источник правды, env только bootstrap + секреты. Это ломает текущую
-  практику `export QUEUE_*`, зато даёт единый управляемый артефакт
+  источник правды, env только bootstrap + секреты + неизменяемая база. Это
+  ломает текущую практику `export QUEUE_*`, зато даёт единый управляемый
+  артефакт
 - **Управление Zabbix Media type из бота** — параметры webhook живут на
-  стороне Zabbix; из бота можно только экспортировать шаблон параметров,
-  не менять их
+  стороне Zabbix; бот их не меняет и не дублирует (секции в
+  `zyablik.config.json` нет — решение по Open Question, «нет»)
 - **Hot-reload** — выбран Stage+Apply+рестарт: проще, безопаснее для
   оператора, применимо в systemd и docker одинаково
 - **История/версионирование конфига в UI** — для MVP хватает lkg-отката;
@@ -128,27 +146,68 @@ web UI с просмотром, изменением, применением, и
 
 ## Open Questions
 
-- Где хранить staged-состояние: отдельный файл (`zyablik.config.staged.json`)
-  или таблица в delivery-queue.db?
-- Семантика Apply в docker vs systemd: перезапуск контейнера управляется
-  рестарт-политикой, а не SIGTERM-хендлером — нужен единый контракт
-  «процесс корректно завершается и перезапускается»?
-- Поведение при неразрешённом `$VAR`: fail-fast при старте или
-  warn + default? (fail-fast для секретов, warn для остального?)
-- Как `queue-monitor` получает свою секцию: `loadConfig` возвращает
-  единый объект, а каждый модуль читает свою ветку, или остаются два
-  отдельных чтения одного файла?
-- Нужен ли в файле раздел с шаблоном параметров Zabbix Media type для
-  экспорта, или это лишняя поверхность?
+- ~~Где хранить staged-состояние: отдельный файл или таблица в
+  delivery-queue.db?~~ — **закрыто (решение: отдельный файл, НЕ БД)**.
+  Примеры: Pi-hole хранит конфиг файлом + ротация `config_backups/` +
+  last-known-good (откат при ошибке парсинга), AdGuard Home — файл с
+  атомарной записью (temp+rename), F5 NGINX Instance Manager — staged-конфиги
+  как отдельные сущности с последующей публикацией на инстансы.
+  Контрпример — Nginx Proxy Manager: источник правды SQLite + генерируемые
+  на диск nginx-conf → баг расхождения «БД/UI ≠ файл» (issue #5690), два
+  источника правды молча расходятся. Вывод: staged — `zyablik.config.staged.json`
+  с атомарной записью, lkg — ротация бэкапов; в БД staged не хранить.
+- ~~Семантика Apply в docker vs systemd~~ — **закрыто (решение: рестарт
+  делегируется сервис-менеджеру; `Restart=on-failure` для apply НЕ годится)**.
+  docker `restart: on-failure` и systemd `Restart=on-failure` перезапускают
+  только при ненулевом exit-коде — чистый exit 0 (self-restart после Apply)
+  НЕ перезапустится. AdGuard Home при применении делегирует рестарт
+  сервис-менеджеру (service control) либо порождает новый процесс и
+  завершается; luci-app-adguardhome рестартует сервис снаружи; паттерн
+  compose-as-systemd применяет конфиг через `docker compose up -d`
+  (рекреация). Решение: Apply → запись файла + валидация → рестарт через
+  сервис-менеджер: systemd `Restart=always` + `RestartSec` + `StartLimitBurst`
+  (или внешний `systemctl restart`), docker `restart: unless-stopped`
+  (не `on-failure`) либо рекреация контейнера; учитывать docker
+  10s-правило (политика включается после 10с успешной работы).
+- ~~Поведение при неразрешённом `$VAR`: fail-fast при старте или
+  warn + default?~~ — **закрыто ADR-0045**: fail-fast для секретов,
+  warn + default для остальных ключей.
+- ~~Как `queue-monitor` получает свою секцию?~~ — **закрыто ADR-0045**:
+  единый `loadConfig(options)`, каждый модуль читает свою ветку из общего
+  результата.
+- ~~Где живут значения секретов и можно ли редактировать их через UI?~~ —
+  **закрыто (решение «только просмотр статуса»)**. Значения — в `.env` /
+  docker secrets (слой этапа развёртывания), в файле — `$VAR`-ссылки. UI
+  показывает только факт «задан / не задан» и маску `••••`; ни значение, ни
+  имя `$VAR` через UI не меняются и не раскрываются (reveal-flow убран).
+  В `.env` остаются только секреты и базовая неизменяемая конфигурация
+  (`MAX_BOT_TOKEN`, `METRICS_API_KEY`, `SESSION_SECRET`, `IDP_CLIENT_SECRET`,
+  `NODE_EXTRA_CA_CERTS`, `ZYABLIK_CONFIG`); всё управляемое — в файле.
+- ~~Как защититься от сломавшего работу конфига?~~ — **закрыто (вариант A:
+  pre-validate + авто-откат к lkg)**. Apply сначала валидирует staged (схема
+  + резолв `$VAR` fail-fast + dry-run) и отклоняет плохой конфиг до рестарта;
+  стартовый детектор карантинит невалидный файл в
+  `zyablik.config.bad.json`, восстанавливает `.lkg` и стартует с ним; при
+  невалидном lkg — отказ стартовать (fail loudly) с ограничением цикла
+  рестартов; каждое действие аудируется; UI показывает banner через
+  `GET /api/config/status`.
+- ~~Нужен ли в файле раздел с шаблоном параметров Zabbix Media type для
+  экспорта?~~ — **закрыто (решение «нет»)**: секции в `zyablik.config.json`
+  не будет — параметры Media type живут на стороне Zabbix, бот ими не
+  управляет, дублирование создало бы второй источник правды.
 
 ## Связанные решения
 
+- [ADR-0045](../decisions/ADR-0045-config-file-source-of-truth.md) — file-first
+  ядро (принятое решение по данному idea-документу)
+- [ADR-0046](../decisions/ADR-0046-schema-driven-config-webui.md) — schema-driven
+  web UI (принятое решение по данному idea-документу)
 - [ADR-0034](../decisions/ADR-0034-queue-monitor-dashboard.md) — dashboard,
   на котором живут новые API и страница настроек
 - [ADR-0035](../decisions/ADR-0035-session-auth-for-dashboard-metrics.md) —
   auth для новых `/api/config/*`
 - [ADR-0029](../decisions/ADR-0029-lifecycle-audit-trail.md) — аудит apply /
-  import / reveal
+  import / rollback / авто-отката
 - [ADR-0015](../decisions/ADR-0015-zero-external-dependencies.md) — ноль
   новых внешних зависимостей
 - [ADR-0044](../decisions/ADR-0044-nginx-reverse-proxy.md) — TLS-слой, поверх

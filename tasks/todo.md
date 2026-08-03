@@ -1,4 +1,4 @@
-# Task Checklist — Sprint 33 + 34 + 35 (Zyablik Zabbix Monitoring Template) + Sprint 36 (Nginx reverse proxy)
+# Task Checklist — Sprint 33 + 34 + 35 (Zyablik Zabbix Monitoring Template) + Sprint 36 (Nginx reverse proxy) + Sprint 37-41 (Конфигурация ADR-0045/0046)
 
 ## Sprint 33: Шаблон Zabbix — файл + статическая валидация
 
@@ -115,3 +115,117 @@
 - [x] Firewall: `8443`/`9000` закрыты снаружи
 - [x] `npm test` — все тесты passing
 - [ ] Ревью с человеком
+
+---
+
+## Sprint 37: Конфигурация (ADR-0045) — file-first ядро
+
+Детали: [sprint-37.md](sprints/sprint-37.md), ADR-0045/0046.
+
+- [ ] **1. Схема секций + валидатор** — `config-schema.js`: формат поля
+      (type/default/required/secret/enum/min/max/nullable/description/section),
+      системная схема bot/queue/ingress/monitor, hand-rolled валидатор
+- [ ] **2. `loadConfig(options)`** — трёхслойный мерж defaults→файл→.env,
+      секции + `plugins.<name>.*`, путь из `ZYABLIK_CONFIG`; файл главный,
+      управляемые env игнорируются; без файла — дефолты+.env
+- [ ] **3. `$VAR`-резолвинг** — fail-fast для секретов, warn+default
+      остальных, reject литеральных значений в secret-полях
+- [ ] **4. `version` + миграции** — отказ при version > current, миграции
+      вверх (write-back на apply), неизвестные ключи warn+ignore
+- [ ] **5. `--generate-config`** — CLI-флаг app.js, отказ при существующем
+      файле, `--dry-run`; миграция .env-стенда воспроизводит поведение
+
+### Checkpoint: Sprint 37
+
+- [ ] `npm test` — все тесты passing (новые unit-тесты ядра)
+- [ ] Миграция .env-стенда через `--generate-config` воспроизводит поведение
+- [ ] Без файла процесс стартует (дефолты + .env)
+- [ ] Нет литеральных секретов в сгенерированном файле
+
+---
+
+## Sprint 38: Конфигурация (ADR-0045) — применение и авто-откат
+
+Детали: [sprint-38.md](sprints/sprint-38.md), ADR-0045.
+
+- [ ] **1. Staged storage** — `zyablik.config.staged.json` (полный снапшот,
+      атомарная запись, очистка после apply/rollback)
+- [ ] **2. Apply** — pre-validate → lkg → атомарный write → рестарт
+      (SIGTERM graceful), write-back миграции
+- [ ] **3. Стартовый детектор + авто-откат** — валидационный отказ →
+      карантин bad.json + lkg; pending-маркер → confirmed (StartupWait 30с);
+      краш до ready → откат; краш без маркера — без отката
+- [ ] **4. Ручной rollback** — восстановление lkg + рестарт + CLI-флаг
+      `--rollback-config`; снятие pending-маркера
+- [ ] **5. Аудит-события** — config.applied/validate_failed/pending/confirmed/
+      rollback/quarantine/import (ADR-0029, без секретов)
+- [ ] **6. systemd-семантика** — Restart=always + StartLimitBurst, права на
+      запись `./config`
+
+### Checkpoint: Sprint 38
+
+- [ ] e2e на стенде: Apply → рестарт → confirmed; сломанный конфиг →
+      авто-откат; ручной rollback
+- [ ] Аудит без секретов; `npm test` зелёный
+
+---
+
+## Sprint 39: Schema-driven backend (ADR-0046) — /api/config/*
+
+Детали: [sprint-39.md](sprints/sprint-39.md), ADR-0046.
+
+- [ ] **1. `configSchema` плагина** — валидация в plugin-loader; identity —
+      первый пример (`plugins.identity.*`), IDP-блок остаётся в env
+- [ ] **2. Merged-схема** — системная + плагины, единый источник для
+      валидации и форм
+- [ ] **3. API: GET /api/config + /api/config/schema** — секреты только
+      статус/маска; auth Bearer+session
+- [ ] **4. API: stage/apply/rollback/status** — 202 + status polling,
+      single-flight 409, rate limit 429
+- [ ] **5. API: export/import** — export без литералов; import reject со
+      списком полей
+
+### Checkpoint: Sprint 39
+
+- [ ] e2e: schema → stage → apply → status → rollback; import/export
+- [ ] Секреты не появляются в ответах API; 409/429 работают; `npm test` зелёный
+
+---
+
+## Sprint 40: SettingsPage UI (ADR-0046) — динамические формы
+
+Детали: [sprint-40.md](sprints/sprint-40.md), ADR-0046.
+
+- [ ] **1. Просмотр effective-конфига** — секции, секреты = маска/статус
+- [ ] **2. Динамический рендер форм** — из merged-схемы, tri-state для nullable
+- [ ] **3. Staged-редактирование + diff перед Apply** — 202, status-опрос
+- [ ] **4. Banner авто-отката** — rolled_back/pending с причиной, кнопка Rollback
+- [ ] **5. Export/Import в UI** — скачивание/загрузка JSON, error path
+- [ ] **6. Storybook** — обложки новых компонентов
+
+### Checkpoint: Sprint 40
+
+- [ ] Полный UX-флоу: просмотр → правка → diff → Apply → confirmed/rolled_back
+- [ ] Секреты не видны в UI; Storybook покрыт; `npm test` зелёный
+
+---
+
+## Sprint 41: Интеграция, стенд и документация
+
+Детали: [sprint-41.md](sprints/sprint-41.md), ADR-0045/0046.
+
+- [ ] **1. docker compose** — writable volume `./config`, секреты через
+      env/docker secrets, `ZYABLIK_CONFIG`
+- [ ] **2. INSTALL/README/CHANGELOG/project-context** — конфиг-файл как
+      основной способ, маппинг env→файл
+- [ ] **3. Runbook конфигурации** — `docs/runbooks/config-file.md`; миграция
+      живого стенда, результаты в `docs/test-runs/`
+- [ ] **4. Policy-тесты** — секреты не в API/export/UI; `$VAR`-формат в
+      конфиг-файлах
+- [ ] **5. Финальный e2e** — все сценарии на стенде, чек-лист acceptance
+
+### Checkpoint: Sprint 41
+
+- [ ] Стенд работает из файла (без управляемых env)
+- [ ] Документация непротиворечива ADR-0045/0046
+- [ ] `npm test` + policy-тесты зелёные; этап закрыт

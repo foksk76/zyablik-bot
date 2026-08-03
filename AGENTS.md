@@ -90,6 +90,18 @@ ADR-0041  глобальный фильтр времени (TimeRangeBar, пре
 ADR-0042  web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
 ADR-0043  Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+, смена {#METRIC} на pending, тестовый Zabbix 7.2 в Docker)
 ADR-0044  Nginx reverse proxy для HTTP-серверов bot-platform (TLS-терминирование ingress 8443 и dashboard 9000, порт 443, self-signed)
+ADR-0045  файл конфигурации как источник правды (zyablik.config.json, loadConfig, $VAR-секреты, Stage→Apply→рестарт, авто-откат)
+ADR-0046  schema-driven управление конфигурацией в web UI (configSchema у плагинов, /api/config/*, секреты — только статус)
+```
+
+Если меняется конфигурация (config file / schema-driven web UI):
+
+```text
+docs/decisions/ADR-0045-config-file-source-of-truth.md
+docs/decisions/ADR-0046-schema-driven-config-webui.md
+src/bot-platform/core/config.js
+src/queue-monitor/config.js
+src/queue-monitor/ui/src/pages/SettingsPage.jsx
 ```
 
 Если меняется Nginx reverse proxy (стенд, TLS):

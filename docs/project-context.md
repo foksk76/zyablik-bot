@@ -122,6 +122,8 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0042 расширить scope на web interface (navigation shell + archive: React Router hash-based, archive API, retry через queueStore, backend export);
 - по ADR-0043 опубликовать agent-less Zabbix monitoring template 7.0+ (LLD-шаблон на `/api/metrics/*` и `/readyz`, ключи `{#METRIC}` = поля `/summary`, полный набор триггеров, дашборд «Обзор очереди», тестовый Zabbix 7.2 в Docker);
 - по ADR-0044 развернуть Nginx reverse proxy на локальном стенде: TLS-терминирование для ingress (`8443`) и dashboard (`9000`), единый порт `443`, самоподписанный сертификат, `IDP_REDIRECT_URI` на `https://`;
+- по ADR-0045 ввести файл конфигурации `zyablik.config.json` как источник правды для управляемых настроек (`loadConfig`, `$VAR`-секреты, Stage→Apply→рестарт, версия/миграция, авто-откат к lkg); в `.env` остаются bootstrap, секреты и неизменяемая база;
+- по ADR-0046 ввести schema-driven управление конфигурацией в web UI (configSchema у плагинов, `/api/config/*`, секреты — только просмотр статуса);
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основные артефакты
