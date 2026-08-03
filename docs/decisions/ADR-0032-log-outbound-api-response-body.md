@@ -12,7 +12,7 @@
 
 Queue worker (`src/bot-platform/queue/worker.js`) логирует ошибки доставки с помощью `error.message` ("MAX API request failed"). `error.details` — содержащий `statusCode`, `responseBody`, `causeCode`, `causeMessage`, `causeHost` — полностью отбрасывается.
 
-Live verification 2026-07-20: при отправке на несуществующий `user_id=12345678` MAX API возвращает `404 {"code":"chat.not.found","message":"Chat with user 12345678 not found"}`. В логах bot-platform видно только:
+Live verification 2026-07-20: при отправке на несуществующий `user_id=<user_id>` MAX API возвращает `404 {"code":"chat.not.found","message":"Chat with user <user_id> not found"}`. В логах bot-platform видно только:
 
 ```
 [queue-worker] failed {"id":66,"reason":"MAX API request failed","attempts":1}
@@ -34,7 +34,7 @@ ADR-0013 (safe logger) гарантирует автоматическую ма�
   "reason": "MAX API request failed",
   "attempts": 1,
   "statusCode": 404,
-  "responseBody": {"code": "chat.not.found", "message": "Chat with user 12345678 not found"}
+  "responseBody": {"code": "chat.not.found", "message": "Chat with user <user_id> not found"}
 }
 ```
 

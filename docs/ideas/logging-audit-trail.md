@@ -17,7 +17,7 @@
 
 ```text
 [audit] auth success sub=zabbix source=zabbix ip=127.0.0.1
-[audit] message queued id=13 source=zabbix recipient=user:219338126
+[audit] message queued id=13 source=zabbix recipient=user:<user_id>
 [audit] message delivered id=13 duration_ms=45
 [audit] message failed id=14 reason="timeout" attempts=5
 ```
@@ -32,10 +32,10 @@
 ```text
 [trace:req:abc123] ingress POST /ingest from 127.0.0.1
 [trace:req:abc123] jwt verified sub=zabbix entitlements=["zabbix"]
-[trace:req:abc123] normalized recipient=user:219338126
+[trace:req:abc123] normalized recipient=user:<user_id>
 [trace:req:abc123] enqueued id=13
 [trace:queue:13] dequeued attempt=1
-[trace:queue:13] outbound POST https://platform-api2.max.ru/messages?user_id=219338126 statusCode=200
+[trace:queue:13] outbound POST https://platform-api2.max.ru/messages?user_id=<user_id> statusCode=200
 [trace:queue:13] delivered duration_ms=45
 ```
 

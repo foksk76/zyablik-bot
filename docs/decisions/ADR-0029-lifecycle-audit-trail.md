@@ -48,7 +48,7 @@ Audit-события — это записи с определёнными actio
 
 ```text
 [info] [ingress-http-server] auth success {"sub":"zabbix","source":"zabbix","ip":"127.0.0.1"}
-[info] [queue-worker] message queued {"id":13,"source":"zabbix","recipient":"user:219338126"}
+[info] [queue-worker] message queued {"id":13,"source":"zabbix","recipient":"user:<user_id>"}
 [info] [queue-worker] message delivered {"id":13,"duration_ms":45}
 [error] [queue-worker] message failed {"id":14,"reason":"timeout","attempts":5}
 ```
@@ -74,7 +74,7 @@ Trace-события — это записи с `reqId` в module-строке
 ```text
 [info] [ingress-http-server:req:abc123] ingress {"method":"POST","path":"/ingest","from":"127.0.0.1"}
 [info] [jwt-source-auth:req:abc123] auth success {"sub":"zabbix","entitlements":["zabbix"]}
-[info] [ingress-http-server:req:abc123] normalized {"recipient":"user:219338126"}
+[info] [ingress-http-server:req:abc123] normalized {"recipient":"user:<user_id>"}
 [info] [queue-store:req:abc123] enqueued {"id":13}
 [info] [queue-worker:q:13] dequeued {"attempt":1}
 [info] [max-outbound-client:q:13] outbound {"url":"...","statusCode":200}
@@ -150,7 +150,7 @@ SELECT * FROM delivery_queue WHERE req_id = 'abc123-def456';
 ```json
 {
   "kind": "text",
-  "recipient": {"kind": "user", "value": "219338126"},
+  "recipient": {"kind": "user", "value": "<user_id>"},
   "text": "...",
   "reqId": "abc123-def456"
 }
