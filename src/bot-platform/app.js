@@ -14,6 +14,11 @@ const { createQueueWorker } = require('./queue/worker');
 const { createRateLimiter } = require('./core/rate-limiter');
 const { createQueueMonitor } = require('../queue-monitor');
 const {
+  buildConfigFileFromEnvironment,
+  loadConfig,
+  resolveConfigPath
+} = require('./core/config');
+const {
   createSyntheticLongPollingSource,
   createLongPollingService,
   runLongPollingCycle,
@@ -85,6 +90,71 @@ async function runBotPlatformDryRun(fixturePath) {
 
   return runMaxIdentityDryRun(payload);
 }
+
+// ADR-0045: --generate-config — миграция существующего .env-стенда в первый
+// zyablik.config.json. Управляемые настройки — в файл, секреты — $VAR-ссылками.
+// options: { environment, configPath, dryRun }.
+function generateConfigFile(options = {}, io = { stdout: process.stdout, stderr: process.stderr }) {
+  const environment = options.environment || process.env;
+  const configPath = resolveConfigPath(environment, options);
+  const fileConfig = buildConfigFileFromEnvironment(environment);
+  const output = `${JSON.stringify(fileConfig, null, 2)}\n`;
+
+  if (options.dryRun) {
+    io.stdout.write(output);
+    return { dryRun: true, configPath, config: fileConfig };
+  }
+
+  if (fs.existsSync(configPath)) {
+    const error = new Error(`Конфиг-файл уже существует: ${configPath}. Не перезаписываю.`);
+    error.code = 'CONFIG_FILE_EXISTS';
+    throw error;
+  }
+
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, output, 'utf8');
+  io.stdout.write(`Конфиг-файл записан: ${configPath}\n`);
+  return { dryRun: false, configPath, config: fileConfig };
+}
+
+function parseGenerateConfigArgs(argv) {
+  let dryRun = false;
+  let configPath = null;
+
+  for (const arg of argv.slice(1)) {
+    if (arg === '--dry-run') {
+      dryRun = true;
+      continue;
+    }
+    configPath = arg;
+  }
+
+  return { dryRun, configPath };
+}
+
+// ADR-0045: --rollback-config — ручной откат конфигурации к последнему
+// успешному (lkg). Дополнительно снимает pending-маркер и очищает staged.
+// options: { environment, configPath, restart }.
+function rollbackConfigFile(options = {}, io = { stdout: process.stdout, stderr: process.stderr }) {
+  const environment = options.environment || process.env;
+  const configPath = resolveConfigPath(environment, options);
+
+  const { rollbackConfig } = require('./core/config-store');
+  const result = rollbackConfig(configPath, {
+    environment,
+    restart: options.restart
+  });
+
+  if (typeof options.restart !== 'function') {
+    io.stdout.write('Конфигурация восстановлена из lkg. Требуется рестарт: systemctl restart zyablik-bot\n');
+  }
+  return result;
+}
+
+function isRollbackConfigCommand(argv) {
+  return argv.length >= 1 && argv[0] === '--rollback-config';
+}
+
 
 function runBotPlatformLongPollingOnce(environment = process.env, options = {}) {
   const app = createBotPlatformApp(environment);
@@ -219,6 +289,29 @@ async function startIngressAndQueue(config, options, io) {
 
 async function main(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }, options = {}) {
   const environment = options.environment || process.env;
+
+  if (isGenerateConfigCommand(argv)) {
+    const { dryRun, configPath } = parseGenerateConfigArgs(argv);
+    try {
+      generateConfigFile({ environment, configPath, dryRun }, io);
+      return 0;
+    } catch (error) {
+      io.stderr.write(`${error.message}\n`);
+      return 1;
+    }
+  }
+
+  if (isRollbackConfigCommand(argv)) {
+    const configPath = argv.length > 1 ? argv[1] : null;
+    try {
+      rollbackConfigFile({ environment, configPath }, io);
+      return 0;
+    } catch (error) {
+      io.stderr.write(`${error.message}\n`);
+      return 1;
+    }
+  }
+
   const app = createBotPlatformApp(environment);
   const config = app.core.config;
 
@@ -294,6 +387,10 @@ function isLiveCommand(argv) {
   return argv.length === 1 && (argv[0] === '--live' || argv[0] === 'live');
 }
 
+function isGenerateConfigCommand(argv) {
+  return argv.length >= 1 && argv[0] === '--generate-config';
+}
+
 module.exports = {
   createBotPlatformApp,
   runBotPlatformLongPollingOnce,
@@ -302,5 +399,9 @@ module.exports = {
   startIngressAndQueue,
   runMaxIdentityDryRun,
   runBotPlatformDryRun,
+  generateConfigFile,
+  parseGenerateConfigArgs,
+  rollbackConfigFile,
+  isRollbackConfigCommand,
   main
 };

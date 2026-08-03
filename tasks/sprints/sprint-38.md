@@ -52,7 +52,7 @@ UI — Sprint 40.
 
 ### Task 1: Staged storage
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Полный снапшот `zyablik.config.staged.json` (включая
 `version`), атомарная запись (temp + rename), чтение, очистка. Секреты в
@@ -75,7 +75,7 @@ staged — `$VAR`-ссылки (не литералы).
 
 ### Task 2: Apply — pre-validate, lkg, атомарная запись, рестарт
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `applyConfig(config, { service })`: pre-validate (схема +
 version + $VAR + reject литеральных секретов + dry-run) → `lkg` = копия
@@ -102,7 +102,7 @@ version + $VAR + reject литеральных секретов + dry-run) → `
 
 ### Task 3: Стартовый детектор + авто-откат
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** На старте `loadConfig`: 1) невалидный файл → карантин
 `bad.json` + восстановление `lkg` (lkg валидируется); 2) pending-маркер —
@@ -129,7 +129,7 @@ dashboard-серверов.
 
 ### Task 4: Ручной rollback
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `rollbackConfig()`: восстановление `lkg` + рестарт, очистка
 staged, **снятие pending-маркера** (если был установлен незавершённым
@@ -153,7 +153,7 @@ CLI-флага (например `--rollback-config` для ручного во�
 
 ### Task 5: Аудит-события конфигурации
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Аудит-события (ADR-0029): `config.applied`,
 `config.validate_failed`, `config.pending`, `config.confirmed`,
@@ -177,7 +177,7 @@ CLI-флага (например `--rollback-config` для ручного во�
 
 ### Task 6: systemd-семантика рестарта + права на ./config
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Проверить/обновить `systemd/zyablik-bot.service`:
 `Restart=always`, `RestartSec`, `StartLimitBurst` (fail loudly, без

@@ -47,7 +47,7 @@ Sprint 39-40. Плагины без `configSchema` (кроме `identity`, ес�
 
 ### Task 1: Единая схема секций + валидатор
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Выделить системную схему секций `bot`/`queue`/`ingress`/
 `monitor` (формат поля ADR-0046: тип, default, required, secret, enum,
@@ -72,7 +72,7 @@ hand-rolled, без внешних зависимостей.
 
 ### Task 2: `loadConfig(options)` — трёхслойный мерж
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Ввести `loadConfig(options)` как замену
 `createBotPlatformConfig`/`createQueueMonitorConfig`: мерж
@@ -98,7 +98,7 @@ hand-rolled, без внешних зависимостей.
 
 ### Task 3: `$VAR`-резолвинг и инвариант «секреты не в файле»
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Резолв `$VAR`-ссылок из `process.env`. Неразрешённый
 секрет — fail-fast при старте; остальные ключи — warn + default. Литеральное
@@ -121,7 +121,7 @@ hand-rolled, без внешних зависимостей.
 
 ### Task 4: `version` + миграция формата
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Служебный ключ `version` (по умолчанию 1). `version` >
 текущей — отказ загружать (fail loudly). `version` ниже — пошаговая миграция
@@ -145,7 +145,7 @@ ignore.
 
 ### Task 5: `--generate-config` (миграция .env-стенда)
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** CLI-флаг `app.js` (argv уже разбирается, `src/bot-platform/app.js:220`):
 генерация первого `zyablik.config.json` из текущего окружения по маппингу
