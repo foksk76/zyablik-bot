@@ -15,6 +15,9 @@ on:
   pull_request:
     paths:
       - 'docs/zabbix-template/**'
+      - 'src/queue-monitor/api/metrics.js'
+      - 'tests/queue-monitor/api/metrics.test.js'
+      - 'tests/monitoring/**'
       - '.github/workflows/zabbix-template.yml'
   workflow_dispatch:
 

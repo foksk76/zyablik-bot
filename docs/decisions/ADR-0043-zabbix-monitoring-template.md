@@ -69,7 +69,7 @@ ADR-0034.
 
 | Часть | Описание |
 |-------|----------|
-| Макросы | `{$ZYABLIK.URL}` (default `localhost`), `{$ZYABLIK.PORT}` (9000), `{$ZYABLIK.API_KEY}` (Secret, пустой), `{$ZYABLIK.MAX_FAILED}`, `{$ZYABLIK.BACKLOG_SEC}`, `{$ZYABLIK.POLL_INTERVAL}` (30s), `{$ZYABLIK.NODATA_SEC}` (90s, окно nodata триггера доступности) |
+| Макросы | `{$ZYABLIK.URL}` (default `http://127.0.0.1`), `{$ZYABLIK.PORT}` (9000), `{$ZYABLIK.API_KEY}` (Secret, пустой), `{$ZYABLIK.MAX_FAILED}`, `{$ZYABLIK.BACKLOG_SEC}`, `{$ZYABLIK.POLL_INTERVAL}` (30s), `{$ZYABLIK.NODATA_SEC}` (90s, окно nodata триггера доступности) |
 | Master item | `zyablik.summary` — HTTP Agent `GET {URL}:{PORT}/api/metrics/summary`, `Authorization: Bearer {$ZYABLIK.API_KEY}`, интервал `{$ZYABLIK.POLL_INTERVAL}` |
 | Health item | `zyablik.readyz` — HTTP Agent `GET {URL}:{PORT}/readyz`, без auth |
 | LLD rule | `GET /api/metrics/discovery` (Bearer), JSONPath `$.data`, макрос `{#METRIC}`/`{#LABEL}` из ключей объектов |
@@ -82,13 +82,14 @@ ADR-0034.
 
 | Триггер | Выражение (суть) | Severity |
 |---------|------------------|----------|
-| Бот недоступен | `nodata(zyablik.summary)` или `zyablik.readyz` != 200 | High |
+| Бот недоступен | `nodata(/Zyablik monitoring/zyablik.readyz,{$ZYABLIK.NODATA_SEC})` | High |
 | Застой очереди | `zyablik.status.pending` > 0 и не падает за `{$ZYABLIK.BACKLOG_SEC}` | Average |
 | Failed rate | рост `zyablik.status.failed` за окно > `{$ZYABLIK.MAX_FAILED}` | High |
 | Накопление ошибок | рост `zyablik.status.totalAttempts` / рост `failed` без доставок | Warning |
 
-Пороги — макросы (`{$ZYABLIK.MAX_FAILED}`, `{$ZYABLIK.BACKLOG_SEC}`), все
-проблемные триггеры имеют recovery-выражения.
+Пороги — макросы (`{$ZYABLIK.MAX_FAILED}`, `{$ZYABLIK.BACKLOG_SEC}`);
+recovery — автоматический: у триггеров нет отдельных recovery-выражений,
+проблема закрывается, когда выражение перестаёт быть истинным.
 
 ### 4. Графики
 
