@@ -5,7 +5,7 @@
 (HTTP agent item), без установки Zabbix agent 2 на хост бота.
 
 ```text
-Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> триггеры/графики
+Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> триггеры/графики/дашборд
 ```
 
 Файл шаблона: `docs/zabbix-template/zyablik-monitoring-template.yaml`
@@ -36,7 +36,8 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
    элементов, правил обнаружения, триггеров и графиков.
 4. Импорт создаст:
    - шаблон **Zyablik monitoring** в группе **Templates/Zyablik**;
-   - 10 items, 1 LLD-правило, 4 триггера, 2 графика.
+   - 14 items, 1 LLD-правило, 4 триггера, 2 графика, 1 дашборд
+     «Обзор очереди».
 
 Проверка импорта через API (для CI и локальных прогонов):
 `docs/zabbix-template/test/import-and-verify.js`.
@@ -82,6 +83,10 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 | `zyablik.status.total` | Dependent | `$.total` |
 | `zyablik.status.totalAttempts` | Dependent | `$.totalAttempts` |
 | `zyablik.backlog` | Calculated | `last(pending) + last(processing)` |
+| `zyablik.status.pending.delta` | Dependent | `$.pending` + **SIMPLE_CHANGE**: прирост уровня между опросами |
+| `zyablik.status.processing.delta` | Dependent | `$.processing` + **SIMPLE_CHANGE** |
+| `zyablik.status.failed.delta` | Dependent | `$.failed` + **SIMPLE_CHANGE** |
+| `zyablik.backlog.delta` | Calculated | `last(//zyablik.backlog)` + **SIMPLE_CHANGE** |
 | `zyablik.queue.discovery` | LLD rule | `$.data` из `zyablik.get.discovery` |
 | `zyablik.queue[{#METRIC}]` | Item prototype | `$.{#METRIC}` из `zyablik.summary` |
 
@@ -121,6 +126,70 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 - **Zyablik: Backlog и результат доставки** — `zyablik.backlog`,
   `delivered`, `failed`.
 
+## Дашборд
+
+Шаблон включает один дашборд **«Обзор очереди»** (7 виджетов), доступный
+в **Data collection -> Templates -> <шаблон> -> Dashboards**:
+
+- 4 item-виджета: **Backlog**, **Ожидают отправки**, **В обработке**,
+  **Ошибки доставки** (на delta-элементах `zyablik.*.delta`);
+- 2 svggraph-виджета: **Статусы очереди по времени** и
+  **Backlog и результат доставки** (те же серии, что в графиках);
+- 1 problems-виджет: **Проблемы** (активные проблемы шаблона).
+
+### Семантика item-виджетов: «переходы» (SIMPLE_CHANGE + SUM)
+
+Item-виджеты показывают **сумму переходов за период дашборда** и
+пересчитываются при его смене (1h/24h/7d/30d/...):
+
+- каждый delta-элемент (`zyablik.*.delta`) хранит прирост значения между
+  опросами через препроцессинг **SIMPLE_CHANGE** (`current - previous`;
+  первое значение задаёт базу и не хранится);
+- виджет агрегирует приросты агрегацией **SUM** (`aggregate_function: 5`)
+  за период дашборда — без неё item-виджет в режиме «Value» показывал бы
+  только последний прирост, и фильтр периода на него не влиял бы.
+
+> **Дизайн Zabbix:** препроцессинг SIMPLE_CHANGE **отбрасывает
+> отрицательные дельты**. При уменьшении значения (`current < previous`)
+> значение не сохраняется (в истории остаётся пропуск), а внутренняя база
+> «previous» всё равно обновляется. Это жёсткое поведение сервера
+> (`item_preproc_delta_float`, `src/libs/zbxpreproc/item_preproc.c`),
+> конфигурацией не меняется.
+
+Что означает сумма за период:
+
+- `zyablik.status.failed.delta` — счётчик `failed` монотонный (COUNT строк
+  со статусом failed, строки не удаляются), поэтому сумма = **число новых
+  переходов в failed** за окно (новые ошибки; сброс БД счётчика не даёт
+  отрицательной суммы — отрицательная дельта отбрасывается);
+- `zyablik.status.pending.delta` / `zyablik.status.processing.delta` —
+  уровни, поэтому сумма = **сумма положительных приростов уровня** за окно
+  (сколько раз очередь пополнялась), а не «поступило − ушло»: убыль
+  (слив очереди) даёт отрицательную дельту и отбрасывается Zabbix;
+- `zyablik.backlog.delta` — **сумма положительных приростов глубины**
+  неразгруженной очереди за окно.
+
+Краевой случай: если уровень за окно **только убывал** (чистый слив без
+поступлений), каждая дельта отрицательна и отбрасывается — за такое окно
+delta-элемент не пишет значений, и виджет может показать «no data». В
+спокойном состоянии (уровень стабилен) пишутся нулевые дельты, и виджет
+показывает 0.
+
+Графики и триггеры остаются на уровнях (`zyablik.status.*`,
+`zyablik.backlog`): delta-элементы используются только item-виджетами
+дашборда. Триггер роста ошибок (`last(failed) - last(failed, окно)`)
+согласован с виджетом «Ошибки»: оба считают прирост за период, но триггер —
+по уровням, виджет — через SIMPLE_CHANGE.
+
+> **Ограничение по хранению:** item-виджеты читают данные из **history**
+> (не trends). Счётчики и дельты живут столько, сколько задано `history`
+> (по умолчанию в Zabbix 7.0 — 31 день; настраивается на элементе или
+> сервере). Для периодов дашборда больше глубины
+> history виджет покажет «no data».
+
+Минимум версии для шаблонных дашбордов с svggraph/problems — Zabbix 7.0+
+(ZBXNEXT-8086).
+
 ## Локальный прогон импорта в Docker-Zabbix
 
 ```bash
@@ -133,8 +202,8 @@ docker compose down -v
 Стек: postgres 16 + Zabbix server 7.2 + web (nginx, порт 8080). Скрипт
 `import-and-verify.js` ждёт готовности API (`apiinfo.version`), логинится,
 импортирует шаблон через `configuration.import` (Bearer-авторизация) и
-проверяет создание: шаблон, 10 items, 1 LLD-правило, 4 триггера, 2 графика.
-Exit code 0 — успех.
+проверяет создание: шаблон, 14 items, 1 LLD-правило, 4 триггера, 2 графика,
+1 дашборд. Exit code 0 — успех.
 
 ## Живой стенд
 

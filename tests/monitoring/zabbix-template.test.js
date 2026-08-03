@@ -16,7 +16,11 @@ const EXPECTED_ITEM_KEYS = [
   'zyablik.status.failed',
   'zyablik.status.total',
   'zyablik.status.totalAttempts',
-  'zyablik.backlog'
+  'zyablik.backlog',
+  'zyablik.status.pending.delta',
+  'zyablik.status.processing.delta',
+  'zyablik.status.failed.delta',
+  'zyablik.backlog.delta'
 ];
 
 const STATUS_FIELDS = [
@@ -312,6 +316,93 @@ test('graphs are defined for the template host', () => {
   assert.ok(itemRefs.includes('key: zyablik.backlog'), 'backlog graph must include backlog');
 });
 
+function templateDashboardBlock(lines) {
+  const index = lines.findIndex((line) => line === '      dashboards:');
+  assert.ok(index !== -1, 'template dashboards section must exist');
+  let end = index + 1;
+  while (end < lines.length && !/^  [a-z_]+:/.test(lines[end])) {
+    end++;
+  }
+  return lines.slice(index, end).join('\n');
+}
+
+test('template defines exactly one monitoring dashboard', () => {
+  const { lines } = readLines();
+  const block = templateDashboardBlock(lines);
+
+  const dashboards = block.match(/^        - uuid:/gm) || [];
+  assert.equal(dashboards.length, 1, 'template must define exactly 1 dashboard');
+
+  assert.match(block, /name: 'Zyablik: Обзор'/, 'dashboard must be named "Zyablik: Обзор"');
+  assert.match(block, /pages:\n\s+- name: 'Обзор очереди'/, 'dashboard must have a page "Обзор очереди"');
+
+  const widgetTypes = block.match(/^                - type: (item|svggraph|problems)/gm) || [];
+  const count = (type) => widgetTypes.filter((w) => w.includes(type)).length;
+  assert.equal(count('item'), 4, 'dashboard must have 4 item widgets');
+  assert.equal(count('svggraph'), 2, 'dashboard must have 2 svggraph widgets');
+  assert.equal(count('problems'), 1, 'dashboard must have 1 problems widget');
+});
+
+test('dashboard item widgets reference the delta transition items', () => {
+  const { lines } = readLines();
+  const block = templateDashboardBlock(lines);
+
+  const hosts = block.match(/host: '([^']+)'/g) || [];
+  assert.ok(hosts.length > 0, 'dashboard widgets must reference items');
+  assert.ok(
+    hosts.every((host) => host === "host: 'Zyablik monitoring'"),
+    'dashboard widgets must reference the template host'
+  );
+
+  for (const key of [
+    'zyablik.backlog.delta',
+    'zyablik.status.pending.delta',
+    'zyablik.status.processing.delta',
+    'zyablik.status.failed.delta'
+  ]) {
+    assert.ok(block.includes(`key: ${key}`), `dashboard item widgets must reference: ${key}`);
+  }
+});
+
+test('all 4 item widgets sum SIMPLE_CHANGE deltas over the dashboard period', () => {
+  // Семантика «переходы»: каждый item-виджет показывает сумму приростов
+  // (SIMPLE_CHANGE) за период дашборда. Без агрегации SUM (aggregate_function=5)
+  // виджет в режиме «Value» показывал бы только последний прирост, и фильтр
+  // периода на него не влиял бы.
+  const { lines } = readLines();
+  const block = templateDashboardBlock(lines);
+
+  const sums = block.match(/name: aggregate_function\n\s+value: '5'/g) || [];
+  assert.equal(
+    sums.length,
+    4,
+    'each item widget must have aggregate_function=5 (SUM) to follow the dashboard period'
+  );
+});
+
+test('failed item widget shows a red threshold above zero', () => {
+  const { lines } = readLines();
+  const block = templateDashboardBlock(lines);
+
+  assert.match(block, /thresholds\.0\.color\n\s+value: F63100/, 'failed widget must use a red threshold');
+  assert.match(block, /thresholds\.0\.threshold\n\s+value: '1'/, 'failed widget must flag values above zero');
+});
+
+test('problems widget has a reference field', () => {
+  const { lines } = readLines();
+  const index = lines.findIndex((line) => line === '                - type: problems');
+  assert.ok(index !== -1, 'dashboard must have a problems widget');
+
+  let end = index + 1;
+  while (end < lines.length && /^                /.test(lines[end])) {
+    end++;
+  }
+  const problems = lines.slice(index, end).join('\n');
+
+  assert.match(problems, /name: 'Проблемы'/, 'problems widget must have a title');
+  assert.match(problems, /name: reference\n\s+value: [A-Z0-9]{5}/, 'problems widget must carry a unique reference');
+});
+
 test('calculated item backlog uses host-relative //key references', () => {
   // Zabbix не переписывает params calculated items из имени шаблона в имя
   // хоста при линковке (в отличие от триггеров): last(/Zyablik monitoring/...)
@@ -327,4 +418,57 @@ test('calculated item backlog uses host-relative //key references', () => {
     'zyablik.backlog must reference items via host-relative //key form'
   );
   assert.doesNotMatch(block, /\/Zyablik monitoring\//, 'zyablik.backlog must not reference the template host');
+});
+
+const DELTA_ITEMS = [
+  ['zyablik.status.pending.delta', 'pending', 'DEPENDENT'],
+  ['zyablik.status.processing.delta', 'processing', 'DEPENDENT'],
+  ['zyablik.status.failed.delta', 'failed', 'DEPENDENT'],
+  ['zyablik.backlog.delta', null, 'CALCULATED']
+];
+
+test('delta transition items apply SIMPLE_CHANGE preprocessing', () => {
+  // Семантика «переходы» (SIMPLE_CHANGE): между опросами элемент хранит
+  // прирост значения (current - previous). Первое значение задаёт базу и не
+  // хранится. Zabbix отбрасывает отрицательные дельты (item_preproc.c),
+  // поэтому сумма за период дашборда = сумма положительных переходов; для
+  // монотонного счётчика failed - число новых переходов в failed.
+  const { lines } = readLines();
+
+  for (const [key, field, type] of DELTA_ITEMS) {
+    const block = templateItemBlock(lines, key);
+    assert.match(block, new RegExp(`type: ${type}`), `${key} must be ${type}`);
+    assert.match(block, /value_type: FLOAT/, `${key} must be FLOAT - the signed numeric type for SIMPLE_CHANGE deltas (negative deltas are dropped by Zabbix, FLOAT is the consistent safe choice)`);
+    assert.match(block, /type: SIMPLE_CHANGE/, `${key} must apply SIMPLE_CHANGE preprocessing`);
+    if (field) {
+      assert.match(block, /master_item:\n\s+key: zyablik.summary/, `${key} must master on zyablik.summary`);
+      assert.match(
+        block,
+        new RegExp(`parameters:\\n\\s+- '\\$\\.${field}'`),
+        `${key} must extract $.${field} via JSONPath`
+      );
+    } else {
+      assert.match(
+        block,
+        /params: 'last\(\/\/zyablik\.backlog\)'/,
+        `${key} must derive from the backlog level via host-relative //key params`
+      );
+    }
+  }
+});
+
+test('delta transition items are not used by graphs or triggers (levels preserved)', () => {
+  // Графики и триггеры завязаны на уровни zyablik.status.* / zyablik.backlog;
+  // delta-элементы предназначены только для item-виджетов дашборда.
+  const { lines } = readLines();
+  const triggerIndex = lines.findIndex((line) => line === '  triggers:');
+  const nonDashboard = lines.slice(triggerIndex).join('\n');
+
+  for (const key of ['zyablik.status.pending.delta', 'zyablik.status.processing.delta', 'zyablik.status.failed.delta', 'zyablik.backlog.delta']) {
+    assert.doesNotMatch(
+      nonDashboard,
+      new RegExp(`key: ${key.replace(/\./g, '\\.')}`),
+      `${key} must not appear in graphs (they show levels)`
+    );
+  }
 });

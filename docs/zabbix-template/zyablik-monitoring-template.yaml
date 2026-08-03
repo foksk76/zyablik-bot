@@ -27,6 +27,9 @@ zabbix_export:
         - `zyablik.status.*` - dependent-элементы со счётчиками очереди
           (pending, processing, delivered, failed, total, totalAttempts).
         - `zyablik.backlog` - расчётный элемент: pending + processing.
+        - `zyablik.*.delta` - элементы переходов (препроцессинг SIMPLE_CHANGE):
+          прирост счётчика/уровня между опросами; item-виджеты дашборда
+          агрегируют их суммой за период дашборда.
         - LLD-правило `zyablik.queue.discovery` (источник `/api/metrics/discovery`) -
           поверхность расширения на новые метрики очереди без правки шаблона.
       vendor:
@@ -205,6 +208,70 @@ zabbix_export:
           tags:
             - tag: scope
               value: queue
+        - uuid: ac7e68c7d6e346f1b0558e21e291d6f8
+          name: 'Zyablik: Ожидают отправки (переходы)'
+          type: DEPENDENT
+          key: zyablik.status.pending.delta
+          delay: '0'
+          value_type: FLOAT
+          description: 'Прирост zyablik.status.pending между опросами (препроцессинг SIMPLE_CHANGE). Сумма за период дашборда = сумма положительных приростов уровня (сколько раз очередь пополнялась); убыль отбрасывается SIMPLE_CHANGE.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.pending'
+            - type: SIMPLE_CHANGE
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: queue
+        - uuid: 8e3aaadc6c344fc98806b0f31bf437a5
+          name: 'Zyablik: В обработке (переходы)'
+          type: DEPENDENT
+          key: zyablik.status.processing.delta
+          delay: '0'
+          value_type: FLOAT
+          description: 'Прирост zyablik.status.processing между опросами (препроцессинг SIMPLE_CHANGE). Сумма за период дашборда = сумма положительных приростов уровня (сколько раз росло число сообщений в обработке); убыль отбрасывается SIMPLE_CHANGE.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.processing'
+            - type: SIMPLE_CHANGE
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: queue
+        - uuid: 4ce51c6d4313406aa0a0ee31205aea69
+          name: 'Zyablik: Ошибки (переходы)'
+          type: DEPENDENT
+          key: zyablik.status.failed.delta
+          delay: '0'
+          value_type: FLOAT
+          description: 'Прирост zyablik.status.failed между опросами (препроцессинг SIMPLE_CHANGE). Счётчик failed монотонен, поэтому сумма за период дашборда = число новых переходов в статус failed за выбранное окно.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.failed'
+            - type: SIMPLE_CHANGE
+          master_item:
+            key: zyablik.summary
+          tags:
+            - tag: scope
+              value: delivery
+        - uuid: ef138da4c9664a4282ff25fba3279e42
+          name: 'Zyablik: Backlog (переходы)'
+          type: CALCULATED
+          key: zyablik.backlog.delta
+          delay: '{$ZYABLIK.POLL_INTERVAL}'
+          value_type: FLOAT
+          description: 'Прирост zyablik.backlog между опросами (препроцессинг SIMPLE_CHANGE). Сумма за период дашборда = сумма положительных приростов глубины неразгруженной очереди; убыль отбрасывается SIMPLE_CHANGE.'
+          params: 'last(//zyablik.backlog)'
+          preprocessing:
+            - type: SIMPLE_CHANGE
+          tags:
+            - tag: scope
+              value: queue
       discovery_rules:
         - uuid: 45b2980565584a3cb0bb3c4d47692671
           name: 'Zyablik queue metrics discovery'
@@ -266,6 +333,287 @@ zabbix_export:
         - macro: '{$ZYABLIK.MAX_FAILED}'
           value: '10'
           description: 'Порог прироста failed/totalAttempts за окно {$ZYABLIK.BACKLOG_SEC} для триггеров.'
+      dashboards:
+        - uuid: 0d759769c4884c5ab6068110ce6aa11e
+          name: 'Zyablik: Обзор'
+          pages:
+            - name: 'Обзор очереди'
+              widgets:
+                - type: item
+                  name: Backlog
+                  width: '18'
+                  height: '4'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: Backlog
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.backlog.delta
+                    - type: INTEGER
+                      name: aggregate_function
+                      value: '5'
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: item
+                  name: 'Ожидают отправки'
+                  x: '18'
+                  width: '18'
+                  height: '4'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'Ожидают'
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.pending.delta
+                    - type: INTEGER
+                      name: aggregate_function
+                      value: '5'
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: item
+                  name: 'В обработке'
+                  x: '36'
+                  width: '18'
+                  height: '4'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'В обработке'
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.processing.delta
+                    - type: INTEGER
+                      name: aggregate_function
+                      value: '5'
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: item
+                  name: 'Ошибки доставки'
+                  x: '54'
+                  width: '18'
+                  height: '4'
+                  hide_header: 'YES'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: description
+                      value: 'Ошибки'
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.failed.delta
+                    - type: INTEGER
+                      name: aggregate_function
+                      value: '5'
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: F63100
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                - type: svggraph
+                  name: 'Статусы очереди по времени'
+                  'y': '4'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 1A7FDD
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: F7941D
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: 0F9F4E
+                    - type: STRING
+                      name: ds.0.color.3
+                      value: F63100
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.pending
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.processing
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.delivered
+                    - type: ITEM
+                      name: ds.0.itemids.3
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.failed
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: '6E143'
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: STRING
+                      name: working_time
+                      value: '1'
+                - type: svggraph
+                  name: 'Backlog и результат доставки'
+                  x: '36'
+                  'y': '4'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: 1A7FDD
+                    - type: STRING
+                      name: ds.0.color.1
+                      value: 0F9F4E
+                    - type: STRING
+                      name: ds.0.color.2
+                      value: F63100
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: ITEM
+                      name: ds.0.itemids.0
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.backlog
+                    - type: ITEM
+                      name: ds.0.itemids.1
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.delivered
+                    - type: ITEM
+                      name: ds.0.itemids.2
+                      value:
+                        host: 'Zyablik monitoring'
+                        key: zyablik.status.failed
+                    - type: INTEGER
+                      name: ds.0.missingdatafunc
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.0.width
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: AB48E
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                    - type: STRING
+                      name: working_time
+                      value: '1'
+                - type: problems
+                  name: 'Проблемы'
+                  'y': '11'
+                  width: '72'
+                  height: '8'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: F629D
   triggers:
     - uuid: d92576f44693461289cdfe923e3eb201
       expression: 'nodata(/Zyablik monitoring/zyablik.readyz,{$ZYABLIK.NODATA_SEC})=1'

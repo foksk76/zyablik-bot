@@ -275,6 +275,9 @@ Agent-less шаблон мониторинга (ADR-0043) собирает ме�
 1. Импортировать в Zabbix 7.0+ шаблон
    `docs/zabbix-template/zyablik-monitoring-template.yaml`
    (**Data collection -> Templates -> Import**, Create missing/Update existing).
+   Шаблон включает 14 items, 1 LLD-правило, 4 триггера, 2 графика и
+   дашборд «Обзор очереди» (Data collection -> Templates -> <шаблон> ->
+   Dashboards).
 2. Привязать шаблон **Zyablik monitoring** к хосту бота.
 3. Задать на уровне хоста макросы: `{$ZYABLIK.URL}` (например,
    `http://bot.example.internal`), `{$ZYABLIK.PORT}` (`9000`) и

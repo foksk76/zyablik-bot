@@ -120,7 +120,7 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0040 улучшить UI Queue Monitor Dashboard (error drill-down, session redirect, alert cleanup, configurable limits, countdown, error boundary);
 - по ADR-0041 ввести глобальный фильтр времени для Queue Monitor Dashboard (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan);
 - по ADR-0042 расширить scope на web interface (navigation shell + archive: React Router hash-based, archive API, retry через queueStore, backend export);
-- по ADR-0043 опубликовать agent-less Zabbix monitoring template 7.0+ (LLD-шаблон на `/api/metrics/*` и `/readyz`, ключи `{#METRIC}` = поля `/summary`, полный набор триггеров, тестовый Zabbix 7.2 в Docker);
+- по ADR-0043 опубликовать agent-less Zabbix monitoring template 7.0+ (LLD-шаблон на `/api/metrics/*` и `/readyz`, ключи `{#METRIC}` = поля `/summary`, полный набор триггеров, дашборд «Обзор очереди», тестовый Zabbix 7.2 в Docker);
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основные артефакты

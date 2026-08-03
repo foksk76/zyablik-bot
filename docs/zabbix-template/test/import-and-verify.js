@@ -38,10 +38,15 @@ const EXPECTED_ITEM_KEYS = [
     'zyablik.status.total',
     'zyablik.status.totalAttempts',
     'zyablik.backlog',
+    'zyablik.status.pending.delta',
+    'zyablik.status.processing.delta',
+    'zyablik.status.failed.delta',
+    'zyablik.backlog.delta',
 ];
 const EXPECTED_DISCOVERY_RULES = 1;
 const EXPECTED_TRIGGERS = 4;
 const EXPECTED_GRAPHS = 2;
+const EXPECTED_DASHBOARDS = 1;
 
 const POLL_INTERVAL_MS = 2000;
 const READY_TIMEOUT_MS = Number(process.env.ZABBIX_READY_TIMEOUT_MS || 180000);
@@ -132,6 +137,13 @@ async function verify(auth) {
         throw new Error(`Graphs: ожидалось >= ${EXPECTED_GRAPHS}, найдено ${graphs.length}`);
     }
     console.log(`Graphs: ${graphs.length}`);
+
+    const dashboards = await api('templatedashboard.get',
+        { templateids: [templateId], output: ['dashboardid'] }, auth);
+    if (dashboards.length < EXPECTED_DASHBOARDS) {
+        throw new Error(`Dashboards: ожидалось >= ${EXPECTED_DASHBOARDS}, найдено ${dashboards.length}`);
+    }
+    console.log(`Dashboards: ${dashboards.length}`);
 }
 
 async function main() {
@@ -163,6 +175,7 @@ async function main() {
                 discoveryRules: { createMissing: true, updateExisting: true, deleteMissing: false },
                 triggers: { createMissing: true, updateExisting: true, deleteMissing: false },
                 graphs: { createMissing: true, updateExisting: true, deleteMissing: false },
+                templateDashboards: { createMissing: true, updateExisting: true },
                 valueMaps: { createMissing: true, updateExisting: true },
             },
         }, auth);

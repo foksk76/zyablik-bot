@@ -74,7 +74,9 @@ ADR-0034.
 | Health item | `zyablik.readyz` — HTTP Agent `GET {URL}:{PORT}/readyz`, без auth |
 | LLD rule | `GET /api/metrics/discovery` (Bearer), JSONPath `$.data`, макрос `{#METRIC}`/`{#LABEL}` из ключей объектов |
 | Статические dependent items | `zyablik.status.<metric>` (6 шт.) — JSONPath `$.<metric>` из master item `zyablik.summary`; на них завязаны триггеры и графики |
+| Delta-элементы переходов | `zyablik.*.delta` (4 шт.: `pending.delta`, `processing.delta`, `failed.delta`, `backlog.delta`) — препроцессинг **SIMPLE_CHANGE** (прирост между опросами); питают item-виджеты дашборда |
 | Item prototype (LLD) | `zyablik.queue[{#METRIC}]` — JSONPath `$.{#METRIC}` из master item `zyablik.summary`; поверхность расширения для будущих метрик |
+| Дашборд | «Обзор очереди» — 7 виджетов: 4 item (Backlog, Ожидают отправки, В обработке, Ошибки доставки), 2 svggraph (статусы по времени, backlog vs результат), 1 problems. Item-виджеты — семантика **«переходы»**: SUM (`aggregate_function=5`) приростов SIMPLE_CHANGE delta-элементов за период дашборда; пересчитываются при смене периода |
 
 ### 3. Триггеры (полный набор)
 
@@ -94,6 +96,11 @@ ADR-0034.
 
 - Статусы очереди по времени (delivered/failed/pending/processing)
 - Backlog (pending + processing) и delivered vs failed
+
+Те же серии собраны в шаблонный дашборд **«Обзор очереди»** (svggraph +
+item + problems виджеты, см. §2). Шаблонные дашборды со svggraph/problems
+доступны с Zabbix 7.0 (ZBXNEXT-8086), поэтому минимум контракта остаётся
+7.0+.
 
 Почему не graph prototypes: в Zabbix 7.0 graph prototype создаёт **один граф
 на каждую LLD-сущность**; мульти-серийный график над LLD-прототипами
@@ -215,6 +222,7 @@ Docker-образ той же версии, что минимум контрак
 - Новые документы: `docs/zabbix-monitoring-template.md`, поправки к ADR-0034
 - Обновления: README.md, INSTALL.md, docs/project-context.md,
   tasks/sprints/README.md
+- Шаблон поставляется с дашбордом «Обзор очереди» (7 виджетов)
 - Без новых runtime-зависимостей (ADR-0015 соблюдается; тестовый Zabbix —
   только в CI/Docker)
 
@@ -224,5 +232,5 @@ Docker-образ той же версии, что минимум контрак
   `pending/...` (без префикса)
 - `tests/monitoring/zabbix-template.test.js`: статическая валидация шаблона
 - `docs/zabbix-template/test/import-and-verify.js`: импорт в Docker-Zabbix 7.2,
-  проверка items/triggers через Zabbix API
+  проверка items/triggers/graphs/dashboard через Zabbix API
 - `.github/workflows/zabbix-template.yml`: CI-прогон обоих уровней
