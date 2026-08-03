@@ -42,6 +42,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-33.md` — Zabbix Monitoring Template: файл шаблона + статическая валидация
 - `sprint-34.md` — Zabbix Monitoring Template: Docker CI + документация
 - `sprint-35.md` — Zabbix Monitoring Template: связка с живым стендом
+- `sprint-36.md` — Nginx reverse proxy: HTTPS для HTTP-серверов bot-platform (ADR-0044)
 
 ## Status
 
@@ -75,6 +76,7 @@ Sprint 32: Complete (Web Interface: Archive UI + Retry + Export)
 Sprint 33: Complete (Zabbix Monitoring Template: файл шаблона + статическая валидация)
 Sprint 34: Complete (Zabbix Monitoring Template: Docker CI + документация)
 Sprint 35: Complete (Zabbix Monitoring Template: связка с живым стендом, PROBLEM -> RECOVERY)
+Sprint 36: Complete (Nginx reverse proxy: HTTPS для HTTP-серверов bot-platform, ADR-0044)
 ```
 
-Детальная информация в `tasks/sprints/sprint-35.md`.
+Детальная информация в `tasks/sprints/sprint-36.md`.

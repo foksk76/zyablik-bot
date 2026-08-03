@@ -141,6 +141,7 @@ Queue Monitor Dashboard (ADR-0034)
 - ADR-0041: глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
 - ADR-0042: web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
 - ADR-0043: Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+ с дашбордом «Обзор очереди», смена `{#METRIC}` на `pending`, тестовый Zabbix 7.2 в Docker)
+- ADR-0044: Nginx reverse proxy для HTTP-серверов bot-platform (TLS-терминирование ingress 8443 и dashboard 9000, порт 443, self-signed)
 
 ## Документация
 
@@ -153,6 +154,7 @@ docs/identity-plugin/
 docs/zabbix-media-type.md
 docs/zabbix-monitoring-template.md
 docs/runbooks/live-identity-bot.md
+docs/runbooks/nginx-reverse-proxy.md
 docs/decisions/README.md
 tasks/sprints/
 CHANGELOG.md

@@ -257,7 +257,7 @@ Zabbix 7.2 webhook-скрипт для работы через bot-platform ingr
 
 | Параметр | Описание | Пример |
 |---|---|---|
-| `Token` | IdP client-credentials secret | `zabbix-bot-secret-2024` |
+| `Token` | IdP client-credentials secret | `<client-secret>` |
 | `To` | user_id или chat_id в MAX | `123456` |
 | `RecipientType` | `user_id` или `chat_id` | `user_id` |
 | `Subject` | Тема уведомления | `Host is down` |
@@ -268,6 +268,10 @@ Zabbix 7.2 webhook-скрипт для работы через bot-platform ingr
 | `ClientId` | IdP client ID | `zabbix-bot` |
 | `Audience` | IdP audience claim | `bot-platform` |
 | `IngestUrl` | URL bot-platform ingress | `http://localhost:8443/ingest` |
+
+`IngestUrl` указывает на публичный адрес ingress: при использовании Nginx
+reverse proxy с TLS-терминированием (ADR-0026) — `https://<stand-host>/ingest`.
+Подробнее: `docs/runbooks/nginx-reverse-proxy.md`.
 
 #### Логирование
 

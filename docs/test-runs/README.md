@@ -16,6 +16,10 @@
 
 Live-приемка выполнена. Бот получает входящие сообщения и отправляет ответы через MAX Bot API.
 
+## Nginx reverse proxy (ADR-0044)
+
+- [`task-36-nginx-reverse-proxy-run.md`](task-36-nginx-reverse-proxy-run.md) — e2e-прогон HTTPS-входа через Nginx: readyz/ingest по 443, Zabbix test send, firewall-изоляция 8443/9000 (2026-08-03).
+
 ## Bot-platform Dry-run И Safe-test
 
 Tasks 12-14 выполнены и подтверждены. Промежуточные прогоны удалены из истории.

@@ -89,6 +89,15 @@ ADR-0040  улучшения UI Queue Monitor Dashboard (error drill-down, sessi
 ADR-0041  глобальный фильтр времени (TimeRangeBar, предустановки 1ч–30д, absolute range, drag-to-pan)
 ADR-0042  web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
 ADR-0043  Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+, смена {#METRIC} на pending, тестовый Zabbix 7.2 в Docker)
+ADR-0044  Nginx reverse proxy для HTTP-серверов bot-platform (TLS-терминирование ingress 8443 и dashboard 9000, порт 443, self-signed)
+```
+
+Если меняется Nginx reverse proxy (стенд, TLS):
+
+```text
+docs/runbooks/nginx-reverse-proxy.md
+docs/decisions/ADR-0044-nginx-reverse-proxy.md
+INSTALL.md (раздел 10)
 ```
 
 ## Каноничные источники
@@ -140,6 +149,11 @@ LICENSE.ru                       лицензия Apache-2.0 (RU)
 ```bash
 npm test
 ```
+
+`tests/docs-leak-guard.test.js` — policy-тест: документация (docs/, tasks/, корневые
+MD) не должна содержать внутренние IP-адреса, реальные `user_id`/`chat_id`
+и литеральные секреты. При добавлении внутренних адресов или примеров
+с плейсхолдерами проверять, что тест остаётся зелёным.
 
 Если тесты недоступны, минимум проверить:
 

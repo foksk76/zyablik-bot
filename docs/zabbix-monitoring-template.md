@@ -53,6 +53,12 @@ Zyablik bot (HTTP) -> Zabbix server (шаблон Zyablik monitoring) -> три�
 | `{$ZYABLIK.PORT}` | `9000` | HTTP-порт бота |
 | `{$ZYABLIK.API_KEY}` | `<реальный токен>` | API-ключ для `/api/metrics/*` (Secret) |
 
+Если бот опубликован через Nginx reverse proxy (ADR-0044) и порт `9000`
+закрыт firewall'ом, задайте на уровне хоста `{$ZYABLIK.URL}=https://<stand-host>`
+и `{$ZYABLIK.PORT}=443` — HTTP Agent шаблона пойдёт через Nginx (TLS).
+Доверие к сертификату — тот же trust store Zabbix, что для Media type
+(`docs/runbooks/nginx-reverse-proxy.md`, раздел 5.4).
+
 `{$ZYABLIK.API_KEY}` — **секретный макрос** (в шаблоне без значения):
 задаётся только на уровне хоста, в шаблон не передаётся. Без него
 метрики `/api/metrics/*` будут возвращать 401 и перейдут в unsupported.
