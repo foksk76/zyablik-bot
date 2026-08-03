@@ -30,7 +30,7 @@ function makeTempConfigDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-store-'));
 }
 
-function writeConfig(dir, fileConfig, name = 'zyablik.json') {
+function writeConfig(dir, fileConfig, name = 'zyablik.config.json') {
     const filePath = path.join(dir, name);
     fs.writeFileSync(filePath, JSON.stringify(fileConfig, null, 2), 'utf8');
     return filePath;
@@ -185,7 +185,7 @@ test('детектор: невалидный активный файл → ка�
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
-    assert.equal(result.state, 'quarantined');
+    assert.equal(result.state, 'quarantine');
     assert.ok(fs.existsSync(serviceFilePaths(configPath).badPath));
     assert.ok(result.quarantinePath.endsWith('.bad.json'));
     const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));

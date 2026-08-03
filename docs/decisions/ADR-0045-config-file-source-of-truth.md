@@ -13,9 +13,9 @@
 Конфигурация bot-platform и queue-monitor задаётся только через
 env-переменные:
 
-- `createBotPlatformConfig` (`src/bot-platform/core/config.js:27`) читает
+- `createBotPlatformConfig` (`src/bot-platform/core/config.js:146`) читает
   `process.env` с дефолтами и валидацией;
-- `createQueueMonitorConfig` (`src/queue-monitor/config.js:7`) — отдельный
+- `createQueueMonitorConfig` (`src/queue-monitor/config.js:16`) — отдельный
   модуль, тоже env-based;
 - секреты (`MAX_BOT_TOKEN`, `METRICS_API_KEY`, `SESSION_SECRET`,
   `IDP_CLIENT_SECRET`) лежат в `.env`;
@@ -80,7 +80,7 @@ rate-limit, логи, IdP-настройки рантайма, плагины), 
 переменные окружения контейнера / docker secrets.
 
 - Путь до файла: env-переменная `ZYABLIK_CONFIG`, по умолчанию
-  `./config/zyablik.json`;
+  `./config/zyablik.config.json`;
 - `createBotPlatformConfig(environment)` и `createQueueMonitorConfig(environment)`
   заменяются единым `loadConfig(options)`; каждый модуль читает свою секцию
   из одного результата: `bot`, `queue`, `ingress`, `monitor`, `plugins`;
@@ -193,10 +193,10 @@ last-known-good при ошибке парсинга; AdGuard Home: temp+rename)
 ### Bootstrap и миграция
 
 - Команда `--generate-config` — CLI-флаг `app.js` (argv уже разбирается,
-  `src/bot-platform/app.js:220`): генерирует первый `zyablik.config.json` из
+  `src/bot-platform/app.js:293`): генерирует первый `zyablik.config.json` из
   текущего окружения (для миграции существующего `.env`-стенда): управляемые
   настройки — в файл по маппингу ниже, секреты — как `$VAR`-ссылки на `.env`.
-  Пишет в путь из `ZYABLIK_CONFIG` (по умолчанию `./config/zyablik.json`).
+  Пишет в путь из `ZYABLIK_CONFIG` (по умолчанию `./config/zyablik.config.json`).
   При существующем файле — отказ (не перезаписывает); `--dry-run` печатает
   результат в stdout;
 - Команда `--rollback-config` — CLI-флаг `app.js`: ручной откат к

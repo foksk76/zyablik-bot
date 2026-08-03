@@ -22,8 +22,8 @@ web UI с просмотром, изменением, применением, и
 **File-first ядро (A) + schema-платформа (B) как MVP; операционный контур (C) — следующий шаг.**
 
 Сегодня конфигурация — только env-переменные: `createBotPlatformConfig`
-в `src/bot-platform/core/config.js:27` и `createQueueMonitorConfig` в
-`src/queue-monitor/config.js:7`. Плагины (`plugin-loader.js`) экспортируют
+в `src/bot-platform/core/config.js:146` и `createQueueMonitorConfig` в
+`src/queue-monitor/config.js:16`. Плагины (`plugin-loader.js`) экспортируют
 только `routes` — декларации настроек у них нет. Страница «Настройки» в
 `src/queue-monitor/ui/src/pages/SettingsPage.jsx:4` — заглушка.
 

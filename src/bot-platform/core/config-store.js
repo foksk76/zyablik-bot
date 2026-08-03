@@ -4,7 +4,7 @@
 // ADR-0045: жизненный цикл применения конфигурации.
 // Служебные файлы в каталоге активного конфига:
 //   zyablik.config.json            — активный конфиг
-//   zyablik.config.lkg             — last known good (копия активного перед Apply)
+//   zyablik.config.json.lkg     — last known good (копия активного перед Apply)
 //   zyablik.config.json.pending    — pending-маркер (содержит хеш применяемого конфига)
 //   zyablik.config.bad.json        — карантин невалидного файла
 //   zyablik.config.staged.json     — полный снапшот для Stage→Apply
@@ -25,7 +25,7 @@ const { validateConfigFile, isVarReference } = require('./config-schema');
 const { prepareConfigForLoad } = require('./config-migrations');
 
 const LKG_SUFFIX = '.lkg';
-const PENDING_SUFFIX = '.json.pending';
+const PENDING_SUFFIX = '.pending';
 const BAD_SUFFIX = '.bad.json';
 const STAGED_SUFFIX = '.staged.json';
 
@@ -290,8 +290,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
 
 // Стартовый детектор: вызывается до создания сервисов (после plugin-loader).
 // Возвращает { state, reason, restoredFrom, quarantinePath, fileConfig }.
-// state: 'ok' | 'quarantined' | 'rolled_back' | 'refused'
-// options: { environment, logger }
+// state: 'ok' | 'quarantine' | 'rolled_back' | 'refused' (имена — по ADR-0046)
 function runStartupConfigDetector(configPath, options = {}) {
     const { configPath: activePath } = serviceFilePaths(configPath);
     const lkg = readLkg(configPath);
@@ -339,7 +338,7 @@ function runStartupConfigDetector(configPath, options = {}) {
                 reason: validationError.message
             });
             return {
-                state: 'quarantined',
+                state: 'quarantine',
                 reason: validationError.message,
                 restoredFrom: 'lkg',
                 quarantinePath,

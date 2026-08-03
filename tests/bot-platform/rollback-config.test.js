@@ -12,7 +12,7 @@ function makeTempConfigDir() {
 }
 
 function writeConfig(dir, fileConfig) {
-    const filePath = path.join(dir, 'zyablik.json');
+    const filePath = path.join(dir, 'zyablik.config.json');
     fs.writeFileSync(filePath, JSON.stringify(fileConfig, null, 2), 'utf8');
     return filePath;
 }
@@ -40,7 +40,7 @@ test('rollbackConfigFile: восстанавливает lkg, снимает pen
     assert.ok(stdout.join('').includes('systemctl restart'));
     const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     assert.equal(active.bot.logLevel, 'info');
-    assert.equal(fs.existsSync(serviceFilePath(configPath, '.json.pending')), false);
+    assert.equal(fs.existsSync(serviceFilePath(configPath, '.pending')), false);
     assert.equal(fs.existsSync(serviceFilePath(configPath, '.staged.json')), false);
 });
 

@@ -16,13 +16,13 @@ function makeTempConfigDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-config-'));
 }
 
-function writeConfig(dir, fileConfig, name = 'zyablik.json') {
+function writeConfig(dir, fileConfig, name = 'zyablik.config.json') {
     const filePath = path.join(dir, name);
     fs.writeFileSync(filePath, JSON.stringify(fileConfig, null, 2), 'utf8');
     return filePath;
 }
 
-test('resolveConfigPath: дефолт ./config/zyablik.json', () => {
+test('resolveConfigPath: дефолт ./config/zyablik.config.json', () => {
     const resolved = resolveConfigPath({}, {});
     assert.equal(resolved, path.resolve(DEFAULT_CONFIG_PATH));
 });
@@ -180,7 +180,7 @@ test('loadConfig с файлом: неразрешённый $VAR не-секр�
 
 test('loadConfig с файлом: невалидный JSON — ошибка с причиной', () => {
     const dir = makeTempConfigDir();
-    const filePath = path.join(dir, 'zyablik.json');
+    const filePath = path.join(dir, 'zyablik.config.json');
     fs.writeFileSync(filePath, '{ not-json', 'utf8');
 
     assert.throws(

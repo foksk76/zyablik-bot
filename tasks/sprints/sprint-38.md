@@ -20,7 +20,7 @@ UI — Sprint 40.
 ## Architecture Decisions
 
 - **Служебные файлы** (в каталоге активного конфига):
-  - `zyablik.config.lkg` — last known good (копия активного перед Apply);
+  - `zyablik.config.json.lkg` — last known good (копия активного перед Apply);
   - `zyablik.config.json.pending` — pending-маркер (содержит хеш применяемого
     конфига);
   - `zyablik.config.bad.json` — карантин невалидного файла;

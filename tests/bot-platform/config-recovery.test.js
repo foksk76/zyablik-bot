@@ -11,7 +11,7 @@ function makeTempConfigDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-core-'));
 }
 
-function writeConfig(dir, fileConfig, name = 'zyablik.json') {
+function writeConfig(dir, fileConfig, name = 'zyablik.config.json') {
     const filePath = path.join(dir, name);
     fs.writeFileSync(filePath, JSON.stringify(fileConfig, null, 2), 'utf8');
     return filePath;
@@ -60,7 +60,7 @@ test('createCore: невалидный файл с lkg → карантин + в
 
     const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
 
-    assert.equal(core.recoveryState, 'quarantined');
+    assert.equal(core.recoveryState, 'quarantine');
     assert.ok(core.quarantinePath.endsWith('.bad.json'));
     assert.equal(core.config.logLevel, 'info');
 });

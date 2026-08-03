@@ -61,7 +61,7 @@
 - `nullable: true` — поле может быть `null` (tri-state): `null` = «не задано,
   поведение определяется рантаймом». Нужно для существующих полей типа
   `idpRelaxSsrf` (`boolean|null`, авто-детект по схеме issuer,
-  `src/queue-monitor/config.js:27`): в файле `null` валиден, в UI для таких
+  `src/queue-monitor/config.js:45`): в файле `null` валиден, в UI для таких
   полей рендерится tri-state-select вместо двухпозиционного переключателя.
 - Системная схема описывает секции `bot`, `queue`, `ingress`, `monitor` —
   она же используется для валидации `zyablik.config.json` (ADR-0045).

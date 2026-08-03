@@ -15,8 +15,8 @@
 
 **Контекст:** ADR-0045/0046 приняты и непротиворечивы документации. Сейчас
 конфигурация — только env (`createBotPlatformConfig` в
-`src/bot-platform/core/config.js:27`, `createQueueMonitorConfig` в
-`src/queue-monitor/config.js:7`). В этом спринте — ядро без UI и без
+`src/bot-platform/core/config.js:146`, `createQueueMonitorConfig` в
+`src/queue-monitor/config.js:16`). В этом спринте — ядро без UI и без
 применения (Stage→Apply—следующий спринт).
 
 **Границы:** только `loadConfig`/схема/резолвинг/генерация + тесты.
@@ -78,7 +78,7 @@ hand-rolled, без внешних зависимостей.
 `createBotPlatformConfig`/`createQueueMonitorConfig`: мерж
 `defaults → файл → .env`, секции `bot`/`queue`/`ingress`/`monitor`/`plugins`
 (`plugins.<name>.*`), путь из `ZYABLIK_CONFIG` (по умолчанию
-`./config/zyablik.json`). `createLiveRuntimeConfig` сохраняется поверх
+`./config/zyablik.config.json`). `createLiveRuntimeConfig` сохраняется поверх
 результата.
 
 **Acceptance criteria:**
@@ -147,7 +147,7 @@ ignore.
 
 **Status:** Done
 
-**Description:** CLI-флаг `app.js` (argv уже разбирается, `src/bot-platform/app.js:220`):
+**Description:** CLI-флаг `app.js` (argv уже разбирается, `src/bot-platform/app.js:293`):
 генерация первого `zyablik.config.json` из текущего окружения по маппингу
 env→файл (таблица ADR-0045): управляемые — в файл, секреты — `$VAR`-ссылками.
 Пишет в путь из `ZYABLIK_CONFIG`; при существующем файле — отказ;

@@ -18,7 +18,7 @@ const {
 const { prepareConfigForLoad, CURRENT_VERSION } = require('./config-migrations');
 
 const moduleName = 'config';
-const DEFAULT_CONFIG_PATH = './config/zyablik.json';
+const DEFAULT_CONFIG_PATH = './config/zyablik.config.json';
 const CONFIG_VALIDATION_ERROR_CODE = 'CONFIG_VALIDATION_ERROR';
 const TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE = 'TRANSPORT_NOT_IMPLEMENTED';
 const WEBHOOK_NOT_IMPLEMENTED_MESSAGE = 'Не реализовано: transport mode webhook';

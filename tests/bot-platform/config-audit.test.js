@@ -19,7 +19,7 @@ function makeTempConfigDir() {
 }
 
 function writeConfig(dir, fileConfig) {
-    const filePath = path.join(dir, 'zyablik.json');
+    const filePath = path.join(dir, 'zyablik.config.json');
     fs.writeFileSync(filePath, JSON.stringify(fileConfig, null, 2), 'utf8');
     return filePath;
 }
@@ -95,7 +95,7 @@ test('детектор: карантин пишет config.quarantine', () => {
 
     const result = runStartupConfigDetector(configPath, { environment: {}, logger: sink.logger });
 
-    assert.equal(result.state, 'quarantined');
+    assert.equal(result.state, 'quarantine');
     const event = sink.entries.find((entry) => entry.action === 'config.quarantine');
     assert.ok(event, 'нет config.quarantine');
     assert.ok(event.context.quarantinePath.endsWith('.bad.json'));

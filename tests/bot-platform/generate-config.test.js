@@ -68,7 +68,7 @@ test('buildConfigFileFromEnvironment: base env (неизменяемая баз�
 
 test('сгенерированный файл воспроизводит поведение env-конфига', () => {
     const dir = makeTempConfigDir();
-    const configPath = path.join(dir, 'zyablik.json');
+    const configPath = path.join(dir, 'zyablik.config.json');
     const { config: fileConfig } = generateConfigFile({ environment: envExample, configPath }, {
         stdout: { write: () => {} },
         stderr: { write: () => {} }
@@ -111,7 +111,7 @@ test('сгенерированный файл воспроизводит пов�
 
 test('generateConfigFile: существующий файл не перезаписывается', () => {
     const dir = makeTempConfigDir();
-    const configPath = path.join(dir, 'zyablik.json');
+    const configPath = path.join(dir, 'zyablik.config.json');
     fs.writeFileSync(configPath, '{"version":1,"bot":{}}', 'utf8');
 
     assert.throws(
@@ -131,7 +131,7 @@ test('generateConfigFile: существующий файл не перезап�
 
 test('generateConfigFile: --dry-run не пишет файл', () => {
     const dir = makeTempConfigDir();
-    const configPath = path.join(dir, 'zyablik.json');
+    const configPath = path.join(dir, 'zyablik.config.json');
     const stdout = [];
     const result = generateConfigFile({ environment: envExample, configPath, dryRun: true }, {
         stdout: { write: (chunk) => stdout.push(chunk) },
@@ -154,7 +154,7 @@ test('parseGenerateConfigArgs: --dry-run и путь', () => {
 
 test('main --generate-config: пишет файл, возвращает 0', async () => {
     const dir = makeTempConfigDir();
-    const configPath = path.join(dir, 'zyablik.json');
+    const configPath = path.join(dir, 'zyablik.config.json');
     const { main } = require('../../src/bot-platform/app');
 
     const exitCode = await main(['--generate-config', configPath], {
@@ -168,7 +168,7 @@ test('main --generate-config: пишет файл, возвращает 0', asyn
 
 test('main --generate-config --dry-run: не пишет, возвращает 0', async () => {
     const dir = makeTempConfigDir();
-    const configPath = path.join(dir, 'zyablik.json');
+    const configPath = path.join(dir, 'zyablik.config.json');
     const { main } = require('../../src/bot-platform/app');
 
     const exitCode = await main(['--generate-config', '--dry-run', configPath], {
