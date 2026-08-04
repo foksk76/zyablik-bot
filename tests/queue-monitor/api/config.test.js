@@ -469,6 +469,32 @@ test('apply: broken staged config -> 400 and staged cleared', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('confirm: снимает pending-маркер и фиксирует состояние confirmed (M2 review)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    const { writePending, pendingExists } = require('../../../src/bot-platform/core/config-store');
+    // pending.hash должен совпадать с активным файлом (L2 review).
+    writePending(configPath, minimalConfig);
+    assert.equal(pendingExists(configPath), true);
+
+    const confirmed = api.confirm();
+    assert.equal(confirmed, true);
+    assert.equal(pendingExists(configPath), false);
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'confirmed');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('confirm: без pending-маркера — no-op, состояние не меняется', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    const confirmed = api.confirm();
+    assert.equal(confirmed, false);
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'idle');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- POST /api/config/rollback ---
 
 test('rollback: 202 with restart, restores from manual', async () => {
@@ -752,6 +778,69 @@ test('apply during in-progress mutation returns 409', async () => {
     } finally {
         importPromise = null;
     }
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('putStage during in-progress mutation returns 409 (single-flight, review)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+
+    // «Зависший» import удерживает мутацию; параллельный stage получает 409
+    // и не будет затёрт clearStaged из in-flight apply.
+    const hangingReq = { on() {}, destroy() {} };
+    try {
+        api.importConfig({ req: hangingReq });
+        const stageResult = await api.putStage({ req: mockReq(minimalConfig) });
+        assert.equal(stageResult.statusCode, 409);
+    } finally {
+        // readJsonBody отклонится по destroy/таймауту; инстанс отбрасывается.
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStage: без staged diff пуст (активный конфиг не показывается как удалённый, review)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+
+    const stageResult = api.getStage({});
+
+    assert.equal(stageResult.statusCode, 200);
+    assert.equal(stageResult.body.data.exists, false);
+    assert.deepEqual(stageResult.body.data.diff, []);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStage: битый staged — diff пуст (не «всё удалено»)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    fs.writeFileSync(`${configPath}.staged.json`, '{broken json', 'utf8');
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+
+    const stageResult = api.getStage({});
+
+    assert.equal(stageResult.statusCode, 200);
+    assert.equal(stageResult.body.data.exists, true);
+    assert.deepEqual(stageResult.body.data.diff, []);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: ручной apply — appliedAt/appliedAtMs null (вводящий timestamp убран, review)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: null });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    await api.putStage({ req: mockReq(changed) });
+    await api.apply({});
+
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, false);
+    assert.equal(status.body.data.appliedAt, null);
     fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -69,6 +69,19 @@ function confirmConfigIfPending(configPath, logger) {
     return confirmConfigApplied(configPath, { logger: logger || console });
 }
 
+// ADR-0046 (M2): подтверждение конфига после готовности процесса. Через
+// configApi monitor'а — снимает pending-маркер И фиксирует состояние
+// 'confirmed' (след apply→confirmed в /api/config/status). Если монитор
+// не поднят (monitorEnabled=false) — fallback на confirmConfigIfPending.
+function confirmConfig(configPath, shutdownHandle, logger) {
+    if (shutdownHandle && typeof shutdownHandle.confirmConfig === 'function') {
+        if (shutdownHandle.confirmConfig()) {
+            return true;
+        }
+    }
+    return confirmConfigIfPending(configPath, logger);
+}
+
 function startBotPlatformService(environment = process.env, options = {}) {
   const app = createBotPlatformApp(environment);
 
@@ -255,6 +268,7 @@ async function startIngressAndQueue(config, options, io) {
 
   // ADR-0034: queue monitor dashboard — readonly replica + HTTP server.
   // Запускается после queue-store (нужен dbPath), останавливается ПОСЛЕ worker.
+  let monitorService = null;
   if (config.monitorEnabled) {
     const monitorDbPath = options.monitorDbPath || options.queueDbPath || 'delivery-queue.db';
     const monitor = options.monitor || createQueueMonitor({
@@ -268,6 +282,7 @@ async function startIngressAndQueue(config, options, io) {
       configRestart: options.configRestart,
       configRecovery: options.configRecovery
     });
+    monitorService = monitor;
 
     await monitor.start();
     io.stdout.write(`Queue monitor dashboard started on port ${config.monitorPort}\n`);
@@ -316,6 +331,16 @@ async function startIngressAndQueue(config, options, io) {
           }
         }
       }
+    },
+    // ADR-0046 (M2): подтверждение конфига через configApi (след
+    // apply→confirmed в /api/config/status), а не напрямую через config-store.
+    // Снимает pending-маркер и фиксирует состояние; fallback на raw-функцию,
+    // если монитор не поднят (monitorEnabled=false) или метод недоступен.
+    confirmConfig: () => {
+      if (monitorService && typeof monitorService.confirmConfig === 'function') {
+        return monitorService.confirmConfig();
+      }
+      return false;
     }
   };
 }
@@ -370,7 +395,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
       const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 
       // ADR-0045: подтверждение после старта сервисов (ready).
-      confirmConfigIfPending(app.core.configPath, options.logger || options.coreLogger);
+      confirmConfig(app.core.configPath, shutdownHandle, options.logger || options.coreLogger);
 
       const shutdownIo = options.io || io;
       const onSignal = async () => {
@@ -407,7 +432,7 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
       });
       // ADR-0045: подтверждение конфига ПОСЛЕ старта live-сервиса — падение
       // boot'а до этой точки оставляет pending-маркер для авто-отката.
-      confirmConfigIfPending(app.core.configPath, options.logger || options.coreLogger);
+      confirmConfig(app.core.configPath, shutdownHandle, options.logger || options.coreLogger);
       io.stdout.write('MAX bot-platform live service started in long_polling mode\n');
       return 0;
     } catch (error) {

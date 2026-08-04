@@ -501,7 +501,10 @@ function validatePluginSection(pluginName, configSchema, sectionValue) {
     }
 
     for (const [key, field] of Object.entries(configSchema)) {
-        if (sectionValue[key] === undefined) {
+        // M1 (review, round 3): отсутствующие ключи валидируем только для
+        // required-полей — как клиентский validateSectionValues. Иначе Import
+        // (минуя клиент) принимает ветку без обязательного поля.
+        if (sectionValue[key] === undefined && !field.required) {
             continue;
         }
         const value = sectionValue[key];

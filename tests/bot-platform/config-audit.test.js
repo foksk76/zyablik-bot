@@ -76,7 +76,16 @@ test('детектор: авто-откат пишет config.rollback (auto)', 
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000, { restartInitiated: true });
+    // Предыдущий boot (lastBoot) стартовал, но не подтвердился; окно StartupWait
+    // истекло (L3 review: окно считается от lastBoot, а не от appliedAt).
+    const { serviceFilePaths, computeConfigHash } = require('../../src/bot-platform/core/config-store');
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - 31_000).toISOString(),
+        restartInitiated: true,
+        boots: 0
+    }, null, 2));
     const sink = makeAuditSink();
 
     const result = runStartupConfigDetector(configPath, { environment: {}, logger: sink.logger });

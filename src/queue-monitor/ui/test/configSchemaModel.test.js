@@ -93,6 +93,17 @@ test('coerceValue: очищенное поле → дефолт схемы (чи
     assert.deepEqual(coerceValue('', schema.bot.nullableFlag), { ok: true, value: null });
 });
 
+test('coerceValue: очистка number без дефолта → undefined, а не null (M3 review)', () => {
+    const field = { type: 'number' };
+    assert.deepEqual(coerceValue('', field), { ok: true, value: undefined });
+    assert.equal(validateValue(undefined, field), null);
+});
+
+test('coerceValue: очистка string с непустым дефолтом → дефолт', () => {
+    assert.deepEqual(coerceValue('', schema.bot.logLevel), { ok: true, value: 'info' });
+    assert.deepEqual(coerceValue('', { type: 'string' }), { ok: true, value: '' });
+});
+
 test('validateValue: types, min/max, enum', () => {
     assert.equal(validateValue('info', schema.bot.logLevel), null);
     assert.equal(validateValue(50, schema.bot.maxPollLimit), null);

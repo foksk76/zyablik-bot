@@ -17,7 +17,7 @@
 //   GET  /api/config/export   — редактированный JSON (секреты — $VAR)
 //   POST /api/config/import   — валидация → staged + diff (reject литералов)
 //
-// Мутирующие эндпоинты (apply/rollback/import) — single-flight (409) +
+// Мутирующие эндпоинты (stage/apply/rollback/import) — single-flight (409) +
 // sliding-window rate limit (ADR-0046, отдельный пул от auth).
 
 const { resolveConfigPath, CONFIG_VALIDATION_ERROR_CODE, SECRET_VAR_UNRESOLVED_ERROR_CODE } = require('../../bot-platform/core/config');
@@ -613,7 +613,9 @@ function createConfigApi(options = {}) {
                 data: {
                     exists: stagedExists(configPath),
                     staged: maskStagedSecrets(staged, plugins),
-                    diff: computeConfigDiff(active, staged, plugins)
+                    // Без staged diff пуст: показывать активный конфиг как
+                    // «удалён» (new:null) вводяще (review).
+                    diff: staged === null ? [] : computeConfigDiff(active, staged, plugins)
                 }
             }
         };
@@ -652,21 +654,30 @@ function createConfigApi(options = {}) {
     }
 
     async function putStage(ctx) {
-        let rawConfig;
-        try {
-            rawConfig = await readJsonBody(ctx.req);
-        } catch (error) {
-            return { statusCode: 400, body: { status: 'error', error: `Invalid JSON body: ${error.message}` } };
+        // Single-flight с apply/rollback/import (review): параллельный stage
+        // не должен быть затёрт clearStaged из in-flight apply.
+        if (!tryAcquireMutation()) {
+            return conflict();
         }
-
-        if (rawConfig === null || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
-            return { statusCode: 400, body: { status: 'error', error: 'Body must be a config object' } };
-        }
-
         try {
-            return stageConfig(rawConfig, 'config.stage');
-        } catch (error) {
-            return validationErrorResponse(error);
+            let rawConfig;
+            try {
+                rawConfig = await readJsonBody(ctx.req);
+            } catch (error) {
+                return { statusCode: 400, body: { status: 'error', error: `Invalid JSON body: ${error.message}` } };
+            }
+
+            if (rawConfig === null || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+                return { statusCode: 400, body: { status: 'error', error: 'Body must be a config object' } };
+            }
+
+            try {
+                return stageConfig(rawConfig, 'config.stage');
+            } catch (error) {
+                return validationErrorResponse(error);
+            }
+        } finally {
+            releaseMutation();
         }
     }
 
@@ -712,9 +723,12 @@ function createConfigApi(options = {}) {
                     ? 'Apply initiated — waiting for restart'
                     : 'Apply applied — restart the process manually',
                 restartInitiated,
-                appliedAt: new Date().toISOString(),
+                // appliedAt/время окна StartupWait имеют смысл только при
+                // авто-рестарте: при ручном рестарте окна нет, и timestamp
+                // apply в статусе вводил бы в заблуждение (review).
+                appliedAt: restartInitiated ? new Date().toISOString() : null,
                 appliedHash: result.hash,
-                appliedAtMs: Date.now(),
+                appliedAtMs: restartInitiated ? Date.now() : null,
                 restoredAt: null,
                 restoredFrom: null
             };

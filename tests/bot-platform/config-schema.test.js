@@ -213,6 +213,21 @@ test('validatePluginSection: неизвестный ключ при наличи
     assert.ok(result.warnings[0].reason.includes('warn + ignore'));
 });
 
+test('validatePluginSection: отсутствующий required-ключ — ошибка (M1 round 3)', () => {
+    const schema = { apiKey: { type: 'string', required: true }, interval: { type: 'number' } };
+    const result = validatePluginSection('myplugin', schema, { interval: 5 });
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].key, 'myplugin.apiKey');
+    assert.equal(result.errors[0].reason, 'обязательное поле');
+    assert.equal(result.warnings.length, 0);
+});
+
+test('validatePluginSection: не-required отсутствующий ключ — ок (M1 round 3)', () => {
+    const schema = { interval: { type: 'number' }, timeout: { type: 'number' } };
+    const result = validatePluginSection('myplugin', schema, { interval: 5 });
+    assert.equal(result.errors.length, 0);
+});
+
 test('validateConfigFile: plugins ветка валидируется по merged-схеме', () => {
     const plugins = [{ name: 'alerts', configSchema: { timeout: { type: 'number', min: 1 } } }];
     const result = validateConfigFile(

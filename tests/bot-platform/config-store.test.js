@@ -431,13 +431,21 @@ test('детектор: невалидный активный файл без lk
     assert.match(result.reason, /нет lkg/);
 });
 
-test('детектор: авто-рестарт — старый pending-маркер без подтверждения → авто-откат на lkg (с карантином)', () => {
+test('детектор: авто-рестарт — предыдущий boot не подтверждён и окно StartupWait истекло → авто-откат на lkg (с карантином)', () => {
     const dir = makeTempConfigDir();
-    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
+    // Активный файл = применённый конфиг (applyConfig пишет и pending.hash,
+    // и активный файл из одного объекта — hash должен совпадать).
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    // restartInitiated=true: Apply сам инициировал рестарт, но процесс не вышел
-    // на ready (или упал до первого boot) — окно StartupWait от appliedAt.
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
+    // Apply инициировал рестарт, первый boot стартовал (lastBoot записан),
+    // но не вышел на ready; окно StartupWait с тех пор истекло.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000).toISOString(),
+        restartInitiated: true,
+        boots: 0
+    }, null, 2));
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
@@ -453,9 +461,28 @@ test('детектор: авто-рестарт — старый pending-мар�
     assert.equal(quarantine.bot.logLevel, 'debug', 'в карантине — применённый (не подтверждённый) конфиг');
 });
 
+test('детектор: restartInitiated, первый boot, старый appliedAt (медленный рестарт) — окно с момента boot, отката нет (L3 review)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // appliedAt давний: рестарт-цикл занял больше окна (graceful stop + старт).
+    // Окно стартует с первого boot — ложного отката нет.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 120_000, { restartInitiated: true });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'ok', 'медленный рестарт не откатывается');
+    assert.match(result.reason, /окно StartupWait/);
+    assert.equal(pendingExists(configPath), true, 'маркер сохраняется — подтверждение по ready');
+    const marker = readPending(configPath);
+    assert.ok(typeof marker.lastBoot === 'string', 'первый boot зафиксирован в маркере');
+    assert.equal(marker.boots, 1, 'счётчик стартов инкрементирован');
+});
+
 test('детектор: ручной рестарт — первый boot со старым appliedAt НЕ откатывается', () => {
     const dir = makeTempConfigDir();
-    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
+    // Активный файл = применённый конфиг (hash должен совпадать с pending.hash).
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
     // Оператор применил Apply (без авто-рестарта) и рестартует вручную спустя
     // заметное время: задержка между Apply и рестартом — не признак краша.
@@ -472,7 +499,8 @@ test('детектор: ручной рестарт — первый boot со �
 
 test('детектор: свежий pending-маркер (штатный restart после Apply) → продолжаем', () => {
     const dir = makeTempConfigDir();
-    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
+    // Активный файл = применённый конфиг (hash должен совпадать с pending.hash).
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
     writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, undefined, { restartInitiated: true });
 
@@ -538,6 +566,37 @@ test('детектор: crash-loop — превышение maxStartupAttempts �
     assert.equal(active.bot.logLevel, 'info');
 });
 
+test('детектор: активный файл изменён после Apply (hash ≠ pending.hash) — маркер снят, окно StartupWait отменено (L2 review)', () => {
+    const dir = makeTempConfigDir();
+    // Apply записал pending.hash для {logLevel: 'debug'}, затем оператор вручную
+    // поменял активный файл — pending больше не соответствует тому, что на диске.
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 30 } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 1000, { restartInitiated: true });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'ok', 'правка оператора не откатывается');
+    assert.match(result.reason, /pending-маркер устарел/);
+    assert.equal(pendingExists(configPath), false, 'устаревший маркер снят');
+    assert.equal(stagedExists(configPath), false);
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.maxPollLimit, 30, 'изменённый активный файл сохранён как есть');
+});
+
+test('детектор: hash активного файла совпадает с pending.hash — штатный restart продолжается (L2 review)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, undefined, { restartInitiated: true });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'ok');
+    assert.match(result.reason, /окно StartupWait/);
+    assert.equal(pendingExists(configPath), true, 'маркер сохраняется — подтверждение по ready');
+});
+
 test('детектор: plugins-секция валидируется merged-схемой плагинов', () => {
     const dir = makeTempConfigDir();
     const pluginSchema = { apiToken: { type: 'string', secret: true } };
@@ -568,21 +627,35 @@ test('детектор: без plugins plugins-секция не блокиру�
     assert.equal(result.state, 'ok');
 });
 
-test('детектор: авто-рестарт, старый pending, но lkg отсутствует — продолжаем (откат невозможен)', () => {
+test('детектор: авто-рестарт, окно StartupWait истекло, но lkg отсутствует — продолжаем (откат невозможен)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
+    // Предыдущий boot (lastBoot) стартовал, но не подтвердился; окно истекло.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000).toISOString(),
+        restartInitiated: true,
+        boots: 0
+    }, null, 2));
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'ok');
     assert.match(result.reason, /lkg отсутствует/);
 });
 
-test('детектор: pending + невалидный lkg — отказ', () => {
+test('детектор: окно истекло + невалидный lkg — отказ', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { maxPollLimit: 99999 } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
+    // Предыдущий boot (lastBoot) стартовал, но не подтвердился; окно истекло.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000).toISOString(),
+        restartInitiated: true,
+        boots: 0
+    }, null, 2));
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'refused');
@@ -614,6 +687,20 @@ test('confirmConfigApplied: без маркера — false', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, validConfig);
     assert.equal(confirmConfigApplied(configPath), false);
+});
+
+test('confirmConfigApplied: активный файл изменён после Apply — маркер снят, конфиг НЕ подтверждается (L2 review)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, validConfig);
+    writePending(configPath, validConfig);
+    // Ручная правка активного файла после Apply: pending.hash больше не совпадает.
+    const edited = JSON.parse(JSON.stringify(validConfig));
+    edited.bot.logLevel = 'warning';
+    atomicWriteJson(configPath, edited);
+
+    assert.equal(pendingExists(configPath), true);
+    assert.equal(confirmConfigApplied(configPath), false, 'ложного config.confirmed нет');
+    assert.equal(pendingExists(configPath), false, 'устаревший маркер снят');
 });
 
 // --- Task 4: Ручной rollback ---

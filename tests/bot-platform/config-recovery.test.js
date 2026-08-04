@@ -52,18 +52,41 @@ test('createCore: свежий pending (штатный restart после Apply)
     assert.equal(core.config.logLevel, 'debug');
 });
 
-test('createCore: старый pending (авто-рестарт) без подтверждения → авто-откат на lkg', () => {
+test('createCore: предыдущий boot не подтверждён и окно StartupWait истекло → авто-откат на lkg', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    // restartInitiated=true: Apply инициировал рестарт, процесс не вышел на ready.
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000, { restartInitiated: true });
+    // Apply инициировал рестарт, первый boot стартовал (lastBoot записан),
+    // но не вышел на ready; окно StartupWait с тех пор истекло (L3 review:
+    // окно считается от lastBoot/первого boot, а не от appliedAt).
+    const { serviceFilePaths, computeConfigHash } = require('../../src/bot-platform/core/config-store');
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - 31_000).toISOString(),
+        restartInitiated: true,
+        boots: 0
+    }, null, 2));
 
     const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
 
     assert.equal(core.recoveryState, 'rolled_back');
     assert.equal(core.restoredFrom, 'lkg');
     assert.equal(core.config.logLevel, 'info');
+});
+
+test('createCore: restartInitiated, первый boot, старый appliedAt (медленный рестарт) — отката нет (L3 review)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // appliedAt давний: рестарт-цикл занял больше окна. Окно стартует с
+    // первого boot — медленный, но штатный рестарт не откатывается.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 120_000, { restartInitiated: true });
+
+    const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
+
+    assert.equal(core.recoveryState, 'ok');
+    assert.equal(core.config.logLevel, 'debug', 'медленный рестарт не откатывается');
 });
 
 test('createCore: ручной рестарт — первый boot со старым appliedAt продолжается', () => {

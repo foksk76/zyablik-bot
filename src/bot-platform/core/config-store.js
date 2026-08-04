@@ -438,7 +438,6 @@ function runStartupConfigDetector(configPath, options = {}) {
     const activeResult = readJsonFileSafe(activePath);
     const lkgResult = readJsonFileSafe(lkgPath);
     const pending = readPending(configPath);
-    const warnings = [];
     const active = activeResult.ok ? activeResult.data : null;
     const lkg = lkgResult.ok ? lkgResult.data : null;
     const activeReadError = activeResult.ok ? null : activeResult.error;
@@ -517,16 +516,42 @@ function runStartupConfigDetector(configPath, options = {}) {
     // включает время остановки + рестарт. Медленный, но штатный boot не
     // должен ложно откатываться.
     //
-    // Первый boot после Apply (lastBoot ещё не записан): окно отсчитывается
-    // от appliedAt ТОЛЬКО если рестарт инициировал сам Apply
-    // (restartInitiated, маркер пишется applyConfig) — иначе это задержка
-    // между Apply и ручным рестартом оператора, а не признак краша, и
-    // первый boot продолжается без окна.
+    // Первый boot после Apply (lastBoot ещё не записан): окно стартует с
+    // момента первого boot — в том числе для restartInitiated (L3 review):
+    // appliedAt включает задержку рестарт-цикла, и медленный, но штатный
+    // рестарт не должен ложно откатываться. Без авто-рестарта первый boot
+    // продолжается вовсе без окна (задержка между Apply и ручным рестартом
+    // оператора — не признак краша).
     //
     // Счётчик boots защищает от бесконечного crash-loop: конфиг, падающий
     // до ready, откатывается после maxStartupAttempts стартов — независимо
     // от того, авто- или ручной рестарт.
     if (pending !== null) {
+        // L2 (review): pending.hash фиксирует конфиг, который записал Apply.
+        // Если активный файл с тех пор изменён (ручная правка или внешняя
+        // синхронизация), подтверждать его по готовности нельзя — иначе
+        // config.confirmed зафиксирует конфиг вне жизненного цикла
+        // staged→Apply→lkg, а авто-откат мог бы затереть правку оператора.
+        // Снимаем устаревший маркер и продолжаем с валидированного активного
+        // файла без окна StartupWait (hash сходится в штатном потоке:
+        // applyConfig пишет pending.hash и активный файл из одного объекта).
+        const activeHash = active !== null ? computeConfigHash(active) : null;
+        if (activeHash === null || pending.hash !== activeHash) {
+            clearPending(configPath);
+            clearStaged(configPath);
+            logConfigAudit(options.logger, 'config.pending_stale', {
+                configPath: activePath,
+                reason: 'hash активного файла не совпадает с pending.hash — маркер снят, окно StartupWait отменено',
+                pendingHash: pending.hash,
+                activeHash: activeHash === null ? null : activeHash
+            });
+            return {
+                state: 'ok',
+                reason: 'pending-маркер устарел (активный файл изменён после Apply) — продолжаем с текущего файла',
+                fileConfig: active
+            };
+        }
+
         const startupWaitMs = options.startupWaitMs || DEFAULT_STARTUP_WAIT_MS;
         const maxStartupAttempts = options.maxStartupAttempts || DEFAULT_MAX_STARTUP_ATTEMPTS;
         const lastBootMs = pending.lastBoot ? Date.parse(pending.lastBoot) : null;
@@ -540,9 +565,13 @@ function runStartupConfigDetector(configPath, options = {}) {
         let pendingAgeMs;
         if (Number.isFinite(lastBootMs)) {
             pendingAgeMs = Date.now() - lastBootMs;
-        } else if (pending.restartInitiated && Number.isFinite(appliedAtMs)) {
-            pendingAgeMs = Date.now() - appliedAtMs;
         } else {
+            // L3 (review): для restartInitiated окно StartupWait стартует с
+            // момента первого boot, а не от appliedAt. appliedAt включает
+            // задержку рестарт-цикла (graceful stop до 90с + старт) — при
+            // медленном, но штатном рестарте окно от appliedAt истекло бы до
+            // старта процесса и дало ложный откат. Crash-loop по-прежнему
+            // ловится счётчиком boots (и старым lastBoot на следующих boot).
             pendingAgeMs = 0;
         }
         const boots = (typeof pending.boots === 'number' && pending.boots >= 0) ? pending.boots + 1 : 1;
@@ -630,7 +659,7 @@ function runStartupConfigDetector(configPath, options = {}) {
         };
     }
 
-    return { state: 'ok', reason: null, fileConfig: active, warnings };
+    return { state: 'ok', reason: null, fileConfig: active };
 }
 
 // Подтверждение конфига по готовности (ready): снятие pending-маркера.
@@ -640,6 +669,24 @@ function confirmConfigApplied(configPath, options = {}) {
         return false;
     }
     const pending = readPending(configPath);
+    // L2 (review): подтверждаем только конфиг, соответствующий pending.hash
+    // (файл, который записал Apply). Если активный файл изменён после Apply —
+    // маркер устарел: снимаем его и не фиксируем config.confirmed.
+    const { configPath: activePath } = serviceFilePaths(configPath);
+    const activeResult = readJsonFileSafe(activePath);
+    const activeHash = activeResult.ok && activeResult.data !== null
+        ? computeConfigHash(activeResult.data)
+        : null;
+    if (activeHash === null || pending.hash !== activeHash) {
+        clearPending(configPath);
+        logConfigAudit(options.logger, 'config.pending_stale', {
+            configPath: activePath,
+            reason: 'confirm: hash активного файла не совпадает с pending.hash — конфиг не подтверждён',
+            pendingHash: pending.hash,
+            activeHash: activeHash === null ? null : activeHash
+        });
+        return false;
+    }
     clearPending(configPath);
     logConfigAudit(options.logger, 'config.confirmed', {
         configPath,

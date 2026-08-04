@@ -186,7 +186,11 @@ function createQueueMonitor(options = {}) {
     return {
         start,
         stop,
-        ready
+        ready,
+        // ADR-0046 (M2): confirm по готовности процесса вызывается из main()
+        // ПОСЛЕ старта всех сервисов (включая live-бот). Снимает pending-маркер
+        // и фиксирует в-памяти состояние 'confirmed' (след apply→confirmed).
+        confirmConfig: configApi.confirm
     };
 }
 

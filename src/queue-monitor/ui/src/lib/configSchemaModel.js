@@ -77,7 +77,18 @@ export function coerceValue(raw, field) {
                 return { ok: true, value: null };
             }
             const defaultValue = fieldDefault(field);
-            return { ok: true, value: typeof defaultValue === 'number' ? defaultValue : null };
+            // M3 (review): очистка поля без числового дефолта → undefined
+            // (ключ пропускается в staged), а не null — иначе validateValue
+            // для не-nullable поля даёт неразрешимую ошибку «null не
+            // допускается», а сервер отсутствующий ключ пропускает.
+            // Явный null-дефолт (nullable «—») сохраняется как null.
+            if (typeof defaultValue === 'number') {
+                return { ok: true, value: defaultValue };
+            }
+            if (defaultValue === null) {
+                return { ok: true, value: null };
+            }
+            return { ok: true, value: undefined };
         }
         const n = Number(raw);
         // Серверный validateFieldValue принимает только целые (Number.isInteger)
@@ -132,6 +143,11 @@ export function coerceValue(raw, field) {
                 return { ok: false, value: null };
             }
             return { ok: true, value: raw };
+        }
+        // round-3 minor: очистка string-поля с непустым дефолтом → дефолт
+        // (как number/boolean/enum), а не '' — иначе сервер получает ''.
+        if (raw === '' && field.default !== undefined && field.default !== '') {
+            return { ok: true, value: field.default };
         }
         return { ok: true, value: raw };
     }
