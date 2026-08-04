@@ -34,11 +34,12 @@ function createIssuerVerifierFactory(issuer) {
 }
 
 function createBotPlatformApp(environment = process.env, options = {}) {
+  const pluginLoader = createPluginLoader(path.join(__dirname, 'plugins'));
   const core = createCore(environment, {
-    logger: options.logger || options.coreLogger || console
+    logger: options.logger || options.coreLogger || console,
+    plugins: pluginLoader.plugins
   });
   const transportMode = core.config.maxTransportMode;
-  const pluginLoader = createPluginLoader(path.join(__dirname, 'plugins'));
 
   return {
     name: 'zyablik-bot-platform',
@@ -278,6 +279,16 @@ async function startIngressAndQueue(config, options, io) {
   // итерирует stopHandles forward, поэтому порядок остановки = порядок в
   // массиве: queue-worker → queue-monitor → ingress → queue-store. Любая
   // ошибка логируется, но не прерывает остальные shutdown-шаги.
+
+  // ADR-0045: подтверждение конфига по готовности (ready). Когда monitor
+  // выключен, createQueueMonitor возвращает no-op и не вызывает confirm() —
+  // снимаем pending-маркер здесь, чтобы штатный Apply не откатился как
+  // «краш до ready». При включённом monitor второй вызов — no-op.
+  const { confirmConfigApplied } = require('./core/config-store');
+  if (options.configPath) {
+    confirmConfigApplied(options.configPath, { logger: options.logger || console });
+  }
+
   return {
     stop: async (shutdownIo) => {
       for (const handle of stopHandles) {

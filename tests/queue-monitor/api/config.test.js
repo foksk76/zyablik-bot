@@ -114,6 +114,45 @@ test('computeConfigDiff: only changed fields reported', () => {
     assert.ok(diff.some((d) => d.section === 'queue' && d.key === 'queueEnabled' && d.old === true && d.new === false));
 });
 
+test('computeConfigDiff: секретные поля не попадают в diff', () => {
+    const active = {
+        version: 1,
+        bot: { maxBotToken: '$MAX_BOT_TOKEN', logLevel: 'info' },
+        monitor: { metricsApiKey: '$METRICS_API_KEY' }
+    };
+    const staged = {
+        version: 1,
+        bot: { maxBotToken: '$MAX_BOT_TOKEN', logLevel: 'debug' },
+        monitor: { metricsApiKey: '' }
+    };
+    const diff = computeConfigDiff(active, staged);
+    assert.ok(!diff.some((d) => d.key === 'maxBotToken'), 'maxBotToken не в diff');
+    assert.ok(!diff.some((d) => d.key === 'metricsApiKey'), 'metricsApiKey не в diff');
+    assert.equal(diff.length, 1, 'только несекретное изменение');
+    assert.equal(diff[0].key, 'logLevel');
+});
+
+test('computeConfigDiff: секреты плагинов (plugins.<name>.*) не попадают в diff', () => {
+    const plugins = [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true }, syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const active = { version: 1, plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: 'auto' } } };
+    const staged = { version: 1, plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: 'manual' } } };
+    const diff = computeConfigDiff(active, staged, plugins);
+    assert.equal(diff.length, 1, 'только несекретное изменение плагина');
+    assert.equal(diff[0].key, 'identity');
+    assert.equal(diff[0].old.syncMode, 'auto');
+    assert.equal(diff[0].new.syncMode, 'manual');
+    assert.ok(!('apiToken' in diff[0].old), 'секретный под-ключ отредактирован в diff');
+    assert.ok(!('apiToken' in diff[0].new), 'секретный под-ключ отредактирован в diff');
+});
+
+test('computeConfigDiff: изменение только секрета плагина → diff пуст', () => {
+    const plugins = [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true } } }];
+    const active = { version: 1, plugins: { identity: { apiToken: '$ID_API_TOKEN' } } };
+    const staged = { version: 1, plugins: { identity: { apiToken: '$NEW_TOKEN' } } };
+    const diff = computeConfigDiff(active, staged, plugins);
+    assert.equal(diff.length, 0, 'секрет меняется молча — только статус');
+});
+
 test('buildEffectiveSections: secrets masked, defaults filled', () => {
     const fileConfig = {
         version: CURRENT_VERSION,

@@ -20,7 +20,8 @@ function createCore(environment = process.env, options = {}) {
   if (fs.existsSync(configPath)) {
     const detector = runStartupConfigDetector(configPath, {
       environment,
-      logger: options.logger
+      logger: options.logger,
+      plugins: options.plugins
     });
     Object.assign(recovery, {
       recoveryState: detector.state,
@@ -33,9 +34,15 @@ function createCore(environment = process.env, options = {}) {
       error.code = 'CONFIG_STARTUP_REFUSED';
       throw error;
     }
+    // Детектор уже валидировал «активный» конфиг — и здесь его снова валидирует
+    // loadConfig(). Это осознанный дубль: детектор владеет безопасностью старта
+    // (отказ/кворентин/откат к lkg), а loadConfig() — публичным контрактом
+    // «файл → эффективный конфиг» и должен бросать на битом файле, поэтому
+    // переиспользовать проверенный результат без переусложнения связи нельзя.
+    // Конфиг мал, стоимость валидации (проход по схеме) пренебрежима.
   }
 
-  loaded = loadConfig({ environment, configPath });
+  loaded = loadConfig({ environment, configPath, plugins: options.plugins });
 
   return {
     moduleName,

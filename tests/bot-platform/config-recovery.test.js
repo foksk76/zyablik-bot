@@ -89,3 +89,21 @@ test('createCore: невалидный файл без lkg → отказ ста
         }
     );
 });
+
+test('createCore: plugins-секция валидируется merged-схемой на старте (литеральный секрет → карантин)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, {
+        version: 1,
+        plugins: { identity: { apiToken: 'literal-secret' } }
+    });
+    writeLkg(configPath, { version: 1, plugins: { identity: {} } });
+
+    const core = createCore(
+        { ...envWithSecrets, ZYABLIK_CONFIG: configPath },
+        { plugins: [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true } } }] }
+    );
+
+    assert.equal(core.recoveryState, 'quarantine');
+    assert.ok(core.quarantinePath.endsWith('.bad.json'));
+    assert.deepEqual(core.sections.plugins, { identity: {} });
+});

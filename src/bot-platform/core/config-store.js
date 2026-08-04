@@ -21,7 +21,12 @@ const {
     CONFIG_VALIDATION_ERROR_CODE,
     SECRET_VAR_UNRESOLVED_ERROR_CODE
 } = require('./config');
-const { validateConfigFile, isVarReference } = require('./config-schema');
+const {
+    validateConfigFile,
+    isVarReference,
+    SYSTEM_SCHEMA,
+    SYSTEM_SECTION_KEYS
+} = require('./config-schema');
 const { prepareConfigForLoad } = require('./config-migrations');
 
 const LKG_SUFFIX = '.lkg';
@@ -30,6 +35,12 @@ const BAD_SUFFIX = '.bad.json';
 const STAGED_SUFFIX = '.staged.json';
 
 const DEFAULT_STARTUP_WAIT_MS = 30_000;
+// Максимум стартов без подтверждения (ready), после чего pending считается
+// crash-loop'ом и откатывается к lkg (защита от бесконечного рестарта).
+// boots инкрементируется ДО проверки и включает текущий старт, поэтому
+// откат происходит на (maxStartupAttempts+1)-м старте без подтверждения,
+// т.е. после maxStartupAttempts неудачных попыток.
+const DEFAULT_MAX_STARTUP_ATTEMPTS = 5;
 
 // ADR-0029: аудит-события конфигурации (ADR-0045).
 // Формат — как в существующем audit (delivery/auth): module=config,
@@ -146,7 +157,9 @@ function readPending(configPath) {
     }
     return {
         hash: typeof marker.hash === 'string' ? marker.hash : null,
-        appliedAt: typeof marker.appliedAt === 'string' ? marker.appliedAt : null
+        appliedAt: typeof marker.appliedAt === 'string' ? marker.appliedAt : null,
+        lastBoot: typeof marker.lastBoot === 'string' ? marker.lastBoot : null,
+        boots: typeof marker.boots === 'number' ? marker.boots : null
     };
 }
 
@@ -162,8 +175,12 @@ function pendingExists(configPath) {
 
 // --- Карантин (Task 3) ---
 
+// Карантин активного файла: перемещение в уникальный bad-файл с временной
+// меткой, чтобы повторный карантин не затирал предыдущий невалидный конфиг
+// (сохранение улик для диагностики).
 function quarantineActiveFile(configPath) {
-    const { badPath, configPath: activePath } = serviceFilePaths(configPath);
+    const { configPath: activePath } = serviceFilePaths(configPath);
+    const badPath = configPath.replace(/\.json$/, `.${Date.now()}.bad.json`);
     fs.renameSync(activePath, badPath);
     return badPath;
 }
@@ -193,10 +210,8 @@ function preValidateConfigFile(rawConfig, options = {}) {
         });
     }
 
-    // $VAR-резолв секретов (fail-fast) без записи — используем loadConfig
-    // с копией файла через временный каталог? Нет: резолв в памяти.
+    // $VAR-резолв секретов (fail-fast) без записи — резолв в памяти.
     const secretErrors = [];
-    const { SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('./config-schema');
     for (const sectionName of SYSTEM_SECTION_KEYS) {
         const sectionValue = fileConfig[sectionName];
         if (sectionValue === undefined || sectionValue === null) {
@@ -245,7 +260,6 @@ function mergePreservedSecrets(activeConfig, fileConfig) {
     if (!activeConfig || !fileConfig) {
         return fileConfig;
     }
-    const { SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('./config-schema');
     for (const sectionName of SYSTEM_SECTION_KEYS) {
         const activeSection = activeConfig[sectionName];
         const fileSection = fileConfig[sectionName];
@@ -322,7 +336,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
 // Возвращает { state, reason, restoredFrom, quarantinePath, fileConfig }.
 // state: 'ok' | 'quarantine' | 'rolled_back' | 'refused' (имена — по ADR-0046)
 function runStartupConfigDetector(configPath, options = {}) {
-    const { configPath: activePath } = serviceFilePaths(configPath);
+    const { configPath: activePath, pendingPath } = serviceFilePaths(configPath);
     const lkg = readLkg(configPath);
     const pending = readPending(configPath);
     const active = readJsonFile(activePath);
@@ -331,7 +345,10 @@ function runStartupConfigDetector(configPath, options = {}) {
     // 1. Валидационный отказ активного файла → карантин + восстановление lkg.
     if (active !== null) {
         try {
-            preValidateConfigFile(active, { environment: options.environment || process.env });
+            preValidateConfigFile(active, {
+                environment: options.environment || process.env,
+                plugins: options.plugins
+            });
         } catch (validationError) {
             if (lkg === null) {
                 logConfigAudit(options.logger, 'config.validate_failed', {
@@ -346,7 +363,10 @@ function runStartupConfigDetector(configPath, options = {}) {
                 };
             }
             try {
-                preValidateConfigFile(lkg, { environment: options.environment || process.env });
+                preValidateConfigFile(lkg, {
+                    environment: options.environment || process.env,
+                    plugins: options.plugins
+                });
             } catch (lkgError) {
                 logConfigAudit(options.logger, 'config.validate_failed', {
                     configPath: activePath,
@@ -361,6 +381,11 @@ function runStartupConfigDetector(configPath, options = {}) {
             }
             const quarantinePath = quarantineActiveFile(configPath);
             atomicWriteJson(activePath, lkg);
+            // Активный конфиг карантинирован, восстановлен lkg — pending-маркер
+            // неактуален: confirm() по ready не должен «подтверждать» откаченный
+            // конфиг (ложный config.confirmed). Снимаем его здесь, как это
+            // делают обе rollback-ветки ниже.
+            clearPending(configPath);
             clearStaged(configPath);
             logConfigAudit(options.logger, 'config.quarantine', {
                 configPath: activePath,
@@ -384,14 +409,34 @@ function runStartupConfigDetector(configPath, options = {}) {
     // на ready (краш до ready) → авто-откат к lkg.
     if (pending !== null) {
         const startupWaitMs = options.startupWaitMs || DEFAULT_STARTUP_WAIT_MS;
+        const maxStartupAttempts = options.maxStartupAttempts || DEFAULT_MAX_STARTUP_ATTEMPTS;
+        // База отсчёта окна — момент последнего старта (lastBoot), а не
+        // appliedAt: appliedAt ставится процессом, который писал Apply, и
+        // включает время остановки + рестарт. Медленный, но штатный boot
+        // не должен ложно откатываться. Счётчик boots защищает от
+        // бесконечного crash-loop: конфиг, падающий до ready, откатывается
+        // после maxStartupAttempts стартов.
+        const lastBootMs = pending.lastBoot ? Date.parse(pending.lastBoot) : null;
         const appliedAtMs = pending.appliedAt ? Date.parse(pending.appliedAt) : null;
-        const pendingAgeMs = appliedAtMs ? Date.now() - appliedAtMs : Infinity;
+        const baseMs = Number.isFinite(lastBootMs) ? lastBootMs : appliedAtMs;
+        const pendingAgeMs = baseMs ? Date.now() - baseMs : Infinity;
+        const boots = (typeof pending.boots === 'number' && pending.boots >= 0) ? pending.boots + 1 : 1;
+        const crashLoop = boots > maxStartupAttempts;
 
-        if (Number.isFinite(pendingAgeMs) && pendingAgeMs < startupWaitMs) {
+        if (Number.isFinite(pendingAgeMs) && pendingAgeMs < startupWaitMs && !crashLoop) {
+            // Штатный restart после Apply: продолжаем с нового конфига и
+            // фиксируем в маркере факт старта (lastBoot) + счётчик попыток.
+            writeMarker(pendingPath, {
+                hash: pending.hash,
+                appliedAt: pending.appliedAt,
+                lastBoot: new Date().toISOString(),
+                boots
+            });
             logConfigAudit(options.logger, 'config.pending', {
                 configPath: activePath,
                 reason: 'штатный restart после Apply (окно StartupWait), ожидается подтверждение по ready',
-                pendingAgeMs
+                pendingAgeMs,
+                boots
             });
             return {
                 state: 'ok',
@@ -408,7 +453,10 @@ function runStartupConfigDetector(configPath, options = {}) {
             };
         }
         try {
-            preValidateConfigFile(lkg, { environment: options.environment || process.env });
+            preValidateConfigFile(lkg, {
+                environment: options.environment || process.env,
+                plugins: options.plugins
+            });
         } catch (lkgError) {
             logConfigAudit(options.logger, 'config.rollback', {
                 configPath: activePath,
@@ -422,19 +470,22 @@ function runStartupConfigDetector(configPath, options = {}) {
             };
         }
         // Авто-откат к lkg: маркер снимается (lkg подтверждён), staged очищается.
+        const rollbackReason = crashLoop
+            ? `конфиг не подтверждён после ${maxStartupAttempts} стартов (crash-loop до ready)`
+            : 'предыдущий Apply не подтверждён (краш до ready)';
         atomicWriteJson(activePath, lkg);
         clearPending(configPath);
         clearStaged(configPath);
         logConfigAudit(options.logger, 'config.rollback', {
             configPath: activePath,
-            reason: 'предыдущий Apply не подтверждён (краш до ready)',
+            reason: rollbackReason,
             auto: true,
             restoredFrom: 'lkg',
             success: true
         });
         return {
             state: 'rolled_back',
-            reason: 'предыдущий Apply не подтверждён (краш до ready), восстановлен lkg',
+            reason: `${rollbackReason}, восстановлен lkg`,
             restoredFrom: 'lkg',
             fileConfig: lkg
         };
@@ -519,6 +570,7 @@ module.exports = {
     rollbackConfig,
     logConfigAudit,
     DEFAULT_STARTUP_WAIT_MS,
+    DEFAULT_MAX_STARTUP_ATTEMPTS,
     LKG_SUFFIX,
     PENDING_SUFFIX,
     BAD_SUFFIX,

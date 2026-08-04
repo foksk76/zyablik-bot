@@ -107,11 +107,44 @@ function readJsonBody(req, limitBytes = 1_000_000) {
 }
 
 // Дифф staged-конфига против активного (только изменённые поля).
-// Возвращает [ { section, key, old, new } ].
-function computeConfigDiff(activeConfig, stagedConfig) {
+// Секретные поля (field.secret) не показываются: в UI/диффе — только статус
+// «задан / не задан» (ADR-0045/0046). Для системных секций фильтруются ключи
+// со secret:true; для веток plugins.<name>.* — секретные под-ключи по
+// configSchema плагина. Возвращает [ { section, key, old, new } ].
+function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
     const active = activeConfig || {};
     const staged = stagedConfig || {};
     const diff = [];
+
+    // configSchema плагинов: pluginName → schema (для фильтрации секретов
+    // в ветках plugins.<name>.*).
+    const pluginSchemas = {};
+    for (const plugin of plugins || []) {
+        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
+            pluginSchemas[plugin.name] = plugin.configSchema;
+        }
+    }
+
+    function isSecretField(sectionName, key) {
+        const schemaSection = SYSTEM_SCHEMA[sectionName];
+        const field = schemaSection ? schemaSection[key] : null;
+        return Boolean(field && field.secret);
+    }
+
+    // Убирает секретные под-ключи из значения ветки плагина (для diff).
+    function redactPluginSecrets(pluginName, value) {
+        const schema = pluginSchemas[pluginName];
+        if (!schema || value === null || typeof value !== 'object' || Array.isArray(value)) {
+            return value;
+        }
+        const redacted = { ...value };
+        for (const key of Object.keys(value)) {
+            if (schema[key] && schema[key].secret) {
+                delete redacted[key];
+            }
+        }
+        return redacted;
+    }
 
     const sectionNames = new Set([...Object.keys(active), ...Object.keys(staged)]);
     for (const sectionName of sectionNames) {
@@ -122,8 +155,15 @@ function computeConfigDiff(activeConfig, stagedConfig) {
         const stagedSection = staged[sectionName] && typeof staged[sectionName] === 'object' ? staged[sectionName] : {};
         const keys = new Set([...Object.keys(activeSection), ...Object.keys(stagedSection)]);
         for (const key of keys) {
-            const oldValue = activeSection[key];
-            const newValue = stagedSection[key];
+            if (isSecretField(sectionName, key)) {
+                continue;
+            }
+            let oldValue = activeSection[key];
+            let newValue = stagedSection[key];
+            if (sectionName === 'plugins') {
+                oldValue = redactPluginSecrets(key, oldValue);
+                newValue = redactPluginSecrets(key, newValue);
+            }
             if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
                 diff.push({ section: sectionName, key, old: oldValue === undefined ? null : oldValue, new: newValue === undefined ? null : newValue });
             }
@@ -310,7 +350,7 @@ function createConfigApi(options = {}) {
                 data: {
                     exists: stagedExists(configPath),
                     staged,
-                    diff: computeConfigDiff(active, staged)
+                    diff: computeConfigDiff(active, staged, plugins)
                 }
             }
         };
@@ -344,7 +384,7 @@ function createConfigApi(options = {}) {
                     status: 'ok',
                     data: {
                         staged: merged,
-                        diff: computeConfigDiff(active, merged)
+                        diff: computeConfigDiff(active, merged, plugins)
                     }
                 }
             };
@@ -356,15 +396,17 @@ function createConfigApi(options = {}) {
     // --- POST /api/config/apply ---
 
     async function apply(ctx) {
-        const rate = mutationLimiter.tryAcquire();
-        if (!rate.allowed) {
-            return tooManyRequests(rate.waitMs);
-        }
+        // Single-flight сначала: конфликт (409) не должен расходовать
+        // слот sliding-window rate limit'а (ADR-0046).
         if (!tryAcquireMutation()) {
             return conflict();
         }
 
         try {
+            const rate = mutationLimiter.tryAcquire();
+            if (!rate.allowed) {
+                return tooManyRequests(rate.waitMs);
+            }
             if (!stagedExists(configPath)) {
                 return { statusCode: 400, body: { status: 'error', error: 'Staged config not found — save changes first' } };
             }
@@ -404,15 +446,16 @@ function createConfigApi(options = {}) {
     // --- POST /api/config/rollback ---
 
     async function rollback(ctx) {
-        const rate = mutationLimiter.tryAcquire();
-        if (!rate.allowed) {
-            return tooManyRequests(rate.waitMs);
-        }
+        // Single-flight сначала (409 не расходует слот rate limit'а).
         if (!tryAcquireMutation()) {
             return conflict();
         }
 
         try {
+            const rate = mutationLimiter.tryAcquire();
+            if (!rate.allowed) {
+                return tooManyRequests(rate.waitMs);
+            }
             const result = rollbackConfig(configPath, { environment, logger, restart });
             state = {
                 state: 'rolled_back',
@@ -456,15 +499,16 @@ function createConfigApi(options = {}) {
     // --- POST /api/config/import ---
 
     async function importConfig(ctx) {
-        const rate = mutationLimiter.tryAcquire();
-        if (!rate.allowed) {
-            return tooManyRequests(rate.waitMs);
-        }
+        // Single-flight сначала (409 не расходует слот rate limit'а).
         if (!tryAcquireMutation()) {
             return conflict();
         }
 
         try {
+            const rate = mutationLimiter.tryAcquire();
+            if (!rate.allowed) {
+                return tooManyRequests(rate.waitMs);
+            }
             let rawConfig;
             try {
                 rawConfig = await readJsonBody(ctx.req);
@@ -489,7 +533,7 @@ function createConfigApi(options = {}) {
                     status: 'ok',
                     data: {
                         staged: merged,
-                        diff: computeConfigDiff(active, merged)
+                        diff: computeConfigDiff(active, merged, plugins)
                     }
                 }
             };

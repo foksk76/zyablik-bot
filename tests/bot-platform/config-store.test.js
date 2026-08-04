@@ -24,6 +24,7 @@ const {
     confirmConfigApplied,
     rollbackConfig,
     DEFAULT_STARTUP_WAIT_MS,
+    DEFAULT_MAX_STARTUP_ATTEMPTS,
     computeConfigHash
 } = require('../../src/bot-platform/core/config-store');
 
@@ -254,11 +255,26 @@ test('детектор: невалидный активный файл → ка�
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
     assert.equal(result.state, 'quarantine');
-    assert.ok(fs.existsSync(serviceFilePaths(configPath).badPath));
+    assert.ok(fs.existsSync(result.quarantinePath), 'карантинный файл создан');
     assert.ok(result.quarantinePath.endsWith('.bad.json'));
     const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     assert.equal(active.bot.logLevel, 'debug');
     assert.equal(stagedExists(configPath), false);
+});
+
+test('детектор: карантин снимает pending-маркер (нет ложного config.confirmed)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { maxPollLimit: 99999 } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    // «Применённый» конфиг лежит в pending — как будто Apply был в полёте.
+    writePending(configPath, { version: 1, bot: { maxPollLimit: 99999 } });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'quarantine');
+    assert.equal(pendingExists(configPath), false, 'маркер снят вместе с карантином');
+    // Последующий confirm() по ready не должен «подтверждать» откаченный конфиг.
+    assert.equal(readPending(configPath), null);
 });
 
 test('детектор: невалидный активный файл без lkg — отказ (fail loudly)', () => {
@@ -298,6 +314,89 @@ test('детектор: свежий pending-маркер (штатный restar
     assert.equal(pendingExists(configPath), true, 'маркер не снимается — подтверждение по ready');
     const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     assert.equal(active.bot.logLevel, 'debug', 'активный конфиг не откатывается');
+});
+
+test('детектор: штатный restart фиксирует lastBoot и счётчик boots в маркере', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+    assert.equal(result.state, 'ok');
+
+    const marker = readPending(configPath);
+    assert.ok(typeof marker.lastBoot === 'string', 'lastBoot записан');
+    assert.equal(marker.boots, 1, 'счётчик стартов инкрементирован');
+});
+
+test('детектор: медленный, но штатный boot (старый appliedAt, свежий lastBoot) не откатывается', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 60_000);
+    // Симулируем предыдущий старт, который перезаписал lastBoot недавно.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 60_000).toISOString(),
+        lastBoot: new Date().toISOString(),
+        boots: 1
+    }, null, 2));
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+    assert.equal(result.state, 'ok', 'штатный (медленный) restart не откатывается');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug');
+});
+
+test('детектор: crash-loop — превышение maxStartupAttempts откатывает даже свежий pending', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    // Маркер уже видел maxStartupAttempts стартов без подтверждения.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date().toISOString(),
+        lastBoot: new Date().toISOString(),
+        boots: DEFAULT_MAX_STARTUP_ATTEMPTS
+    }, null, 2));
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+    assert.equal(result.state, 'rolled_back', 'crash-loop откатывается на lkg');
+    assert.match(result.reason, /crash-loop/);
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'info');
+});
+
+test('детектор: plugins-секция валидируется merged-схемой плагинов', () => {
+    const dir = makeTempConfigDir();
+    const pluginSchema = { apiToken: { type: 'string', secret: true } };
+    const configPath = writeConfig(dir, {
+        version: 1,
+        plugins: { identity: { apiToken: 'literal-secret' } }
+    });
+    writeLkg(configPath, { version: 1, plugins: { identity: {} } });
+
+    const result = runStartupConfigDetector(configPath, {
+        environment: {},
+        plugins: [{ name: 'identity', configSchema: pluginSchema }]
+    });
+
+    assert.equal(result.state, 'quarantine', 'литеральный секрет плагина → карантин');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.deepEqual(active.plugins, { identity: {} });
+});
+
+test('детектор: без plugins plugins-секция не блокирует старт (warn + ignore)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, {
+        version: 1,
+        plugins: { identity: { apiToken: 'whatever' } }
+    });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+    assert.equal(result.state, 'ok');
 });
 
 test('детектор: pending без lkg — продолжаем, откат невозможен', () => {

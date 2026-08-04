@@ -328,7 +328,7 @@ function buildConfigFromFile(rawConfig, environment, configPath, options = {}) {
     flat.moduleName = moduleName;
     flat.status = 'available';
 
-    return { config: resolved.flat, sections, warnings };
+    return { config: resolved.flat, sections, warnings, version: prepared.version };
 }
 
 // Сборка effective-конфига из env (без файла): defaults + .env-слой +
@@ -377,7 +377,7 @@ function loadConfig(options = {}) {
         return {
             configPath: resolvedPath,
             fileExists: true,
-            version: prepareConfigForLoad(rawConfig).version || CURRENT_VERSION,
+            version: built.version || CURRENT_VERSION,
             warnings: built.warnings,
             config: built.config,
             sections: built.sections,
