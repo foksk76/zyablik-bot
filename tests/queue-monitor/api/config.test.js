@@ -213,6 +213,28 @@ test('getConfig: file secrets shown only as status', () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// Секреты плагинов в GET /api/config маскируются так же, как системные —
+// даже $VAR-имя наружу не уходит (I4, buildEffectiveSections).
+test('getConfig: plugin secrets masked as status, not as $VAR name', () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: 'manual' } }
+    });
+    const api = createConfigApi({
+        environment: { ID_API_TOKEN: 'x' },
+        configPath,
+        plugins: [{
+            name: 'identity',
+            configSchema: { apiToken: { type: 'string', secret: true }, syncMode: { type: 'enum', enum: ['auto', 'manual'] } }
+        }]
+    });
+    const result = api.getConfig({});
+    assert.deepEqual(result.body.data.sections.plugins.identity.apiToken, { secret: true, set: true });
+    assert.equal(result.body.data.sections.plugins.identity.syncMode, 'manual');
+    assert.ok(!JSON.stringify(result.body).includes('$ID_API_TOKEN'), 'наружу не уходит даже $VAR-имя');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- createConfigApi: GET /api/config/schema ---
 
 test('getSchema: merged schema includes system and plugins', () => {

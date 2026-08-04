@@ -198,11 +198,20 @@ export function buildStagedConfig(sections, schema) {
         const fields = sectionFields(schema, sectionName);
         const source = sections[sectionName] || {};
         if (sectionName === 'plugins') {
-            // plugins.<name>.* — переносим как есть (значения уже скаляры).
+            // plugins.<name>.* — переносим как есть, кроме секретов
+            // (маска { secret, set } из формы не отправляется).
             result.plugins = {};
             for (const [pluginName, pluginValues] of Object.entries(source)) {
                 if (pluginValues && typeof pluginValues === 'object' && !Array.isArray(pluginValues)) {
-                    result.plugins[pluginName] = { ...pluginValues };
+                    const pluginResult = {};
+                    for (const [key, value] of Object.entries(pluginValues)) {
+                        const field = pluginFields(schema, pluginName)[key];
+                        if (field && field.secret) {
+                            continue;
+                        }
+                        pluginResult[key] = value;
+                    }
+                    result.plugins[pluginName] = pluginResult;
                 }
             }
             continue;

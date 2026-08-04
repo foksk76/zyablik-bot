@@ -33,7 +33,6 @@ const {
     mergePreservedSecrets,
     applyConfig,
     rollbackConfig,
-    readPending,
     confirmConfigApplied,
     DEFAULT_STARTUP_WAIT_MS
 } = require('../../bot-platform/core/config-store');
@@ -261,6 +260,12 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
     return diff;
 }
 
+// Маска секрета для API-ответов: только статус { secret: true, set },
+// само значение ($VAR-ссылка) наружу не отдаётся.
+function maskSecret(value) {
+    return { secret: true, set: typeof value === 'string' && value !== '' };
+}
+
 // Маскирование staged-снапшота для ответов API: секретные поля системы и
 // плагинов не уходят наружу даже как $VAR-имя — только статус
 // { secret: true, set }. Файл на диске не трогается; export остаётся
@@ -279,7 +284,7 @@ function maskStagedSecrets(fileConfig, plugins = []) {
         const masked = { ...section };
         for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
             if (field.secret && masked[key] !== undefined) {
-                masked[key] = { secret: true, set: typeof masked[key] === 'string' && masked[key] !== '' };
+                masked[key] = maskSecret(masked[key]);
             }
         }
         result[sectionName] = masked;
@@ -303,7 +308,7 @@ function maskStagedSecrets(fileConfig, plugins = []) {
             if (schema) {
                 for (const [key, field] of Object.entries(schema)) {
                     if (field.secret && masked[key] !== undefined) {
-                        masked[key] = { secret: true, set: typeof masked[key] === 'string' && masked[key] !== '' };
+                        masked[key] = maskSecret(masked[key]);
                     }
                 }
             }
@@ -317,7 +322,8 @@ function maskStagedSecrets(fileConfig, plugins = []) {
 
 // Сериализация effective-конфига: секреты маскируются до { secret: true, set }.
 // set = в файле есть непустое значение ($VAR-ссылка). Возвращает { version, fileExists, sections }.
-function buildEffectiveSections(fileConfig, fileExists) {
+// plugins — список загруженных плагинов (для маскирования секретов в plugins.*).
+function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
     const sections = {};
 
     for (const sectionName of SYSTEM_SECTION_KEYS) {
@@ -327,7 +333,7 @@ function buildEffectiveSections(fileConfig, fileExists) {
         for (const [key, field] of Object.entries(schemaSection)) {
             const value = fileSection[key];
             if (field.secret) {
-                section[key] = { secret: true, set: typeof value === 'string' && value !== '' };
+                section[key] = maskSecret(value);
             } else {
                 section[key] = value === undefined ? field.default : value;
             }
@@ -335,10 +341,29 @@ function buildEffectiveSections(fileConfig, fileExists) {
         sections[sectionName] = section;
     }
 
+    const pluginSchemas = {};
+    for (const plugin of plugins) {
+        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
+            pluginSchemas[plugin.name] = plugin.configSchema;
+        }
+    }
     const pluginSection = {};
     if (fileConfig && fileConfig.plugins && typeof fileConfig.plugins === 'object') {
         for (const [pluginName, pluginValue] of Object.entries(fileConfig.plugins)) {
-            pluginSection[pluginName] = pluginValue === undefined ? {} : pluginValue;
+            if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
+                pluginSection[pluginName] = pluginValue === undefined ? {} : pluginValue;
+                continue;
+            }
+            const schema = pluginSchemas[pluginName];
+            const section = { ...pluginValue };
+            if (schema) {
+                for (const [key, field] of Object.entries(schema)) {
+                    if (field.secret && section[key] !== undefined) {
+                        section[key] = maskSecret(section[key]);
+                    }
+                }
+            }
+            pluginSection[pluginName] = section;
         }
     }
     sections.plugins = pluginSection;
@@ -434,7 +459,7 @@ function createConfigApi(options = {}) {
             statusCode: 200,
             body: {
                 status: 'ok',
-                data: buildEffectiveSections(fileConfig, fileConfig !== null)
+                data: buildEffectiveSections(fileConfig, fileConfig !== null, plugins)
             }
         };
     }

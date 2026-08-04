@@ -31,7 +31,8 @@ const schema = {
     },
     plugins: {
         identity: {
-            syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' }
+            syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' },
+            apiToken: { type: 'string', secret: true, default: '' }
         }
     }
 };
@@ -114,7 +115,7 @@ test('validateSectionValues: plugins — валидирует под-поля с
 test('buildStagedConfig: skips secrets, keeps plugin values', () => {
     const staged = buildStagedConfig({
         bot: { logLevel: 'debug', maxBotToken: { secret: true, set: true } },
-        plugins: { identity: { syncMode: 'manual' } }
+        plugins: { identity: { syncMode: 'manual', apiToken: { secret: true, set: true } } }
     }, schema);
     assert.equal(staged.bot.logLevel, 'debug');
     assert.ok(!('maxBotToken' in staged.bot));
