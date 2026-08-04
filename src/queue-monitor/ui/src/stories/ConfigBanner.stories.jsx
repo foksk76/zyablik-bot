@@ -10,7 +10,11 @@ export default {
 };
 
 export const Pending = {
-    args: { status: { state: 'pending', reason: 'Apply initiated — waiting for restart' } }
+    args: { status: { state: 'pending', restartInitiated: true, reason: 'Apply initiated — waiting for restart' } }
+};
+
+export const PendingManualRestart = {
+    args: { status: { state: 'pending', restartInitiated: false, reason: 'Apply applied — restart the process manually' } }
 };
 
 export const RolledBack = {

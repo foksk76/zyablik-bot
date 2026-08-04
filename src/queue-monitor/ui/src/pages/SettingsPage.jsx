@@ -21,18 +21,23 @@ export default function SettingsPage() {
     const [showDiff, setShowDiff] = useState(false);
     const [busy, setBusy] = useState(false);
     const fileInputRef = useRef(null);
+    // Инициализация формы выполняется один раз, по первому загруженному
+    // effective-конфигу. Повторные refresh() (30-сек poll, «Обновить», после
+    // apply/rollback) НЕ перезаписывают values — иначе несохранённая правка
+    // пользователя стиралась бы при каждом опросе.
+    const valuesInitializedRef = useRef(false);
 
-    // При загрузке effective-конфига — инициализация значений для правки.
+    // При первой загрузке effective-конфига — инициализация значений для правки.
     useEffect(() => {
-        if (config && config.sections) {
-            setValues((prev) => {
-                const next = {};
-                for (const [sectionName, sectionValues] of Object.entries(config.sections)) {
-                    next[sectionName] = { ...(sectionValues || {}) };
-                }
-                return next;
-            });
+        if (valuesInitializedRef.current || !config || !config.sections) {
+            return;
         }
+        const next = {};
+        for (const [sectionName, sectionValues] of Object.entries(config.sections)) {
+            next[sectionName] = { ...(sectionValues || {}) };
+        }
+        setValues(next);
+        valuesInitializedRef.current = true;
     }, [config]);
 
     const staged = useMemo(() => (schema ? buildStagedConfig(values, schema) : null), [values, schema]);

@@ -285,11 +285,13 @@ test('детектор: невалидный активный файл без lk
     assert.match(result.reason, /нет lkg/);
 });
 
-test('детектор: старый pending-маркер без подтверждения → авто-откат на lkg', () => {
+test('детектор: авто-рестарт — старый pending-маркер без подтверждения → авто-откат на lkg (с карантином)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
+    // restartInitiated=true: Apply сам инициировал рестарт, но процесс не вышел
+    // на ready (или упал до первого boot) — окно StartupWait от appliedAt.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
@@ -299,13 +301,34 @@ test('детектор: старый pending-маркер без подтвер�
     assert.equal(stagedExists(configPath), false);
     const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     assert.equal(active.bot.logLevel, 'info');
+    // Применённый конфиг сохраняется в карантин как улика.
+    assert.ok(result.quarantinePath && fs.existsSync(result.quarantinePath), 'активный файл карантинирован');
+    const quarantine = JSON.parse(fs.readFileSync(result.quarantinePath, 'utf8'));
+    assert.equal(quarantine.bot.logLevel, 'debug', 'в карантине — применённый (не подтверждённый) конфиг');
+});
+
+test('детектор: ручной рестарт — первый boot со старым appliedAt НЕ откатывается', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // Оператор применил Apply (без авто-рестарта) и рестартует вручную спустя
+    // заметное время: задержка между Apply и рестартом — не признак краша.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 10 * 60_000);
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'ok', 'первый boot после ручного Apply продолжается');
+    assert.match(result.reason, /без окна StartupWait/);
+    assert.equal(pendingExists(configPath), true, 'маркер не снимается — подтверждение по ready');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug', 'применённый конфиг не откатывается');
 });
 
 test('детектор: свежий pending-маркер (штатный restart после Apply) → продолжаем', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, undefined, { restartInitiated: true });
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
@@ -320,7 +343,7 @@ test('детектор: штатный restart фиксирует lastBoot и с
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, undefined, { restartInitiated: true });
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'ok');
@@ -399,10 +422,10 @@ test('детектор: без plugins plugins-секция не блокиру�
     assert.equal(result.state, 'ok');
 });
 
-test('детектор: pending без lkg — продолжаем, откат невозможен', () => {
+test('детектор: авто-рестарт, старый pending, но lkg отсутствует — продолжаем (откат невозможен)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'ok');
@@ -413,7 +436,7 @@ test('детектор: pending + невалидный lkg — отказ', () =
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { maxPollLimit: 99999 } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000, { restartInitiated: true });
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'refused');

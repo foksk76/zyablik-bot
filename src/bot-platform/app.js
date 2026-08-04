@@ -127,7 +127,11 @@ function generateConfigFile(options = {}, io = { stdout: process.stdout, stderr:
   }
 
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, output, 'utf8');
+  // Атомарная запись (temp + rename), как в config-store: конфиг-файл не
+  // должен остаться наполовину записанным при падении процесса.
+  const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tempPath, output, 'utf8');
+  fs.renameSync(tempPath, configPath);
   io.stdout.write(`Конфиг-файл записан: ${configPath}\n`);
   return { dryRun: false, configPath, config: fileConfig };
 }

@@ -21,7 +21,7 @@
 // sliding-window rate limit (ADR-0046, отдельный пул от auth).
 
 const { resolveConfigPath, CONFIG_VALIDATION_ERROR_CODE, SECRET_VAR_UNRESOLVED_ERROR_CODE } = require('../../bot-platform/core/config');
-const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('../../bot-platform/core/config-schema');
+const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS, isVarReference } = require('../../bot-platform/core/config-schema');
 const { CURRENT_VERSION } = require('../../bot-platform/core/config-migrations');
 const {
     readStaged,
@@ -243,6 +243,12 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
                     if (isPluginSecretField(pluginName, key)) {
                         continue;
                     }
+                    // $VAR-ссылка в ветке плагина приравнивается к секрету
+                    // (защита веток без configSchema): наружу не уходит даже
+                    // имя переменной.
+                    if (isVarReference(a[key]) || isVarReference(s[key])) {
+                        continue;
+                    }
                     pushRow(pluginName, key, a[key], s[key]);
                 }
             }
@@ -312,6 +318,13 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                     }
                 }
             }
+            // Защита веток без configSchema (и неизвестных ключей): $VAR-ссылка
+            // приравнивается к секрету — наружу не уходит даже имя переменной.
+            for (const [key, value] of Object.entries(masked)) {
+                if (isVarReference(value)) {
+                    masked[key] = maskSecret(value);
+                }
+            }
             maskedPlugins[pluginName] = masked;
         }
         result.plugins = maskedPlugins;
@@ -363,6 +376,13 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
                     }
                 }
             }
+            // Защита веток без configSchema (и неизвестных ключей): $VAR-ссылка
+            // приравнивается к секрету — наружу не уходит даже имя переменной.
+            for (const [key, value] of Object.entries(section)) {
+                if (isVarReference(value)) {
+                    section[key] = maskSecret(value);
+                }
+            }
             pluginSection[pluginName] = section;
         }
     }
@@ -379,6 +399,19 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
 // Дополнительно гарантируется: литеральных секретов нет (инвариант файла).
 function buildExportConfig(fileConfig) {
     return fileConfig || { version: CURRENT_VERSION, bot: {}, queue: {}, ingress: {}, monitor: {}, plugins: {} };
+}
+
+// Толерантное чтение активного конфига для просмотра/экспорта: повреждённый
+// (невалидный JSON) файл не роняет API — возвращается { data: null,
+// fileExists: true } (показ дефолтов). Карантин битого файла обрабатывает
+// стартовый детектор (config-store.runStartupConfigDetector).
+function readActiveConfigForDisplay(configPath) {
+    try {
+        const data = readJsonFile(configPath);
+        return { data, fileExists: data !== null };
+    } catch (error) {
+        return { data: null, fileExists: true };
+    }
 }
 
 function createConfigApi(options = {}) {
@@ -453,13 +486,14 @@ function createConfigApi(options = {}) {
         // Для просмотра маскируем по raw-файлу (источник правды для статуса
         // секретов: $VAR-ссылка задана/не задана). loadConfig не используется —
         // он бросает на неразрешённых $VAR, а просмотр должен работать и при
-        // отсутствии файла (показываем дефолты).
-        const fileConfig = readJsonFile(configPath);
+        // отсутствии файла (показываем дефолты). Повреждённый файл не роняет
+        // API (500): карантин битого файла — задача стартового детектора.
+        const { data: fileConfig, fileExists } = readActiveConfigForDisplay(configPath);
         return {
             statusCode: 200,
             body: {
                 status: 'ok',
-                data: buildEffectiveSections(fileConfig, fileConfig !== null, plugins)
+                data: buildEffectiveSections(fileConfig, fileExists, plugins)
             }
         };
     }
@@ -482,9 +516,11 @@ function createConfigApi(options = {}) {
     // --- GET /api/config/status ---
 
     function getStatus(ctx) {
-        // pendingRemainingMs — только для state=pending.
+        // pendingRemainingMs — только для state=pending c авто-рестартом
+        // (restartInitiated): при ручном рестарте окна StartupWait нет —
+        // первый boot после Apply не откатывается по возрасту appliedAt.
         let pendingRemainingMs = null;
-        if (state.state === 'pending' && state.appliedAtMs) {
+        if (state.state === 'pending' && state.restartInitiated && state.appliedAtMs) {
             pendingRemainingMs = Math.max(0, state.appliedAtMs + startupWaitMs - Date.now());
         }
 
@@ -495,6 +531,7 @@ function createConfigApi(options = {}) {
                 data: {
                     state: state.state,
                     reason: state.reason,
+                    restartInitiated: Boolean(state.restartInitiated),
                     appliedAt: state.appliedAt,
                     appliedHash: state.appliedHash,
                     restoredAt: state.restoredAt,
@@ -508,8 +545,21 @@ function createConfigApi(options = {}) {
     // --- GET /api/config/stage ---
 
     function getStage(ctx) {
-        const staged = readStaged(configPath);
-        const active = readJsonFile(configPath);
+        // Толерантное чтение: повреждённый staged/активный файл не роняет
+        // API (500) — показывается как отсутствующий (карантин битого файла
+        // обрабатывает стартовый детектор).
+        let staged = null;
+        try {
+            staged = readStaged(configPath);
+        } catch (error) {
+            staged = null;
+        }
+        let active = null;
+        try {
+            active = readJsonFile(configPath);
+        } catch (error) {
+            active = null;
+        }
         return {
             statusCode: 200,
             body: {
@@ -586,9 +636,13 @@ function createConfigApi(options = {}) {
                 restart
             });
 
+            const restartInitiated = restart !== null;
             state = {
                 state: 'pending',
-                reason: 'Apply initiated — waiting for restart',
+                reason: restartInitiated
+                    ? 'Apply initiated — waiting for restart'
+                    : 'Apply applied — restart the process manually',
+                restartInitiated,
                 appliedAt: new Date().toISOString(),
                 appliedHash: result.hash,
                 appliedAtMs: Date.now(),
@@ -650,7 +704,14 @@ function createConfigApi(options = {}) {
     // --- GET /api/config/export ---
 
     function exportConfig(ctx) {
-        const active = readJsonFile(configPath);
+        // Толерантное чтение: повреждённый файл не роняет API (500) — дамп
+        // пустого конфига (карантин битого файла — задача стартового детектора).
+        let active = null;
+        try {
+            active = readJsonFile(configPath);
+        } catch (error) {
+            active = null;
+        }
         const dump = buildExportConfig(active);
         const now = new Date();
         const ts = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;

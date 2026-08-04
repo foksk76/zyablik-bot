@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import React from 'react';
-import { Button } from '../components/ui/button.jsx';
 
 // ADR-0040/ADR-0046: banner авто-отката по статусу /api/config/status.
 // pending — «применяется»; rolled_back — причина; confirmed — успех.
-export default function ConfigBanner({ status, onRollback, onDismiss }) {
+// При ручном рестарте (restartInitiated=false) процесс рестартует оператор:
+// banner сообщает об этом вместо таймера окна StartupWait.
+export default function ConfigBanner({ status }) {
     const state = status && status.state;
     if (!state || state === 'idle' || state === 'confirmed') {
         return null;
@@ -13,7 +14,11 @@ export default function ConfigBanner({ status, onRollback, onDismiss }) {
     if (state === 'pending') {
         return (
             <div className="bg-warning-light border border-warning/20 text-warning-dark text-sm rounded-lg p-3 flex items-center justify-between gap-2" data-testid="banner-pending">
-                <span>Применение конфигурации… ожидается перезапуск.</span>
+                <span>
+                    {status.restartInitiated
+                        ? 'Применение конфигурации… ожидается перезапуск.'
+                        : 'Конфигурация применена. Перезапустите процесс вручную (systemctl restart), чтобы применить изменения.'}
+                </span>
             </div>
         );
     }
@@ -24,9 +29,6 @@ export default function ConfigBanner({ status, onRollback, onDismiss }) {
                 <span>
                     Конфигурация откачена: {status.reason || 'авто-откат после неудачного старта'}
                 </span>
-                {onDismiss ? (
-                    <Button variant="ghost" size="sm" onClick={onDismiss}>×</Button>
-                ) : null}
             </div>
         );
     }

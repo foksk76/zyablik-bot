@@ -52,17 +52,31 @@ test('createCore: свежий pending (штатный restart после Apply)
     assert.equal(core.config.logLevel, 'debug');
 });
 
-test('createCore: старый pending без подтверждения → авто-откат на lkg', () => {
+test('createCore: старый pending (авто-рестарт) без подтверждения → авто-откат на lkg', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000);
+    // restartInitiated=true: Apply инициировал рестарт, процесс не вышел на ready.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000, { restartInitiated: true });
 
     const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
 
     assert.equal(core.recoveryState, 'rolled_back');
     assert.equal(core.restoredFrom, 'lkg');
     assert.equal(core.config.logLevel, 'info');
+});
+
+test('createCore: ручной рестарт — первый boot со старым appliedAt продолжается', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // Оператор применил Apply вручную и рестартует спустя заметное время.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 10 * 60_000);
+
+    const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
+
+    assert.equal(core.recoveryState, 'ok');
+    assert.equal(core.config.logLevel, 'debug', 'применённый конфиг не откатывается');
 });
 
 test('createCore: невалидный файл с lkg → карантин + восстановление', () => {

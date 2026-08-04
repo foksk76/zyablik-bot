@@ -76,7 +76,7 @@ test('детектор: авто-откат пишет config.rollback (auto)', 
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000);
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000, { restartInitiated: true });
     const sink = makeAuditSink();
 
     const result = runStartupConfigDetector(configPath, { environment: {}, logger: sink.logger });

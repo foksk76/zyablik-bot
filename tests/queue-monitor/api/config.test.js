@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const { createConfigApi, createConfigMutationRateLimiter, computeConfigDiff, buildEffectiveSections, buildExportConfig, DEFAULT_MUTATION_MAX, DEFAULT_MUTATION_WINDOW_MS } = require('../../../src/queue-monitor/api/config');
+const { createConfigApi, createConfigMutationRateLimiter, computeConfigDiff, buildEffectiveSections, maskStagedSecrets, buildExportConfig, DEFAULT_MUTATION_MAX, DEFAULT_MUTATION_WINDOW_MS } = require('../../../src/queue-monitor/api/config');
 const { CURRENT_VERSION } = require('../../../src/bot-platform/core/config-migrations');
 
 function tmpDir() {
@@ -512,6 +512,105 @@ test('putStage: секреты плагинов маскируются в staged
     assert.deepEqual(result.body.data.staged.plugins.identity.apiToken, { secret: true, set: true });
     const onDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
     assert.equal(onDisk.plugins.identity.apiToken, '$ID_API_TOKEN');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- Schemaless-плагины: $VAR-маскирование (I5) ---
+
+test('buildEffectiveSections: $VAR в ветке плагина без configSchema маскируется, литерал — как есть', () => {
+    const fileConfig = {
+        version: CURRENT_VERSION,
+        plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } }
+    };
+    const result = buildEffectiveSections(fileConfig, true, []);
+    assert.deepEqual(result.sections.plugins.legacy.token, { secret: true, set: true });
+    assert.equal(result.sections.plugins.legacy.syncMode, 'auto');
+    assert.ok(!JSON.stringify(result).includes('$LEGACY_TOKEN'), 'наружу не уходит даже $VAR-имя');
+});
+
+test('maskStagedSecrets: $VAR в ветке плагина без configSchema маскируется', () => {
+    const staged = { version: 1, plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } } };
+    const masked = maskStagedSecrets(staged, []);
+    assert.deepEqual(masked.plugins.legacy.token, { secret: true, set: true });
+    assert.equal(masked.plugins.legacy.syncMode, 'auto');
+    assert.ok(!JSON.stringify(masked).includes('$LEGACY_TOKEN'));
+});
+
+test('computeConfigDiff: $VAR в ветке плагина без configSchema не попадает в diff', () => {
+    const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const active = { version: 1, plugins: { identity: { token: '$OLD_TOKEN', syncMode: 'auto' } } };
+    const staged = { version: 1, plugins: { identity: { token: '$NEW_TOKEN', syncMode: 'manual' } } };
+    const diff = computeConfigDiff(active, staged, plugins);
+    assert.equal(diff.length, 1, 'только несекретное изменение');
+    assert.equal(diff[0].key, 'syncMode');
+    assert.ok(!JSON.stringify(diff).includes('$OLD_TOKEN') && !JSON.stringify(diff).includes('$NEW_TOKEN'));
+});
+
+test('getConfig: $VAR в ветке плагина без configSchema не уходит наружу', () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } }
+    });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const result = api.getConfig({});
+    assert.deepEqual(result.body.data.sections.plugins.legacy.token, { secret: true, set: true });
+    assert.equal(result.body.data.sections.plugins.legacy.syncMode, 'auto');
+    assert.ok(!JSON.stringify(result.body).includes('$LEGACY_TOKEN'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- Статус: restartInitiated (ручной vs авто-рестарт) ---
+
+test('getStatus: авто-apply — restartInitiated=true, pendingRemainingMs считается', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    await api.putStage({ req: mockReq(changed) });
+    await api.apply({});
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, true);
+    assert.equal(typeof status.body.data.pendingRemainingMs, 'number');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: ручной apply — restartInitiated=false, pendingRemainingMs=null', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: null });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    await api.putStage({ req: mockReq(changed) });
+    await api.apply({});
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, false);
+    assert.equal(status.body.data.pendingRemainingMs, null);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- Толерантное чтение: битый файл не роняет API ---
+
+test('getConfig: битый активный файл не роняет API (200 с дефолтами)', () => {
+    const dir = tmpDir();
+    const configPath = path.join(dir, 'zyablik.config.json');
+    fs.writeFileSync(configPath, '{ broken json', 'utf8');
+    const api = createConfigApi({ environment: {}, configPath });
+    const result = api.getConfig({});
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.data.fileExists, true);
     fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -157,12 +157,15 @@ function lkgExists(configPath) {
 }
 
 // --- Pending-маркер (Task 3) ---
-
-function writePending(configPath, fileConfig, appliedAt = new Date()) {
+// Поля: hash (применяемого конфига), appliedAt (момент Apply), lastBoot
+// (последний старт процесса), boots (счётчик стартов без подтверждения),
+// restartInitiated (инициировал ли Apply рестарт сам — см. стартовый детектор).
+function writePending(configPath, fileConfig, appliedAt = new Date(), options = {}) {
     const { pendingPath } = serviceFilePaths(configPath);
     writeMarker(pendingPath, {
         hash: computeConfigHash(fileConfig),
-        appliedAt: new Date(appliedAt).toISOString()
+        appliedAt: new Date(appliedAt).toISOString(),
+        restartInitiated: options.restartInitiated === true
     });
 }
 
@@ -179,7 +182,10 @@ function readPending(configPath) {
         hash: typeof marker.hash === 'string' ? marker.hash : null,
         appliedAt: typeof marker.appliedAt === 'string' ? marker.appliedAt : null,
         lastBoot: typeof marker.lastBoot === 'string' ? marker.lastBoot : null,
-        boots: typeof marker.boots === 'number' ? marker.boots : null
+        boots: typeof marker.boots === 'number' ? marker.boots : null,
+        // Отсутствие поля в старых маркерах = ручной режим (рестарт наружу не
+        // делегировался — в проде apply всегда был ручным).
+        restartInitiated: marker.restartInitiated === true
     };
 }
 
@@ -324,11 +330,17 @@ function applyConfig(configPath, fileConfig, options = {}) {
 
     // 3. Pending-маркер: фиксирует хеш применяемого конфига до рестарта.
     // По готовности (ready) маркер снимается (config.confirmed). Краш до
-    // ready → при следующем запуске авто-откат на lkg.
-    writePending(configPath, fileConfigToWrite);
+    // ready → при следующем запуске авто-откат на lkg. restartInitiated
+    // сообщает детектору, что рестарт инициировал сам Apply (окно StartupWait
+    // отсчитывается от appliedAt); при ручном рестарте окно по appliedAt не
+    // применяется (задержка между Apply и рестартом не признак краша).
+    writePending(configPath, fileConfigToWrite, new Date(), {
+        restartInitiated: typeof options.restart === 'function'
+    });
     logConfigAudit(options.logger, 'config.pending', {
         configPath: activePath,
-        hash
+        hash,
+        restartInitiated: typeof options.restart === 'function'
     });
 
     // 4. Атомарный write активного конфига.
@@ -440,44 +452,66 @@ function runStartupConfigDetector(configPath, options = {}) {
     }
 
     // 2. Pending-маркер. ADR-0045: подтверждающий режим с окном StartupWait.
-    // Свежий маркер (записан < startupWaitMs назад) — штатный restart после
-    // Apply: процесс стартует с нового конфига, по ready confirm() снимет
-    // маркер. Старый маркер (>= startupWaitMs) — предыдущий процесс не вышел
-    // на ready (краш до ready) → авто-откат к lkg.
+    // База отсчёта окна — момент последнего старта (lastBoot), а не
+    // appliedAt: appliedAt ставится процессом, который писал Apply, и
+    // включает время остановки + рестарт. Медленный, но штатный boot не
+    // должен ложно откатываться.
+    //
+    // Первый boot после Apply (lastBoot ещё не записан): окно отсчитывается
+    // от appliedAt ТОЛЬКО если рестарт инициировал сам Apply
+    // (restartInitiated, маркер пишется applyConfig) — иначе это задержка
+    // между Apply и ручным рестартом оператора, а не признак краша, и
+    // первый boot продолжается без окна.
+    //
+    // Счётчик boots защищает от бесконечного crash-loop: конфиг, падающий
+    // до ready, откатывается после maxStartupAttempts стартов — независимо
+    // от того, авто- или ручной рестарт.
     if (pending !== null) {
         const startupWaitMs = options.startupWaitMs || DEFAULT_STARTUP_WAIT_MS;
         const maxStartupAttempts = options.maxStartupAttempts || DEFAULT_MAX_STARTUP_ATTEMPTS;
-        // База отсчёта окна — момент последнего старта (lastBoot), а не
-        // appliedAt: appliedAt ставится процессом, который писал Apply, и
-        // включает время остановки + рестарт. Медленный, но штатный boot
-        // не должен ложно откатываться. Счётчик boots защищает от
-        // бесконечного crash-loop: конфиг, падающий до ready, откатывается
-        // после maxStartupAttempts стартов.
         const lastBootMs = pending.lastBoot ? Date.parse(pending.lastBoot) : null;
         const appliedAtMs = pending.appliedAt ? Date.parse(pending.appliedAt) : null;
-        const baseMs = Number.isFinite(lastBootMs) ? lastBootMs : appliedAtMs;
-        const pendingAgeMs = baseMs ? Date.now() - baseMs : Infinity;
+        // Окно StartupWait отсчитывается от lastBoot (последний реальный старт).
+        // Для первого boot после Apply — от appliedAt, но только если рестарт
+        // инициировал сам Apply (restartInitiated): иначе appliedAt отражает
+        // задержку между Apply и ручным рестартом оператора, а не краш.
+        const hasWindow = Number.isFinite(lastBootMs)
+            || (pending.restartInitiated && Number.isFinite(appliedAtMs));
+        let pendingAgeMs;
+        if (Number.isFinite(lastBootMs)) {
+            pendingAgeMs = Date.now() - lastBootMs;
+        } else if (pending.restartInitiated && Number.isFinite(appliedAtMs)) {
+            pendingAgeMs = Date.now() - appliedAtMs;
+        } else {
+            pendingAgeMs = 0;
+        }
         const boots = (typeof pending.boots === 'number' && pending.boots >= 0) ? pending.boots + 1 : 1;
         const crashLoop = boots > maxStartupAttempts;
 
-        if (Number.isFinite(pendingAgeMs) && pendingAgeMs < startupWaitMs && !crashLoop) {
-            // Штатный restart после Apply: продолжаем с нового конфига и
-            // фиксируем в маркере факт старта (lastBoot) + счётчик попыток.
+        if (!crashLoop && pendingAgeMs < startupWaitMs) {
+            // Штатный restart после Apply (окно не истекло) ИЛИ первый boot без
+            // авто-рестарта (окно не применяется) — продолжаем с нового конфига
+            // и фиксируем в маркере факт старта (lastBoot) + счётчик попыток.
             writeMarker(pendingPath, {
                 hash: pending.hash,
                 appliedAt: pending.appliedAt,
+                restartInitiated: pending.restartInitiated,
                 lastBoot: new Date().toISOString(),
                 boots
             });
+            const reason = hasWindow
+                ? 'pending-маркер свежий (штатный restart после Apply, окно StartupWait)'
+                : 'pending-маркер без авто-рестарта — продолжаем без окна StartupWait';
             logConfigAudit(options.logger, 'config.pending', {
                 configPath: activePath,
-                reason: 'штатный restart после Apply (окно StartupWait), ожидается подтверждение по ready',
+                reason,
                 pendingAgeMs,
-                boots
+                boots,
+                restartInitiated: pending.restartInitiated
             });
             return {
                 state: 'ok',
-                reason: 'pending-маркер свежий (штатный restart после Apply, окно StartupWait)',
+                reason,
                 fileConfig: active
             };
         }
@@ -506,10 +540,16 @@ function runStartupConfigDetector(configPath, options = {}) {
                 fileConfig: null
             };
         }
-        // Авто-откат к lkg: маркер снимается (lkg подтверждён), staged очищается.
+        // Авто-откат к lkg: активный файл (применённый конфиг, возможно с
+        // ручной правкой после Apply) сохраняется в карантин как улика,
+        // маркер снимается (lkg подтверждён), staged очищается.
         const rollbackReason = crashLoop
             ? `конфиг не подтверждён после ${maxStartupAttempts} стартов (crash-loop до ready)`
             : 'предыдущий Apply не подтверждён (краш до ready)';
+        let quarantinePath = null;
+        if (fs.existsSync(activePath)) {
+            quarantinePath = quarantineActiveFile(configPath);
+        }
         atomicWriteJson(activePath, lkg);
         clearPending(configPath);
         clearStaged(configPath);
@@ -518,12 +558,14 @@ function runStartupConfigDetector(configPath, options = {}) {
             reason: rollbackReason,
             auto: true,
             restoredFrom: 'lkg',
+            quarantinePath: quarantinePath || undefined,
             success: true
         });
         return {
             state: 'rolled_back',
             reason: `${rollbackReason}, восстановлен lkg`,
             restoredFrom: 'lkg',
+            quarantinePath,
             fileConfig: lkg
         };
     }
