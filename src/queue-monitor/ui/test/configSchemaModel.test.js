@@ -165,3 +165,11 @@ test('buildDiff: only changed fields', () => {
     assert.ok(diff.some((d) => d.section === 'bot' && d.key === 'logLevel' && d.old === 'info' && d.new === 'debug'));
     assert.ok(diff.some((d) => d.section === 'identity' && d.key === 'syncMode'));
 });
+
+test('buildDiff: new plugin branch in staged appears in diff (M5 review)', () => {
+    const diff = buildDiff(
+        { plugins: { identity: { syncMode: 'auto' } } },
+        { plugins: { identity: { syncMode: 'auto' }, legacy: { syncMode: 'manual' } } }
+    );
+    assert.ok(diff.some((d) => d.section === 'legacy' && d.key === 'syncMode' && d.old === null && d.new === 'manual'));
+});

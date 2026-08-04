@@ -46,6 +46,18 @@ test('nullable поле принимает null', () => {
     assert.ok(validateFieldValue({ type: 'boolean' }, null));
 });
 
+test('required поле — ошибка для undefined/пустой строки (M2)', () => {
+    const field = { type: 'string', required: true };
+    assert.equal(validateFieldValue(field, 'x'), null);
+    assert.equal(validateFieldValue(field, undefined), 'обязательное поле');
+    assert.equal(validateFieldValue(field, ''), 'обязательное поле');
+});
+
+test('required + nullable: null для required-поля — ошибка (M2)', () => {
+    assert.equal(validateFieldValue({ type: 'string', required: true, nullable: true }, null), 'обязательное поле');
+    assert.equal(validateFieldValue({ type: 'string', required: true, nullable: true }, 'x'), null);
+});
+
 test('idpRelaxSsrf в схеме nullable (ADR-0045 маппинг)', () => {
     const field = SYSTEM_SCHEMA.monitor.idpRelaxSsrf;
     assert.equal(field.type, 'boolean');
@@ -190,6 +202,15 @@ test('validatePluginSection: без схемы — warning (ключ не про
     const result = validatePluginSection('alerts', null, { whatever: 1 });
     assert.equal(result.errors.length, 0);
     assert.equal(result.warnings.length, 1);
+});
+
+test('validatePluginSection: неизвестный ключ при наличии схемы — warning (M1)', () => {
+    const schema = { timeout: { type: 'number', min: 1, max: 60 } };
+    const result = validatePluginSection('alerts', schema, { timeout: 30, unknownKey: 'x' });
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.warnings.length, 1);
+    assert.equal(result.warnings[0].key, 'alerts.unknownKey');
+    assert.ok(result.warnings[0].reason.includes('warn + ignore'));
 });
 
 test('validateConfigFile: plugins ветка валидируется по merged-схеме', () => {

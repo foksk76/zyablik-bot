@@ -382,8 +382,12 @@ function loadConfig(options = {}) {
 
 // --- Live runtime ---
 
-function createLiveRuntimeConfig(environment = process.env) {
-    const config = createBotPlatformConfig(environment);
+// options.config — уже собранный плоский effective-конфиг (например, результат
+// loadConfig().config из app.js). По умолчанию — env-based сборка (обратная
+// совместимость). H1 (review): при наличии файла live-рантайм обязан читать
+// файл, а не строить конфиг только из env.
+function createLiveRuntimeConfig(environment = process.env, options = {}) {
+    const config = options.config || createBotPlatformConfig(environment);
 
     if (config.maxTransportMode === 'webhook') {
         return {

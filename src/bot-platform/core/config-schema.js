@@ -348,15 +348,29 @@ const SYSTEM_SECTION_KEYS = Object.freeze(Object.keys(SYSTEM_SCHEMA));
 // Валидация значения отдельного поля.
 // Возвращает null при валидном значении, иначе строку-причину.
 function validateFieldValue(field, value) {
-    if (value === undefined) {
+    // M2 (review): серверная проверка required (как клиентская validateValue):
+    // undefined/'' (и null для nullable) для required-поля — ошибка.
+    // Порядок с null согласован с клиентом: null для не-nullable поля — своя
+    // ошибка, required проверяется после неё.
+    if (value === null) {
+        if (!field.nullable) {
+            return 'null не допускается для этого поля';
+        }
+        if (field.required) {
+            return 'обязательное поле';
+        }
         return null;
     }
 
-    if (value === null) {
-        if (field.nullable) {
-            return null;
+    if (value === undefined) {
+        if (field.required) {
+            return 'обязательное поле';
         }
-        return 'null не допускается для этого поля';
+        return null;
+    }
+
+    if (field.required && value === '') {
+        return 'обязательное поле';
     }
 
     switch (field.type) {
@@ -471,6 +485,19 @@ function validatePluginSection(pluginName, configSchema, sectionValue) {
             });
         }
         return { errors, warnings };
+    }
+
+    // M1 (review): неизвестные ключи при наличии configSchema — warn + ignore,
+    // как в системных секциях (validateSection). Ключи схемы дальше
+    // валидируются по типам/секретности.
+    for (const key of Object.keys(sectionValue)) {
+        if (!configSchema[key]) {
+            warnings.push({
+                section: 'plugins',
+                key: `${pluginName}.${key}`,
+                reason: 'неизвестный ключ (warn + ignore)'
+            });
+        }
     }
 
     for (const [key, field] of Object.entries(configSchema)) {

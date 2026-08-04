@@ -235,6 +235,45 @@ test('getConfig: plugin secrets masked as status, not as $VAR name', () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// H3 (review): объявленное НЕсекретное поле configSchema — обычное значение.
+// $VAR-ссылка в нём не маскируется (это настройка, а не секрет).
+test('getConfig: declared non-secret plugin field with $VAR is not masked (H3)', () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: '$SYNC_MODE_VAR' } }
+    });
+    const api = createConfigApi({
+        environment: { ID_API_TOKEN: 'x', SYNC_MODE_VAR: 'manual' },
+        configPath,
+        plugins: [{
+            name: 'identity',
+            configSchema: {
+                apiToken: { type: 'string', secret: true },
+                syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' }
+            }
+        }]
+    });
+    const result = api.getConfig({});
+    assert.deepEqual(result.body.data.sections.plugins.identity.apiToken, { secret: true, set: true });
+    assert.equal(result.body.data.sections.plugins.identity.syncMode, '$SYNC_MODE_VAR',
+        'несекретное поле плагина отдаётся как есть, даже если значение — $VAR');
+    assert.ok(JSON.stringify(result.body).includes('$SYNC_MODE_VAR'));
+    assert.ok(!JSON.stringify(result.body).includes('$ID_API_TOKEN'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('computeConfigDiff: declared non-secret $VAR plugin field appears in diff (H3)', () => {
+    const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const active = { version: 1, plugins: { identity: { syncMode: '$SYNC_MODE_VAR' } } };
+    const staged = { version: 1, plugins: { identity: { syncMode: 'manual' } } };
+    const diff = computeConfigDiff(active, staged, plugins);
+    assert.equal(diff.length, 1);
+    assert.equal(diff[0].section, 'identity');
+    assert.equal(diff[0].key, 'syncMode');
+    assert.equal(diff[0].old, '$SYNC_MODE_VAR');
+    assert.equal(diff[0].new, 'manual');
+});
+
 // --- createConfigApi: GET /api/config/schema ---
 
 test('getSchema: merged schema includes system and plugins', () => {
@@ -415,6 +454,18 @@ test('apply: writes active config, returns 202, single-flight', async () => {
 
     const status = api.getStatus({});
     assert.equal(status.body.data.state, 'pending');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('apply: broken staged config -> 400 and staged cleared', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    fs.writeFileSync(`${configPath}.staged.json`, '{broken json', 'utf8');
+
+    const result = await api.apply({});
+    assert.equal(result.statusCode, 400);
+    assert.match(result.body.error, /cleared/);
+    assert.equal(fs.existsSync(`${configPath}.staged.json`), false);
     fs.rmSync(dir, { recursive: true, force: true });
 });
 

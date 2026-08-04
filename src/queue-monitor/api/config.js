@@ -25,6 +25,7 @@ const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS, isVarReferenc
 const { CURRENT_VERSION } = require('../../bot-platform/core/config-migrations');
 const {
     readStaged,
+    readStagedSafe,
     writeStaged,
     stagedExists,
     clearStaged,
@@ -237,12 +238,6 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
                     if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
                         continue;
                     }
-                    // $VAR-ссылка в ветке плагина приравнивается к секрету
-                    // (защита веток без configSchema): наружу не уходит даже
-                    // имя переменной.
-                    if (isVarReference(a[key]) || isVarReference(s[key])) {
-                        continue;
-                    }
                     pushRow(pluginName, key, a[key], s[key]);
                 }
             }
@@ -337,19 +332,22 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                 }
             }
             // Defense-in-depth (m4): защита веток без configSchema и
-            // необъявленных ключей. $VAR-ссылка маскируется всегда (наружу не
-            // уходит даже имя переменной). Литеральная строка в необъявленном
-            // ключе тоже маскируется — без схемы нельзя отличить настройку от
-            // литерального секрета.
+            // необъявленных ключей. H3 (review): объявленные НЕсекретные поля
+            // configSchema — обычные значения (в т.ч. $VAR-ссылки), наружу
+            // отдаются как есть. Необъявленный ключ: $VAR-ссылка маскируется
+            // всегда (наружу не уходит даже имя переменной); литеральная
+            // строка тоже маскируется — без схемы нельзя отличить настройку
+            // от литерального секрета.
             for (const [key, value] of Object.entries(masked)) {
+                if (isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                    continue;
+                }
                 if (isVarReference(value)) {
                     masked[key] = maskSecret(value);
                     continue;
                 }
-                if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
-                    if (typeof value === 'string' && value !== '') {
-                        masked[key] = maskSecret(value);
-                    }
+                if (typeof value === 'string' && value !== '') {
+                    masked[key] = maskSecret(value);
                 }
             }
             maskedPlugins[pluginName] = masked;
@@ -399,17 +397,20 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
                 }
             }
             // Defense-in-depth (m4): защита веток без configSchema и
-            // необъявленных ключей — литеральная строка в таком ключе
-            // маскируется целиком (без схемы настройка неотличима от секрета).
+            // необъявленных ключей. H3 (review): объявленные НЕсекретные поля
+            // configSchema — обычные значения (в т.ч. $VAR-ссылки); маскируется
+            // только необъявленный ключ (литеральная строка — целиком, как
+            // неотличимая от секрета без схемы).
             for (const [key, value] of Object.entries(section)) {
+                if (isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                    continue;
+                }
                 if (isVarReference(value)) {
                     section[key] = maskSecret(value);
                     continue;
                 }
-                if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
-                    if (typeof value === 'string' && value !== '') {
-                        section[key] = maskSecret(value);
-                    }
+                if (typeof value === 'string' && value !== '') {
+                    section[key] = maskSecret(value);
                 }
             }
             pluginSection[pluginName] = section;
@@ -620,6 +621,36 @@ function createConfigApi(options = {}) {
 
     // --- PUT /api/config/stage ---
 
+    // Общий путь «сохранить в staged» для putStage и importConfig (M4 review):
+    // единый код вместо дублирования, один порядок preValidate → merge → write.
+    function stageConfig(rawConfig, auditAction) {
+        const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
+        // UI/import не передают секреты — сохраняем $VAR-ссылки активного
+        // конфига, чтобы diff был корректным и Apply не затирал их.
+        // Толерантное чтение: повреждённый активный файл не роняет API
+        // (500) — обрабатывается как отсутствующий (карантин битого файла
+        // — задача стартового детектора), секреты не переносятся.
+        let active = null;
+        try {
+            active = readJsonFile(configPath);
+        } catch (error) {
+            active = null;
+        }
+        const merged = mergePreservedSecrets(active, fileConfig, plugins);
+        writeStaged(configPath, merged);
+        logConfigAudit(auditAction, { configPath });
+        return {
+            statusCode: 200,
+            body: {
+                status: 'ok',
+                data: {
+                    staged: maskStagedSecrets(merged, plugins),
+                    diff: computeConfigDiff(active, merged, plugins)
+                }
+            }
+        };
+    }
+
     async function putStage(ctx) {
         let rawConfig;
         try {
@@ -633,31 +664,7 @@ function createConfigApi(options = {}) {
         }
 
         try {
-            const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
-            // UI/import не передают секреты — сохраняем $VAR-ссылки активного
-            // конфига, чтобы diff был корректным и Apply не затирал их.
-            // Толерантное чтение: повреждённый активный файл не роняет API
-            // (500) — обрабатывается как отсутствующий (карантин битого файла
-            // — задача стартового детектора), секреты не переносятся.
-            let active = null;
-            try {
-                active = readJsonFile(configPath);
-            } catch (error) {
-                active = null;
-            }
-            const merged = mergePreservedSecrets(active, fileConfig);
-            writeStaged(configPath, merged);
-            logConfigAudit('config.stage', { configPath });
-            return {
-                statusCode: 200,
-                body: {
-                    status: 'ok',
-                    data: {
-                        staged: maskStagedSecrets(merged, plugins),
-                        diff: computeConfigDiff(active, merged, plugins)
-                    }
-                }
-            };
+            return stageConfig(rawConfig, 'config.stage');
         } catch (error) {
             return validationErrorResponse(error);
         }
@@ -681,7 +688,16 @@ function createConfigApi(options = {}) {
                 return { statusCode: 400, body: { status: 'error', error: 'Staged config not found — save changes first' } };
             }
 
-            const staged = readStaged(configPath);
+            // review: битый staged (повреждённый JSON) не должен давать
+            // 500 — Apply очищает его и возвращает 400 с понятным сообщением.
+            const stagedRead = readStagedSafe(configPath);
+            if (!stagedRead.ok) {
+                clearStaged(configPath);
+                logConfigAudit('config.apply.rejected_broken_staged', { configPath });
+                return { statusCode: 400, body: { status: 'error', error: 'Staged config is broken — it has been cleared. Save changes again.' } };
+            }
+
+            const staged = stagedRead.data;
             const result = applyConfig(configPath, staged, {
                 environment,
                 plugins,
@@ -801,29 +817,7 @@ function createConfigApi(options = {}) {
                 return { statusCode: 400, body: { status: 'error', error: 'Body must be a config object' } };
             }
 
-            const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
-            // Сохраняем существующие секреты активного конфига (импорт обычно
-            // редактирует несекретные поля). Толерантное чтение активного
-            // файла: повреждённый не роняет API (500) — см. putStage.
-            let active = null;
-            try {
-                active = readJsonFile(configPath);
-            } catch (error) {
-                active = null;
-            }
-            const merged = mergePreservedSecrets(active, fileConfig);
-            writeStaged(configPath, merged);
-            logConfigAudit('config.import', { configPath });
-            return {
-                statusCode: 200,
-                body: {
-                    status: 'ok',
-                    data: {
-                        staged: maskStagedSecrets(merged, plugins),
-                        diff: computeConfigDiff(active, merged, plugins)
-                    }
-                }
-            };
+            return stageConfig(rawConfig, 'config.import');
         } catch (error) {
             return validationErrorResponse(error);
         } finally {

@@ -58,6 +58,23 @@ function createLongPollingService(options = {}) {
   let cycles = 0;
   let loopPromise = null;
 
+  // M6 (review): firstTick разрешается, когда запущен первый long-polling цикл
+  // (ready). createLiveBotPlatformService.start() ждёт его, чтобы confirm()
+  // по готовности срабатывал после реального старта цикла, а не сразу после
+  // синхронного старта.
+  let resolveFirstTick = null;
+  const firstTick = new Promise((resolve) => {
+    resolveFirstTick = resolve;
+  });
+
+  function notifyFirstTick() {
+    if (resolveFirstTick) {
+      const resolve = resolveFirstTick;
+      resolveFirstTick = null;
+      resolve();
+    }
+  }
+
   async function tick() {
     if (stopped || running) {
       logger.warn('long polling tick skipped', {
@@ -70,6 +87,7 @@ function createLongPollingService(options = {}) {
     }
 
     running = true;
+    notifyFirstTick();
     try {
       const updates = await pollUpdates();
 
@@ -179,6 +197,7 @@ function createLongPollingService(options = {}) {
     networkEnabled: false,
     intervalMs,
     state,
+    firstTick,
     get loopPromise() {
       return loopPromise;
     },

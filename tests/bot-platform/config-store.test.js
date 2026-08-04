@@ -254,6 +254,117 @@ test('applyConfig: Apply без секретов сохраняет $VAR-ссы�
     assert.ok(result.lkgWritten);
 });
 
+// --- Task 5 (H2 review): плагины не затираются при частичном Apply ---
+
+const pluginFixture = {
+    name: 'identity',
+    configSchema: {
+        apiToken: { type: 'string', secret: true },
+        syncMode: { type: 'string', secret: false }
+    }
+};
+
+test('mergePreservedSecrets: сохраняет объявленные секреты и необъявленные ключи плагина', () => {
+    const active = {
+        version: 1,
+        plugins: {
+            identity: {
+                apiToken: '$MAX_API_TOKEN',
+                syncMode: 'manual',
+                undeclaredExtra: 'custom-value'
+            }
+        }
+    };
+    const staged = {
+        version: 1,
+        plugins: {
+            identity: {
+                syncMode: 'auto'
+            }
+        }
+    };
+
+    const merged = mergePreservedSecrets(active, staged, [pluginFixture]);
+
+    assert.equal(merged.plugins.identity.syncMode, 'auto', 'объявленное несекретное поле — из staged');
+    assert.equal(merged.plugins.identity.apiToken, '$MAX_API_TOKEN',
+        'объявленный секрет плагина перенесён из активного конфига');
+    assert.equal(merged.plugins.identity.undeclaredExtra, 'custom-value',
+        'необъявленный configSchema ключ перенесён из активного конфига');
+});
+
+test('mergePreservedSecrets: ветка плагина без configSchema сохраняется целиком', () => {
+    const active = {
+        version: 1,
+        plugins: {
+            thirdparty: { apiKey: '$THIRD_PARTY_KEY', host: 'https://synthetic.example' }
+        }
+    };
+    const staged = {
+        version: 1,
+        plugins: {
+            thirdparty: { host: 'https://synthetic.example' }
+        }
+    };
+
+    const merged = mergePreservedSecrets(active, staged, []);
+
+    assert.equal(merged.plugins.thirdparty.host, 'https://synthetic.example');
+    assert.equal(merged.plugins.thirdparty.apiKey, '$THIRD_PARTY_KEY',
+        'без схемы все ключи плагина сохраняются');
+});
+
+test('mergePreservedSecrets: не создаёт ветку плагина, отсутствующую в staged', () => {
+    const active = {
+        version: 1,
+        plugins: {
+            identity: { apiToken: '$MAX_API_TOKEN' }
+        }
+    };
+    const staged = {
+        version: 1,
+        plugins: {
+            other: { host: 'https://synthetic.example' }
+        }
+    };
+
+    const merged = mergePreservedSecrets(active, staged, [pluginFixture]);
+    assert.equal(merged.plugins.identity, undefined, 'удаление плагина не блокируется');
+    assert.equal(merged.plugins.other.host, 'https://synthetic.example');
+});
+
+test('applyConfig: Apply с plugins сохраняет секреты и необъявленные ключи плагина', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, {
+        version: 1,
+        plugins: {
+            identity: {
+                apiToken: '$MAX_API_TOKEN',
+                syncMode: 'manual',
+                undeclaredExtra: 'custom-value'
+            }
+        }
+    });
+
+    applyConfig(configPath, {
+        version: 1,
+        plugins: {
+            identity: {
+                syncMode: 'auto'
+            }
+        }
+    }, {
+        environment: { MAX_API_TOKEN: 'synthetic-token' },
+        restart: () => {},
+        plugins: [pluginFixture]
+    });
+
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.plugins.identity.syncMode, 'auto');
+    assert.equal(active.plugins.identity.apiToken, '$MAX_API_TOKEN');
+    assert.equal(active.plugins.identity.undeclaredExtra, 'custom-value');
+});
+
 // --- Task 3: Стартовый детектор ---
 
 test('детектор: валидный активный файл — ok', () => {

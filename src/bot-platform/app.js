@@ -83,14 +83,16 @@ function startBotPlatformService(environment = process.env, options = {}) {
   });
 }
 
-function startLiveBotPlatformService(environment = process.env, options = {}) {
+async function startLiveBotPlatformService(environment = process.env, options = {}) {
   const liveService = createLiveBotPlatformService(environment, options);
 
   if (options.installSignalHandlers !== false) {
     createLiveServiceShutdownHandlers(liveService, options.io);
   }
 
-  liveService.start();
+  // M6 (review): await — main() дожидается реального старта первого
+  // long-polling цикла, и confirm() по готовности не опережает сеть.
+  await liveService.start();
 
   return liveService;
 }
@@ -394,8 +396,11 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
         ? options.startLiveBotPlatformService
         : startLiveBotPlatformService;
 
-      startLiveService(environment, {
+      await startLiveService(environment, {
         ...options.liveOptions,
+        // H1 (review): effective-конфиг из loadConfig() (defaults → файл → .env).
+        // live-сервис строит свой runtime-config из него, а не только из env.
+        config,
         identityHandler: options.liveOptions && options.liveOptions.identityHandler || app.routes.identity,
         shutdownHandle,
         io

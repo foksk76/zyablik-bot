@@ -62,7 +62,7 @@ docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
     "httpProxy": "",
     "maxPollLimit": 100,
     "maxPollTimeoutSeconds": 30,
-    "maxPollTypes": ["NEW_MESSAGE", "UPDATE_MESSAGE"],
+    "maxPollTypes": ["message_created", "bot_started", "bot_added"],
     "rateLimitEnabled": true,
     "rateLimitGlobal": 25,
     "rateLimitRecipient": 5,

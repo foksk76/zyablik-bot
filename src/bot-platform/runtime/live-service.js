@@ -14,7 +14,12 @@ const moduleName = 'live-service';
 const DEFAULT_HTTP_TIMEOUT_MS = 90000;
 
 function createLiveBotPlatformService(environment = process.env, options = {}) {
-  const runtimeConfig = createLiveRuntimeConfig(environment);
+  // H1 (review): runtimeConfig может быть передан из main() (результат
+  // loadConfig() — defaults → файл → .env) как options.runtimeConfig или
+  // options.config (effective flat-конфиг). Без них — env-based обратная
+  // совместимость.
+  const runtimeConfig = options.runtimeConfig
+    || createLiveRuntimeConfig(environment, { config: options.config });
 
   if (runtimeConfig.mode === 'webhook') {
     throw runtimeConfig.error;
@@ -83,12 +88,16 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
     inboundClient,
     outboundClient,
     service,
-    start() {
+    async start() {
       logger.info('live MAX Identity Bot service starting', {
         mode: 'long_polling',
         networkEnabled: true
       });
       service.start();
+      // M6 (review): дождаться первого реального long-polling цикла, а не
+      // возвращаться сразу после синхронного start(). Так confirm() по
+      // готовности в main() срабатывает после фактического старта сети.
+      await service.firstTick;
       logger.info('live MAX Identity Bot service started', {
         mode: 'long_polling',
         networkEnabled: true,

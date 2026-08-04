@@ -134,6 +134,13 @@ function readStaged(configPath) {
     return readJsonFile(stagedPath);
 }
 
+// review: терпимое чтение staged для Apply — битый staged (повреждённый
+// JSON) не должен давать 500: Apply вернёт 400 и очистит битый staged.
+function readStagedSafe(configPath) {
+    const { stagedPath } = serviceFilePaths(configPath);
+    return readJsonFileSafe(stagedPath);
+}
+
 function clearStaged(configPath) {
     const { stagedPath } = serviceFilePaths(configPath);
     removeFileIfExists(stagedPath);
@@ -291,8 +298,10 @@ function preValidateConfigFile(rawConfig, options = {}) {
 // UI/import не передают секретные поля (buildStagedConfig их пропускает,
 // export-дамп маскирует). При применении сохраняем существующие $VAR-ссылки
 // из активного конфига, чтобы не затирать секреты при частичном обновлении
-// (ADR-0045/0046).
-function mergePreservedSecrets(activeConfig, fileConfig) {
+// (ADR-0045/0046). H2 (review): то же для плагинов — объявленные configSchema
+// секреты и любые НЕобъявленные ключи веток plugins.<name>.* (которые UI не
+// знает и потому не передаёт).
+function mergePreservedSecrets(activeConfig, fileConfig, plugins = []) {
     if (!activeConfig || !fileConfig) {
         return fileConfig;
     }
@@ -311,6 +320,47 @@ function mergePreservedSecrets(activeConfig, fileConfig) {
             }
         }
     }
+
+    // Плагины (H2): активная ветка plugins.<name>.* сохраняется настолько,
+    // насколько её не знает новый конфиг:
+    //   1) объявленные configSchema секретные поля — как системные секреты;
+    //   2) НЕобъявленные ключи (в т.ч. вся ветка плагина без configSchema) —
+    //      buildStagedConfig переносит только известные схеме несекретные поля,
+    //      поэтому лишние ключи активного конфига должны доживать до файла.
+    const activePlugins = activeConfig.plugins;
+    const filePlugins = fileConfig.plugins;
+    if (activePlugins && filePlugins
+        && typeof activePlugins === 'object' && !Array.isArray(activePlugins)
+        && typeof filePlugins === 'object' && !Array.isArray(filePlugins)) {
+        const schemasByName = new Map();
+        for (const plugin of plugins || []) {
+            if (plugin && typeof plugin.name === 'string' && plugin.configSchema && typeof plugin.configSchema === 'object') {
+                schemasByName.set(plugin.name, plugin.configSchema);
+            }
+        }
+        for (const [pluginName, filePlugin] of Object.entries(filePlugins)) {
+            const activePlugin = activePlugins[pluginName];
+            if (!activePlugin || typeof activePlugin !== 'object' || Array.isArray(activePlugin)) {
+                continue;
+            }
+            if (!filePlugin || typeof filePlugin !== 'object' || Array.isArray(filePlugin)) {
+                continue;
+            }
+            const schema = schemasByName.get(pluginName);
+            for (const [key, activeValue] of Object.entries(activePlugin)) {
+                if (filePlugin[key] !== undefined) {
+                    continue;
+                }
+                const field = schema ? schema[key] : null;
+                const declaredSecret = Boolean(field && field.secret);
+                const undeclared = schema === undefined || !(key in schema);
+                if (declaredSecret || undeclared) {
+                    filePlugin[key] = activeValue;
+                }
+            }
+        }
+    }
+
     return fileConfig;
 }
 
@@ -326,7 +376,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
     // сохраняются, lkg не пишется (нечего бэкапить).
     const activeResult = readJsonFileSafe(activePath);
     const activeConfig = activeResult.ok ? activeResult.data : null;
-    const fileConfigToWrite = mergePreservedSecrets(activeConfig, fileConfig);
+    const fileConfigToWrite = mergePreservedSecrets(activeConfig, fileConfig, options.plugins);
 
     // 2. pre-validate (не трогает активный конфиг при отказе).
     const { hash } = preValidateConfigFile(fileConfigToWrite, { environment, plugins: options.plugins });
@@ -642,6 +692,7 @@ module.exports = {
     computeConfigHash,
     writeStaged,
     readStaged,
+    readStagedSafe,
     clearStaged,
     stagedExists,
     writeLkg,

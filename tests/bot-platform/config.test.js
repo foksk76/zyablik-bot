@@ -117,6 +117,26 @@ test('createLiveRuntimeConfig returns a validated long polling config', () => {
   assert.deepEqual(config.maxPollTypes, ['message_created']);
 });
 
+test('createLiveRuntimeConfig uses options.config (file-based) when provided (H1 review)', () => {
+  const config = createLiveRuntimeConfig({}, {
+    config: {
+      maxTransportMode: 'long_polling',
+      maxApiUrl: 'https://synthetic.example/messages',
+      maxBotToken: 'synthetic-bot-token',
+      httpProxy: '',
+      logLevel: 'debug',
+      maxPollLimit: 7,
+      maxPollTimeoutSeconds: 3,
+      maxPollTypes: ['message_created']
+    }
+  });
+
+  assert.equal(config.mode, 'long_polling');
+  assert.equal(config.maxPollLimit, 7);
+  assert.equal(config.logLevel, 'debug');
+  assert.deepEqual(config.maxPollTypes, ['message_created']);
+});
+
 test('env.example stays synthetic and secret-free', () => {
   const envExample = fs.readFileSync(envExamplePath, 'utf8');
 

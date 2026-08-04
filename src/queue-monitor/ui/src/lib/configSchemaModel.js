@@ -282,9 +282,15 @@ export function buildDiff(activeSections, stagedSections) {
         const staged = stagedSections && stagedSections[sectionName]
             ? stagedSections[sectionName] : {};
         if (sectionName === 'plugins') {
-            for (const [pluginName, activeValues] of Object.entries(active)) {
+            // M5 (review): дифф по объединению веток active+staged, иначе
+            // новая ветка плагина (есть только в staged) не попадает в diff.
+            const pluginNames = new Set([...Object.keys(active), ...Object.keys(staged)]);
+            for (const pluginName of pluginNames) {
+                const activeValues = active[pluginName] || {};
                 const stagedValues = staged[pluginName] || {};
-                for (const [key, oldValue] of Object.entries(activeValues)) {
+                const keys = new Set([...Object.keys(activeValues), ...Object.keys(stagedValues)]);
+                for (const key of keys) {
+                    const oldValue = activeValues[key];
                     const newValue = stagedValues[key];
                     if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
                         diff.push({
@@ -293,11 +299,6 @@ export function buildDiff(activeSections, stagedSections) {
                             old: oldValue === undefined ? null : oldValue,
                             new: newValue === undefined ? null : newValue
                         });
-                    }
-                }
-                for (const key of Object.keys(stagedValues)) {
-                    if (!(key in activeValues)) {
-                        diff.push({ section: pluginName, key, old: null, new: stagedValues[key] });
                     }
                 }
             }

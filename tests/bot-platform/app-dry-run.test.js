@@ -134,3 +134,46 @@ test('CLI live command routes to live service entrypoint without using fixtures'
   assert.equal(calls[0].liveOptions.installSignalHandlers, false);
   assert.ok(calls[0].liveOptions.io);
 });
+
+test('CLI live command passes file-loaded config to live service (H1 review)', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const calls = [];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-live-config-'));
+  const configPath = path.join(dir, 'zyablik.config.json');
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    bot: {
+      maxPollLimit: 42,
+      maxPollTypes: ['message_created']
+    }
+  }, null, 2), 'utf8');
+
+  const result = await runMainWithEnv({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    ZYABLIK_CONFIG: configPath
+  }, ['--live'], {
+    liveOptions: {
+      installSignalHandlers: false
+    },
+    startLiveBotPlatformService(environment, liveOptions) {
+      calls.push({ environment, liveOptions });
+      return {
+        start() {
+          return this;
+        },
+        stop() {
+          return this;
+        }
+      };
+    }
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].liveOptions.config.maxPollLimit, 42,
+    'liveOptions.config отражает значение maxPollLimit из файла');
+  assert.deepEqual(calls[0].liveOptions.config.maxPollTypes, ['message_created'],
+    'liveOptions.config отражает значение maxPollTypes из файла');
+});
