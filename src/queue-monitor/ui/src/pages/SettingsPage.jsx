@@ -40,12 +40,33 @@ export default function SettingsPage() {
     const handleChange = useCallback((sectionName, key, raw) => {
         setValues((prev) => {
             const section = { ...(prev[sectionName] || {}) };
+            if (sectionName === 'plugins') {
+                // Плагин: ConfigForm уже присылает цельный объект ветки
+                // plugins.<name> (с coerce по каждому полю). Здесь схемой
+                // является весь configSchema плагина, а не одно поле, поэтому
+                // coerceValue неприменим — принимаем объект как есть.
+                section[key] = raw;
+                return { ...prev, [sectionName]: section };
+            }
             const field = schema && schema[sectionName] ? schema[sectionName][key] : null;
             const coerced = coerceValue(raw, field);
             section[key] = coerced.ok ? coerced.value : raw;
             return { ...prev, [sectionName]: section };
         });
-        setErrors((prev) => ({ ...prev, [key]: undefined }));
+        setErrors((prev) => {
+            // Ошибки неймспейсятся ('bot.maxPollLimit', 'identity.syncMode');
+            // для плагина снимаем все ошибки его под-полей (plugins.<name>.*).
+            if (sectionName === 'plugins') {
+                const next = {};
+                for (const [errorKey, reason] of Object.entries(prev)) {
+                    if (!errorKey.startsWith(`${key}.`)) {
+                        next[errorKey] = reason;
+                    }
+                }
+                return next;
+            }
+            return { ...prev, [`${sectionName}.${key}`]: undefined };
+        });
     }, [schema]);
 
     const handleSaveStage = useCallback(async () => {

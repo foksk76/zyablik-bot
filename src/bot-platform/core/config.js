@@ -463,12 +463,10 @@ function buildConfigFileFromEnvironment(environment = process.env) {
     for (const [flatKey, field] of Object.entries(FLAT_MANAGED_FIELDS)) {
         if (field.secret) {
             const envKey = FILE_SECRET_ENV_KEYS[flatKey];
-            const rawValue = readEnvValue(environment, envKey);
             // Секрет — всегда $VAR-ссылка (даже если env-переменная не задана):
             // литералы в файл не пишем.
             fileConfig[field.section] = fileConfig[field.section] || {};
             fileConfig[field.section][findSchemaKey(field)] = `$${envKey}`;
-            void rawValue;
             continue;
         }
 

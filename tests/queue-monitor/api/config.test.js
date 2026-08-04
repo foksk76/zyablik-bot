@@ -137,12 +137,13 @@ test('computeConfigDiff: секреты плагинов (plugins.<name>.*) не
     const active = { version: 1, plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: 'auto' } } };
     const staged = { version: 1, plugins: { identity: { apiToken: '$ID_API_TOKEN', syncMode: 'manual' } } };
     const diff = computeConfigDiff(active, staged, plugins);
+    // Формат строк совпадает с клиентским buildDiff: { section: pluginName, key }.
     assert.equal(diff.length, 1, 'только несекретное изменение плагина');
-    assert.equal(diff[0].key, 'identity');
-    assert.equal(diff[0].old.syncMode, 'auto');
-    assert.equal(diff[0].new.syncMode, 'manual');
-    assert.ok(!('apiToken' in diff[0].old), 'секретный под-ключ отредактирован в diff');
-    assert.ok(!('apiToken' in diff[0].new), 'секретный под-ключ отредактирован в diff');
+    assert.equal(diff[0].section, 'identity');
+    assert.equal(diff[0].key, 'syncMode');
+    assert.equal(diff[0].old, 'auto');
+    assert.equal(diff[0].new, 'manual');
+    assert.ok(!diff.some((d) => d.key === 'apiToken'), 'секретный под-ключ не в diff');
 });
 
 test('computeConfigDiff: изменение только секрета плагина → diff пуст', () => {
@@ -312,8 +313,9 @@ test('putStage: частичное обновление сохраняет $VAR-
 
     const result = await api.putStage({ req: mockReq(changed) });
     assert.equal(result.statusCode, 200);
-    assert.equal(result.body.data.staged.bot.maxBotToken, '$MAX_BOT_TOKEN');
-    assert.equal(result.body.data.staged.monitor.metricsApiKey, '$METRICS_API_KEY');
+    // Ответ API маскирует $VAR-секреты — только статус (ADR-0045/0046).
+    assert.deepEqual(result.body.data.staged.bot.maxBotToken, { secret: true, set: true });
+    assert.deepEqual(result.body.data.staged.monitor.metricsApiKey, { secret: true, set: true });
     // diff не сообщает о секретах (сохранены без изменений)
     assert.ok(!result.body.data.diff.some((d) => d.key === 'maxBotToken' || d.key === 'metricsApiKey'));
     // staged записан на диск с секретами
@@ -454,8 +456,9 @@ test('import: сохраняет $VAR-секреты активного конф
 
     const result = await api.importConfig({ req: mockReq(imported) });
     assert.equal(result.statusCode, 200);
-    assert.equal(result.body.data.staged.bot.maxBotToken, '$MAX_BOT_TOKEN');
-    assert.equal(result.body.data.staged.monitor.metricsApiKey, '$METRICS_API_KEY');
+    // Ответ API маскирует $VAR-секреты — только статус (ADR-0045/0046).
+    assert.deepEqual(result.body.data.staged.bot.maxBotToken, { secret: true, set: true });
+    assert.deepEqual(result.body.data.staged.monitor.metricsApiKey, { secret: true, set: true });
     const stagedOnDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
     assert.equal(stagedOnDisk.bot.maxBotToken, '$MAX_BOT_TOKEN');
     fs.rmSync(dir, { recursive: true, force: true });
@@ -473,7 +476,43 @@ test('import: rejects unknown plugin config field', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('putStage: секреты плагинов маскируются в staged-ответе', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const plugins = [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true }, syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const api = createConfigApi({ environment: { ID_API_TOKEN: 'x' }, configPath, plugins });
+    const changed = {
+        version: CURRENT_VERSION,
+        plugins: { identity: { syncMode: 'auto', apiToken: '$ID_API_TOKEN' } }
+    };
+    const result = await api.putStage({ req: mockReq(changed) });
+    assert.equal(result.statusCode, 200);
+    // $VAR-имя не уходит наружу — только статус; на диске — как было.
+    assert.deepEqual(result.body.data.staged.plugins.identity.apiToken, { secret: true, set: true });
+    const onDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
+    assert.equal(onDisk.plugins.identity.apiToken, '$ID_API_TOKEN');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- single-flight (409) ---
+
+test('import: close соединения освобождает мутацию (lock не висит)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+
+    // Тело не приходит, сокет закрывается: readJsonBody должен отклониться
+    // по 'close', importConfig вернуть 400, а single-flight слот освободиться.
+    const closedReq = { handlers: {}, on(event, handler) { this.handlers[event] = handler; }, destroy() {} };
+    const importPromise = api.importConfig({ req: closedReq });
+    closedReq.handlers.close();
+    const result = await importPromise;
+    assert.equal(result.statusCode, 400);
+    assert.match(result.body.error, /closed/i);
+
+    // Слот свободен: следующий apply не получает 409 (только 400 без staged).
+    const applyResult = await api.apply({});
+    assert.equal(applyResult.statusCode, 400);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('apply during in-progress mutation returns 409', async () => {
     const { dir, configPath } = tmpConfig(minimalConfig);

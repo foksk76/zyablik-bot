@@ -27,6 +27,19 @@ export function sectionFields(schema, sectionName) {
     return schema[sectionName] || {};
 }
 
+// Имена плагинов merged-схемы (для вложенных групп ConfigForm).
+export function pluginNames(schema) {
+    const plugins = schema && schema.plugins;
+    return plugins && typeof plugins === 'object' ? Object.keys(plugins) : [];
+}
+
+// Поля configSchema конкретного плагина (plugins.<name>.*).
+export function pluginFields(schema, pluginName) {
+    const plugins = schema && schema.plugins;
+    const fields = plugins && plugins[pluginName];
+    return fields && typeof fields === 'object' ? fields : {};
+}
+
 // Значение по умолчанию из схемы (с защитой от мутаций).
 export function fieldDefault(field) {
     if (field && Array.isArray(field.default)) {
@@ -150,13 +163,28 @@ export function validateValue(value, field, { required = false } = {}) {
 }
 
 // Валидация всех полей секции. Возвращает { [fieldKey]: reason }.
+// Ключи ошибок неймспейсятся ('bot.maxPollLimit', 'identity.syncMode'), чтобы
+// разные секции/плагины с одинаковыми именами полей не перетирали друг друга.
 export function validateSectionValues(values, schema, sectionName) {
-    const fields = sectionFields(schema, sectionName);
     const errors = {};
+    if (sectionName === 'plugins') {
+        for (const [pluginName, pluginValues] of Object.entries(values || {})) {
+            const fields = pluginFields(schema, pluginName);
+            for (const [key, field] of Object.entries(fields)) {
+                const raw = pluginValues && pluginValues[key];
+                const reason = validateValue(raw, field, { required: field.required });
+                if (reason) {
+                    errors[`${pluginName}.${key}`] = reason;
+                }
+            }
+        }
+        return errors;
+    }
+    const fields = sectionFields(schema, sectionName);
     for (const [key, field] of Object.entries(fields)) {
         const reason = validateValue(values[key], field, { required: field.required });
         if (reason) {
-            errors[key] = reason;
+            errors[`${sectionName}.${key}`] = reason;
         }
     }
     return errors;

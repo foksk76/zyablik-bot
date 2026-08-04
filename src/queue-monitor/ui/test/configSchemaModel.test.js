@@ -6,6 +6,8 @@ import {
     SECTION_ORDER,
     sectionLabel,
     sectionFields,
+    pluginNames,
+    pluginFields,
     fieldDefault,
     toFormValue,
     coerceValue,
@@ -46,6 +48,15 @@ test('sectionFields: system and plugins', () => {
     assert.deepEqual(sectionFields(schema, 'unknown'), {});
 });
 
+test('pluginNames/pluginFields: вложенные группы ConfigForm', () => {
+    assert.deepEqual(pluginNames(schema), ['identity']);
+    assert.deepEqual(pluginNames({}), []);
+    assert.deepEqual(pluginNames(null), []);
+    assert.deepEqual(pluginFields(schema, 'identity').syncMode, { type: 'enum', enum: ['auto', 'manual'], default: 'auto' });
+    assert.deepEqual(pluginFields(schema, 'unknown'), {});
+    assert.deepEqual(pluginFields({}, 'identity'), {});
+});
+
 test('fieldDefault: primitives and list copy', () => {
     assert.equal(fieldDefault(schema.bot.logLevel), 'info');
     assert.equal(fieldDefault(schema.bot.maxPollLimit), 100);
@@ -80,16 +91,24 @@ test('validateValue: types, min/max, enum', () => {
     assert.equal(validateValue('anything', schema.bot.maxBotToken), null); // секрет не валидируется
 });
 
-test('validateSectionValues: collects errors', () => {
+test('validateSectionValues: collects errors (namespaced keys)', () => {
     const errors = validateSectionValues({
         logLevel: 'info',
         maxPollLimit: 0,
         maxTransportMode: 'nope'
     }, schema, 'bot');
-    assert.ok(errors.maxPollLimit);
-    assert.ok(errors.maxTransportMode);
-    assert.ok(!errors.logLevel);
-    assert.ok(!errors.maxBotToken); // секрет не в ошибках
+    assert.ok(errors['bot.maxPollLimit']);
+    assert.ok(errors['bot.maxTransportMode']);
+    assert.ok(!errors['bot.logLevel']);
+    assert.ok(!errors['bot.maxBotToken']); // секрет не в ошибках
+});
+
+test('validateSectionValues: plugins — валидирует под-поля с неймспейс-ключами', () => {
+    const errors = validateSectionValues({
+        identity: { syncMode: 'nope' }
+    }, schema, 'plugins');
+    assert.ok(errors['identity.syncMode']);
+    assert.equal(errors['identity.syncMode'], 'ожидается одно из: auto, manual');
 });
 
 test('buildStagedConfig: skips secrets, keeps plugin values', () => {

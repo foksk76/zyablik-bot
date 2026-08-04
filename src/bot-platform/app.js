@@ -57,6 +57,18 @@ function createBotPlatformApp(environment = process.env, options = {}) {
   };
 }
 
+// ADR-0045: снятие pending-маркера по готовности процесса (ready). Вызывается
+// в main() ПОСЛЕ успешного старта сервисов, чтобы окно авто-отката (pending→lkg)
+// не терялось при падении boot'а до реального подъёма. Повторный вызов — no-op:
+// при включённом monitor маркер уже снят createQueueMonitor по ready.
+function confirmConfigIfPending(configPath, logger) {
+    if (!configPath) {
+        return false;
+    }
+    const { confirmConfigApplied } = require('./core/config-store');
+    return confirmConfigApplied(configPath, { logger: logger || console });
+}
+
 function startBotPlatformService(environment = process.env, options = {}) {
   const app = createBotPlatformApp(environment);
 
@@ -280,14 +292,12 @@ async function startIngressAndQueue(config, options, io) {
   // массиве: queue-worker → queue-monitor → ingress → queue-store. Любая
   // ошибка логируется, но не прерывает остальные shutdown-шаги.
 
-  // ADR-0045: подтверждение конфига по готовности (ready). Когда monitor
-  // выключен, createQueueMonitor возвращает no-op и не вызывает confirm() —
-  // снимаем pending-маркер здесь, чтобы штатный Apply не откатился как
-  // «краш до ready». При включённом monitor второй вызов — no-op.
-  const { confirmConfigApplied } = require('./core/config-store');
-  if (options.configPath) {
-    confirmConfigApplied(options.configPath, { logger: options.logger || console });
-  }
+  // ADR-0045: подтверждение конфига по готовности (ready). Раньше маркер
+  // снимался здесь, до старта live-сервиса — при падении boot'а после этого
+  // окно авто-отката (pending → lkg) терялось. Теперь confirm вызывается
+  // в main() ПОСЛЕ старта сервисов: для monitor-enabled его делает
+  // createQueueMonitor по готовности HTTP-сервера, для остальных — явный
+  // вызов после старта. Повторный вызов — no-op (маркер уже снят).
 
   return {
     stop: async (shutdownIo) => {
@@ -345,6 +355,9 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
 
       const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 
+      // ADR-0045: подтверждение после старта сервисов (ready).
+      confirmConfigIfPending(app.core.configPath, options.logger || options.coreLogger);
+
       const shutdownIo = options.io || io;
       const onSignal = async () => {
         shutdownIo.stdout.write('Synthetic mode: coordinated shutdown\n');
@@ -375,6 +388,9 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
         shutdownHandle,
         io
       });
+      // ADR-0045: подтверждение конфига ПОСЛЕ старта live-сервиса — падение
+      // boot'а до этой точки оставляет pending-маркер для авто-отката.
+      confirmConfigIfPending(app.core.configPath, options.logger || options.coreLogger);
       io.stdout.write('MAX bot-platform live service started in long_polling mode\n');
       return 0;
     } catch (error) {

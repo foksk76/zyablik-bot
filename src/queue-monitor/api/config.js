@@ -34,6 +34,7 @@ const {
     applyConfig,
     rollbackConfig,
     readPending,
+    confirmConfigApplied,
     DEFAULT_STARTUP_WAIT_MS
 } = require('../../bot-platform/core/config-store');
 
@@ -43,6 +44,11 @@ const MODULE_NAME = 'queue-monitor-config-api';
 // Отдельный пул от auth (ADR-0039), лимиты переопределяются через options.
 const DEFAULT_MUTATION_MAX = 10;
 const DEFAULT_MUTATION_WINDOW_MS = 60_000;
+
+// Таймаут чтения тела запроса — защита от зависших соединений: без него
+// обещание readJsonBody могло не сеттлиться вовсе и мутационный single-flight
+// lock навсегда оставался занятым.
+const READ_BODY_TIMEOUT_MS = 30_000;
 
 function createConfigMutationRateLimiter(options = {}) {
     const max = typeof options.max === 'number' && options.max > 0 ? options.max : DEFAULT_MUTATION_MAX;
@@ -81,28 +87,97 @@ function createConfigMutationRateLimiter(options = {}) {
 }
 
 // Чтение JSON-тела запроса (с лимитом размера). Возвращает Promise.
+// Гарантированно сеттлится ровно один раз: таймаут, close/aborted на
+// соединении и error всегда отклоняют, даже если 'data'/'end' уже пришли —
+// иначе мутационный single-flight lock в putStage/importConfig никогда не
+// освобождается (finally ждёт этот Promise вечно).
 function readJsonBody(req, limitBytes = 1_000_000) {
     return new Promise((resolve, reject) => {
         const chunks = [];
         let size = 0;
-        req.on('data', (chunk) => {
+        let settled = false;
+        let timer = null;
+
+        // settle не должен бросать: исключение из cleanup (например, у
+        // тестового stream'а нет removeListener) не должно орфанить Promise —
+        // иначе 'finally' мутационного single-flight lock повиснет навсегда.
+        const settle = (error, value) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            if (timer !== null) {
+                clearTimeout(timer);
+            }
+            try {
+                cleanup();
+            } catch {
+                // noop
+            }
+            if (error) {
+                reject(error);
+            } else {
+                resolve(value);
+            }
+        };
+
+        const fail = (error) => settle(error || new Error('Request body read aborted'));
+
+        function cleanup() {
+            if (typeof req.removeListener !== 'function') {
+                return;
+            }
+            req.removeListener('data', onData);
+            req.removeListener('end', onEnd);
+            req.removeListener('error', onError);
+            req.removeListener('close', onClose);
+            req.removeListener('aborted', onAborted);
+        }
+
+        function onData(chunk) {
             size += chunk.length;
             if (size > limitBytes) {
-                reject(new Error('Body too large'));
+                fail(new Error('Body too large'));
                 req.destroy();
                 return;
             }
             chunks.push(chunk);
-        });
-        req.on('end', () => {
+        }
+
+        function onEnd() {
             try {
                 const raw = Buffer.concat(chunks).toString('utf8');
-                resolve(raw.trim() === '' ? null : JSON.parse(raw));
+                settle(null, raw.trim() === '' ? null : JSON.parse(raw));
             } catch (error) {
-                reject(error);
+                fail(error);
             }
-        });
-        req.on('error', reject);
+        }
+
+        function onError(error) {
+            fail(error);
+        }
+
+        function onClose() {
+            fail(new Error('Request closed before body was fully read'));
+        }
+
+        function onAborted() {
+            fail(new Error('Request aborted before body was fully read'));
+        }
+
+        // Плавающий таймаут: защита от зависших соединений. Сеттлит reject
+        // даже если событий не было вовсе.
+        timer = setTimeout(() => {
+            fail(new Error('Request body read timed out'));
+            req.destroy();
+        }, READ_BODY_TIMEOUT_MS);
+        timer.unref();
+
+        req.on('data', onData);
+        req.on('end', onEnd);
+        req.on('error', onError);
+        req.on('close', onClose);
+        req.on('aborted', onAborted);
     });
 }
 
@@ -110,7 +185,8 @@ function readJsonBody(req, limitBytes = 1_000_000) {
 // Секретные поля (field.secret) не показываются: в UI/диффе — только статус
 // «задан / не задан» (ADR-0045/0046). Для системных секций фильтруются ключи
 // со secret:true; для веток plugins.<name>.* — секретные под-ключи по
-// configSchema плагина. Возвращает [ { section, key, old, new } ].
+// configSchema плагина. Формат строк совпадает с клиентским buildDiff:
+// системная секция — { section, key }, плагин — { section: pluginName, key }.
 function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
     const active = activeConfig || {};
     const staged = stagedConfig || {};
@@ -131,19 +207,21 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
         return Boolean(field && field.secret);
     }
 
-    // Убирает секретные под-ключи из значения ветки плагина (для diff).
-    function redactPluginSecrets(pluginName, value) {
+    function isPluginSecretField(pluginName, key) {
         const schema = pluginSchemas[pluginName];
-        if (!schema || value === null || typeof value !== 'object' || Array.isArray(value)) {
-            return value;
+        const field = schema ? schema[key] : null;
+        return Boolean(field && field.secret);
+    }
+
+    function pushRow(section, key, oldValue, newValue) {
+        if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+            diff.push({
+                section,
+                key,
+                old: oldValue === undefined ? null : oldValue,
+                new: newValue === undefined ? null : newValue
+            });
         }
-        const redacted = { ...value };
-        for (const key of Object.keys(value)) {
-            if (schema[key] && schema[key].secret) {
-                delete redacted[key];
-            }
-        }
-        return redacted;
     }
 
     const sectionNames = new Set([...Object.keys(active), ...Object.keys(staged)]);
@@ -153,24 +231,88 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
         }
         const activeSection = active[sectionName] && typeof active[sectionName] === 'object' ? active[sectionName] : {};
         const stagedSection = staged[sectionName] && typeof staged[sectionName] === 'object' ? staged[sectionName] : {};
+        if (sectionName === 'plugins') {
+            // plugins.<name>.* — дифф по под-ключам, секреты пропускаются.
+            const pluginNames = new Set([...Object.keys(activeSection), ...Object.keys(stagedSection)]);
+            for (const pluginName of pluginNames) {
+                const a = activeSection[pluginName] && typeof activeSection[pluginName] === 'object' && !Array.isArray(activeSection[pluginName])
+                    ? activeSection[pluginName] : {};
+                const s = stagedSection[pluginName] && typeof stagedSection[pluginName] === 'object' && !Array.isArray(stagedSection[pluginName])
+                    ? stagedSection[pluginName] : {};
+                const keys = new Set([...Object.keys(a), ...Object.keys(s)]);
+                for (const key of keys) {
+                    if (isPluginSecretField(pluginName, key)) {
+                        continue;
+                    }
+                    pushRow(pluginName, key, a[key], s[key]);
+                }
+            }
+            continue;
+        }
         const keys = new Set([...Object.keys(activeSection), ...Object.keys(stagedSection)]);
         for (const key of keys) {
             if (isSecretField(sectionName, key)) {
                 continue;
             }
-            let oldValue = activeSection[key];
-            let newValue = stagedSection[key];
-            if (sectionName === 'plugins') {
-                oldValue = redactPluginSecrets(key, oldValue);
-                newValue = redactPluginSecrets(key, newValue);
-            }
-            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-                diff.push({ section: sectionName, key, old: oldValue === undefined ? null : oldValue, new: newValue === undefined ? null : newValue });
-            }
+            pushRow(sectionName, key, activeSection[key], stagedSection[key]);
         }
     }
 
     return diff;
+}
+
+// Маскирование staged-снапшота для ответов API: секретные поля системы и
+// плагинов не уходят наружу даже как $VAR-имя — только статус
+// { secret: true, set }. Файл на диске не трогается; export остаётся
+// сырым редактором ($VAR в нём легитимен).
+function maskStagedSecrets(fileConfig, plugins = []) {
+    if (!fileConfig || typeof fileConfig !== 'object') {
+        return fileConfig;
+    }
+    const result = { ...fileConfig };
+
+    for (const sectionName of SYSTEM_SECTION_KEYS) {
+        const section = result[sectionName];
+        if (!section || typeof section !== 'object') {
+            continue;
+        }
+        const masked = { ...section };
+        for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
+            if (field.secret && masked[key] !== undefined) {
+                masked[key] = { secret: true, set: typeof masked[key] === 'string' && masked[key] !== '' };
+            }
+        }
+        result[sectionName] = masked;
+    }
+
+    const pluginSchemas = {};
+    for (const plugin of plugins || []) {
+        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
+            pluginSchemas[plugin.name] = plugin.configSchema;
+        }
+    }
+    if (result.plugins && typeof result.plugins === 'object') {
+        const maskedPlugins = {};
+        for (const [pluginName, pluginValue] of Object.entries(result.plugins)) {
+            if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
+                maskedPlugins[pluginName] = pluginValue;
+                continue;
+            }
+            const schema = pluginSchemas[pluginName];
+            const masked = { ...pluginValue };
+            if (schema) {
+                for (const [key, field] of Object.entries(schema)) {
+                    if (field.secret && masked[key] !== undefined) {
+                        masked[key] = { secret: true, set: typeof masked[key] === 'string' && masked[key] !== '' };
+                    }
+                }
+            }
+            maskedPlugins[pluginName] = masked;
+        }
+        result.plugins = maskedPlugins;
+    }
+
+    return result;
 }
 
 // Сериализация effective-конфига: секреты маскируются до { secret: true, set }.
@@ -349,7 +491,7 @@ function createConfigApi(options = {}) {
                 status: 'ok',
                 data: {
                     exists: stagedExists(configPath),
-                    staged,
+                    staged: maskStagedSecrets(staged, plugins),
                     diff: computeConfigDiff(active, staged, plugins)
                 }
             }
@@ -383,7 +525,7 @@ function createConfigApi(options = {}) {
                 body: {
                     status: 'ok',
                     data: {
-                        staged: merged,
+                        staged: maskStagedSecrets(merged, plugins),
                         diff: computeConfigDiff(active, merged, plugins)
                     }
                 }
@@ -532,7 +674,7 @@ function createConfigApi(options = {}) {
                 body: {
                     status: 'ok',
                     data: {
-                        staged: merged,
+                        staged: maskStagedSecrets(merged, plugins),
                         diff: computeConfigDiff(active, merged, plugins)
                     }
                 }
@@ -546,7 +688,6 @@ function createConfigApi(options = {}) {
 
     // Подтверждение apply по готовности процесса (ready): снимает pending-маркер.
     function confirm() {
-        const { confirmConfigApplied } = require('../../bot-platform/core/config-store');
         const confirmed = confirmConfigApplied(configPath, { logger });
         if (confirmed) {
             state = {
@@ -621,6 +762,7 @@ module.exports = {
     createConfigApi,
     createConfigMutationRateLimiter,
     computeConfigDiff,
+    maskStagedSecrets,
     buildEffectiveSections,
     buildExportConfig,
     DEFAULT_MUTATION_MAX,

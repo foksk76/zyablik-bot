@@ -46,15 +46,15 @@ const DEFAULT_MAX_STARTUP_ATTEMPTS = 5;
 // Формат — как в существующем audit (delivery/auth): module=config,
 // action=config.*, context без литеральных секретов.
 function logConfigAudit(logger, action, context) {
-  if (!logger || typeof logger.info !== 'function') {
-    return;
-  }
-  logger.info({
-    level: 'info',
-    module: 'config',
-    action,
-    context
-  });
+    if (!logger || typeof logger.info !== 'function') {
+        return;
+    }
+    logger.info({
+        level: 'info',
+        module: 'config',
+        action,
+        context
+    });
 }
 
 function appendSuffix(filePath, suffix) {
@@ -71,11 +71,28 @@ function serviceFilePaths(configPath) {
     };
 }
 
-function readJsonFile(filePath) {
+// Толерантное чтение JSON-файла без raw-исключений: повреждённый (невалидный)
+// JSON возвращает { ok:false, error } вместо бросания SyntaxError. Используется
+// стартовым детектором, чтобы коррупция активного конфига попадала в карантин
+// и восстановление из lkg, а не роняла процесс на битом файле.
+// Нормальный результат: { ok:true, data } (data === null, если файла нет).
+function readJsonFileSafe(filePath) {
     if (!fs.existsSync(filePath)) {
-        return null;
+        return { ok: true, data: null };
     }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    try {
+        return { ok: true, data: JSON.parse(fs.readFileSync(filePath, 'utf8')) };
+    } catch (error) {
+        return { ok: false, error };
+    }
+}
+
+function readJsonFile(filePath) {
+    const result = readJsonFileSafe(filePath);
+    if (!result.ok) {
+        throw result.error;
+    }
+    return result.data;
 }
 
 function atomicWriteJson(filePath, value) {
@@ -151,10 +168,13 @@ function writePending(configPath, fileConfig, appliedAt = new Date()) {
 
 function readPending(configPath) {
     const { pendingPath } = serviceFilePaths(configPath);
-    const marker = readJsonFile(pendingPath);
-    if (!marker) {
+    // Повреждённый pending-маркер приравнивается к отсутствующему: маркер —
+    // производные данные, а не конфиг, и не должен блокировать старт.
+    const result = readJsonFileSafe(pendingPath);
+    if (!result.ok || !result.data) {
         return null;
     }
+    const marker = result.data;
     return {
         hash: typeof marker.hash === 'string' ? marker.hash : null,
         appliedAt: typeof marker.appliedAt === 'string' ? marker.appliedAt : null,
@@ -286,7 +306,10 @@ function applyConfig(configPath, fileConfig, options = {}) {
     const { lkgPath, configPath: activePath } = serviceFilePaths(configPath);
 
     // 1. Сохраняем существующие секреты активного конфига (UI их не шлёт).
-    const activeConfig = readJsonFile(activePath);
+    // Повреждённый активный файл не должен блокировать Apply: секреты не
+    // сохраняются, lkg не пишется (нечего бэкапить).
+    const activeResult = readJsonFileSafe(activePath);
+    const activeConfig = activeResult.ok ? activeResult.data : null;
     const fileConfigToWrite = mergePreservedSecrets(activeConfig, fileConfig);
 
     // 2. pre-validate (не трогает активный конфиг при отказе).
@@ -336,21 +359,35 @@ function applyConfig(configPath, fileConfig, options = {}) {
 // Возвращает { state, reason, restoredFrom, quarantinePath, fileConfig }.
 // state: 'ok' | 'quarantine' | 'rolled_back' | 'refused' (имена — по ADR-0046)
 function runStartupConfigDetector(configPath, options = {}) {
-    const { configPath: activePath, pendingPath } = serviceFilePaths(configPath);
-    const lkg = readLkg(configPath);
+    const { configPath: activePath, pendingPath, lkgPath } = serviceFilePaths(configPath);
+    // Толерантное чтение: коррупция (невалидный JSON) активного/lkg файла не
+    // роняет детектор raw-исключением, а попадает в ветки карантина/отказа —
+    // иначе битый файл обходил бы всю защиту ADR-0045.
+    const activeResult = readJsonFileSafe(activePath);
+    const lkgResult = readJsonFileSafe(lkgPath);
     const pending = readPending(configPath);
-    const active = readJsonFile(activePath);
     const warnings = [];
+    const active = activeResult.ok ? activeResult.data : null;
+    const lkg = lkgResult.ok ? lkgResult.data : null;
+    const activeReadError = activeResult.ok ? null : activeResult.error;
+    const lkgReadError = lkgResult.ok ? null : lkgResult.error;
 
-    // 1. Валидационный отказ активного файла → карантин + восстановление lkg.
-    if (active !== null) {
-        try {
-            preValidateConfigFile(active, {
-                environment: options.environment || process.env,
-                plugins: options.plugins
-            });
-        } catch (validationError) {
-            if (lkg === null) {
+    // 1. Валидационный отказ активного файла (включая коррупцию JSON) →
+    // карантин + восстановление lkg.
+    if (active !== null || activeReadError !== null) {
+        let validationError = activeReadError;
+        if (validationError === null) {
+            try {
+                preValidateConfigFile(active, {
+                    environment: options.environment || process.env,
+                    plugins: options.plugins
+                });
+            } catch (error) {
+                validationError = error;
+            }
+        }
+        if (validationError !== null) {
+            if (lkg === null || lkgReadError !== null) {
                 logConfigAudit(options.logger, 'config.validate_failed', {
                     configPath: activePath,
                     reason: validationError.message,
@@ -445,10 +482,10 @@ function runStartupConfigDetector(configPath, options = {}) {
             };
         }
 
-        if (lkg === null) {
+        if (lkg === null || lkgReadError !== null) {
             return {
                 state: 'ok',
-                reason: 'pending-маркер есть, но lkg отсутствует — откат невозможен, продолжаем',
+                reason: 'pending-маркер есть, но lkg отсутствует или повреждён — откат невозможен, продолжаем',
                 fileConfig: active
             };
         }
@@ -548,6 +585,7 @@ function rollbackConfig(configPath, options = {}) {
 module.exports = {
     serviceFilePaths,
     readJsonFile,
+    readJsonFileSafe,
     atomicWriteJson,
     computeConfigHash,
     writeStaged,

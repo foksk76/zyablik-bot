@@ -24,7 +24,8 @@ const schema = {
     },
     plugins: {
         identity: {
-            syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' }
+            syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' },
+            apiToken: { type: 'string', secret: true, default: '' }
         }
     }
 };
@@ -42,7 +43,7 @@ const sections = {
         queueEnabled: null
     },
     plugins: {
-        identity: { syncMode: 'auto' }
+        identity: { syncMode: 'auto', apiToken: { secret: true, set: true } }
     }
 };
 

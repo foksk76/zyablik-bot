@@ -77,6 +77,51 @@ test('createCore: невалидный файл с lkg → карантин + в
     assert.equal(core.config.logLevel, 'info');
 });
 
+// C1 (review): коррупция (невалидный JSON) активного файла должна попадать
+// в карантин + восстановление lkg, а не ронять createCore raw-исключением.
+test('createCore: битый JSON активного файла с lkg → карантин + восстановление', () => {
+    const dir = makeTempConfigDir();
+    const configPath = path.join(dir, 'zyablik.config.json');
+    fs.writeFileSync(configPath, '{ version: 1, bot: { logLevel: "info"', 'utf8');
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+
+    const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
+
+    assert.equal(core.recoveryState, 'quarantine');
+    assert.ok(core.quarantinePath.endsWith('.bad.json'));
+    assert.equal(core.config.logLevel, 'info');
+    const quarantineContent = fs.readFileSync(core.quarantinePath, 'utf8');
+    assert.match(quarantineContent, /logLevel/, 'карантин содержит сырой битый файл-улику');
+});
+
+// C1 (review): битый JSON активного файла без lkg → отказ старта (fail loudly).
+test('createCore: битый JSON активного файла без lkg → отказ старта (throw)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = path.join(dir, 'zyablik.config.json');
+    fs.writeFileSync(configPath, '{ broken json', 'utf8');
+
+    assert.throws(
+        () => createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath }),
+        (error) => {
+            assert.equal(error.code, 'CONFIG_STARTUP_REFUSED');
+            return true;
+        }
+    );
+});
+
+// C1 (review): битый JSON lkg при штатном старте (активный валиден, без pending)
+// не блокирует старт — lkg нужен только для восстановления.
+test('createCore: битый JSON lkg при валидном активном → старт продолжается', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    fs.writeFileSync(`${configPath}.lkg`, '{ broken json', 'utf8');
+
+    const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
+
+    assert.equal(core.recoveryState, 'ok');
+    assert.equal(core.config.logLevel, 'debug');
+});
+
 test('createCore: невалидный файл без lkg → отказ старта (throw)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { maxPollLimit: 99999 } });
