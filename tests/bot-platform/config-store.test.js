@@ -201,11 +201,11 @@ test('детектор: невалидный активный файл без lk
     assert.match(result.reason, /нет lkg/);
 });
 
-test('детектор: pending-маркер без подтверждения → авто-откат на lkg', () => {
+test('детектор: старый pending-маркер без подтверждения → авто-откат на lkg', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
 
@@ -217,10 +217,25 @@ test('детектор: pending-маркер без подтверждения �
     assert.equal(active.bot.logLevel, 'info');
 });
 
+test('детектор: свежий pending-маркер (штатный restart после Apply) → продолжаем', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug', maxPollLimit: 50 } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'ok');
+    assert.match(result.reason, /окно StartupWait/);
+    assert.equal(pendingExists(configPath), true, 'маркер не снимается — подтверждение по ready');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug', 'активный конфиг не откатывается');
+});
+
 test('детектор: pending без lkg — продолжаем, откат невозможен', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'ok');
@@ -231,7 +246,7 @@ test('детектор: pending + невалидный lkg — отказ', () =
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { maxPollLimit: 99999 } });
-    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000);
 
     const result = runStartupConfigDetector(configPath, { environment: {} });
     assert.equal(result.state, 'refused');

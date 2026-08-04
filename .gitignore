@@ -12,6 +12,12 @@ yarn-error.log*
 # Runtime databases
 delivery-queue.db*
 
+# Runtime config on the stand (ADR-0045): активный файл + служебные
+# (.lkg/.pending/.staged/.bad.json). $VAR-ссылки, но это стендовый артефакт.
+config/
+config/**
+!config/.gitkeep
+
 # Node / tooling
 node_modules/
 dist/
@@ -34,6 +40,9 @@ src/queue-monitor/ui/dist/
 .codex/skills/
 .local/agent-skills/
 vendor/agent-skills/
+
+# Session memory (не для репозитория)
+docs/memory.md
 
 # Local tooling artifacts (opencode, playwright MCP)
 .opencode/

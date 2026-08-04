@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const { startIngressAndQueue } = require('../../src/bot-platform/app');
 const { createLiveBotPlatformService, createLiveServiceShutdownHandlers } = require('../../src/bot-platform/runtime');
+const { envWithoutConfig } = require('../helpers/env-no-config');
 
 // ADR-0033: coordinated graceful shutdown для ingress/worker/queue-store.
 // Раньше signal handler вызывал только liveService.stop() (long-polling loop),
@@ -259,7 +260,7 @@ test('startIngressAndQueue does not throw ReferenceError on environment when mon
       outboundClient: fakeOutboundClient,
       // Внутренний config монитора читает MONITOR_ENABLED из environment.
       // false → createQueueMonitor вернёт no-op, без открытия порта/БД.
-      environment: { MONITOR_ENABLED: 'false' }
+      environment: envWithoutConfig({ MONITOR_ENABLED: 'false' })
     },
     { stdout: { write: () => {} }, stderr: { write: () => {} } }
   );

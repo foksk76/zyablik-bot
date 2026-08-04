@@ -33,8 +33,10 @@ function createIssuerVerifierFactory(issuer) {
   return null;
 }
 
-function createBotPlatformApp(environment = process.env) {
-  const core = createCore(environment);
+function createBotPlatformApp(environment = process.env, options = {}) {
+  const core = createCore(environment, {
+    logger: options.logger || options.coreLogger || console
+  });
   const transportMode = core.config.maxTransportMode;
   const pluginLoader = createPluginLoader(path.join(__dirname, 'plugins'));
 

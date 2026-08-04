@@ -130,11 +130,11 @@ function lkgExists(configPath) {
 
 // --- Pending-маркер (Task 3) ---
 
-function writePending(configPath, fileConfig) {
+function writePending(configPath, fileConfig, appliedAt = new Date()) {
     const { pendingPath } = serviceFilePaths(configPath);
     writeMarker(pendingPath, {
         hash: computeConfigHash(fileConfig),
-        appliedAt: new Date().toISOString()
+        appliedAt: new Date(appliedAt).toISOString()
     });
 }
 
@@ -347,8 +347,29 @@ function runStartupConfigDetector(configPath, options = {}) {
         }
     }
 
-    // 2. Pending-маркер: предыдущий Apply не был подтверждён (краш до ready).
+    // 2. Pending-маркер. ADR-0045: подтверждающий режим с окном StartupWait.
+    // Свежий маркер (записан < startupWaitMs назад) — штатный restart после
+    // Apply: процесс стартует с нового конфига, по ready confirm() снимет
+    // маркер. Старый маркер (>= startupWaitMs) — предыдущий процесс не вышел
+    // на ready (краш до ready) → авто-откат к lkg.
     if (pending !== null) {
+        const startupWaitMs = options.startupWaitMs || DEFAULT_STARTUP_WAIT_MS;
+        const appliedAtMs = pending.appliedAt ? Date.parse(pending.appliedAt) : null;
+        const pendingAgeMs = appliedAtMs ? Date.now() - appliedAtMs : Infinity;
+
+        if (Number.isFinite(pendingAgeMs) && pendingAgeMs < startupWaitMs) {
+            logConfigAudit(options.logger, 'config.pending', {
+                configPath: activePath,
+                reason: 'штатный restart после Apply (окно StartupWait), ожидается подтверждение по ready',
+                pendingAgeMs
+            });
+            return {
+                state: 'ok',
+                reason: 'pending-маркер свежий (штатный restart после Apply, окно StartupWait)',
+                fileConfig: active
+            };
+        }
+
         if (lkg === null) {
             return {
                 state: 'ok',

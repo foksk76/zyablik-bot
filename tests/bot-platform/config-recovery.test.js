@@ -40,11 +40,23 @@ test('createCore: валидный файл — recoveryState ok', () => {
     assert.equal(core.config.logLevel, 'debug');
 });
 
-test('createCore: pending без подтверждения → авто-откат на lkg', () => {
+test('createCore: свежий pending (штатный restart после Apply) → продолжаем', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
     writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
     writePending(configPath, { version: 1, bot: { logLevel: 'debug' } });
+
+    const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
+
+    assert.equal(core.recoveryState, 'ok');
+    assert.equal(core.config.logLevel, 'debug');
+});
+
+test('createCore: старый pending без подтверждения → авто-откат на lkg', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, Date.now() - 31_000);
 
     const core = createCore({ ...envWithSecrets, ZYABLIK_CONFIG: configPath });
 

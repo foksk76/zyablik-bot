@@ -205,6 +205,16 @@ SESSION_SECRET=             — секрет для подписи session cooki
 UI dashboard использует session auth после OAuth2 логина (ADR-0035).
 `METRICS_API_KEY` нужен только для внешних систем (Zabbix, Prometheus, curl).
 
+Конфигурация подтверждена на живом стенде (Sprint 41):
+
+```text
+- Стенд стартует из zyablik.config.json (секреты — $VAR-ссылки, без управляемых env)
+- Stage → Apply → рестарт → confirmed (свежий pending-маркер в окне StartupWait не откатывает конфиг)
+- Неподтверждённый Apply (краш до ready) → авто-откат к lkg + audit config.rollback
+- Policy-тесты секретов (tests/policy/config-secrets.test.js); npm test 855 pass / 0 fail
+- Прогон: docs/test-runs/config-apply-rollback-run.md
+```
+
 Реализовано и подтверждено:
 
 ```text

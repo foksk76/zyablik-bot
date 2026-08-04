@@ -5,7 +5,7 @@
   "description": "Zyablik — bot for delivering notifications in MAX messenger",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "node --test",
+    "test": "node --require ./tests/setup.js --test",
     "verify": "npm test",
     "build:ui": "cd src/queue-monitor/ui && npm install && npm run build",
     "build": "npm run build:ui"
