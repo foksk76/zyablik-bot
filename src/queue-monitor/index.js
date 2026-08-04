@@ -134,6 +134,9 @@ function createQueueMonitor(options = {}) {
         plugins: options.plugins || [],
         restart: options.configRestart || null,
         startupWaitMs: options.configStartupWaitMs,
+        // ADR-0046 (M6): стартовый детектор откатил/карантинировал конфиг —
+        // статус передаётся из createCore, иначе баннер недостижим после рестарта.
+        recovery: options.configRecovery || null,
         logger
     });
     httpServer.registerRoute('GET', '/api/config', auth.protectRoute(configApi.getConfig));
@@ -157,9 +160,11 @@ function createQueueMonitor(options = {}) {
     async function start() {
         await httpServer.start();
         logger.info(`[${MODULE_NAME}] Dashboard server started on port ${config.monitorPort}`);
-        // ADR-0045: по готовности HTTP-сервера снимаем pending-маркер
-        // (config.confirmed), если был незавершённый Apply.
-        configApi.confirm();
+        // ADR-0045: маркер НЕ снимается здесь. Dashboard поднимается раньше
+        // live-бота (app.js: startIngressAndQueue → startLiveService), а
+        // confirm() выполняется в main() ПОСЛЕ старта всех сервисов — иначе
+        // падение boot'а после ready dashboard'а теряло бы окно авто-отката
+        // (pending → lkg).
         if (authEnabled) {
             logger.info(`[${MODULE_NAME}] OAuth2 UI auth enabled (IdP: ${config.idpIssuer})`);
         }

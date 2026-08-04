@@ -2,6 +2,20 @@
 # Zyablik bot-platform — образ для стенда (ADR-0044/0045).
 # Конфигурация: файл zyablik.config.json в writable volume ./config
 # (ADR-0045); секреты — $VAR-ссылки из env/docker secrets (не литералы).
+
+# --- Стадия сборки UI (M5, ADR-0036/0046). ---
+# Dashboard отдаёт SPA из src/queue-monitor/ui/dist. dist gitignored, поэтому
+# без отдельной стадии образ остался бы без UI (только API).
+FROM node:22-bookworm-slim AS ui-build
+
+WORKDIR /ui
+
+COPY src/queue-monitor/ui/package.json src/queue-monitor/ui/package-lock.json ./
+RUN npm ci
+COPY src/queue-monitor/ui/ ./
+RUN npm run build
+
+# --- Runtime стадия. ---
 FROM node:22-bookworm-slim
 
 WORKDIR /opt/zyablik-bot
@@ -15,6 +29,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src/ ./src/
+# UI-сборка из стадии ui-build: в build context'е dist нет (gitignored, см.
+# .dockerignore), поэтому копируем готовый результат сборки.
+COPY --from=ui-build /ui/dist ./src/queue-monitor/ui/dist/
 COPY systemd/ ./systemd/
 
 ENV NODE_ENV=production

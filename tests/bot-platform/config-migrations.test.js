@@ -63,6 +63,21 @@ test('prepareConfigForLoad: отсутствие version нормализует�
     assert.equal(result.version, CURRENT_VERSION);
 });
 
+test('prepareConfigForLoad: отсутствие version добавляет ключ в конфиг (M3)', () => {
+    // Регрессия: Apply через UI/import писал активный файл без верхнеуровневого
+    // version, расходясь с --generate-config и примерами в доках.
+    const result = prepareConfigForLoad({ bot: { logLevel: 'debug' } });
+    assert.equal(result.error, null);
+    assert.equal(result.version, CURRENT_VERSION);
+    assert.deepEqual(result.config, { version: CURRENT_VERSION, bot: { logLevel: 'debug' } });
+});
+
+test('prepareConfigForLoad: отсутствие version не мутирует исходный объект', () => {
+    const raw = { bot: {} };
+    prepareConfigForLoad(raw);
+    assert.deepEqual(raw, { bot: {} });
+});
+
 test('migrateConfig: миграция детерминирована и идемпотентна', () => {
     const original = { version: 1, bot: { logLevel: 'debug' } };
     const first = migrateConfig(original, 1);

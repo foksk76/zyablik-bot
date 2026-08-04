@@ -193,22 +193,11 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
 
     // configSchema плагинов: pluginName → schema (для фильтрации секретов
     // в ветках plugins.<name>.*).
-    const pluginSchemas = {};
-    for (const plugin of plugins || []) {
-        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
-            pluginSchemas[plugin.name] = plugin.configSchema;
-        }
-    }
+    const pluginSchemas = buildPluginSchemas(plugins);
 
     function isSecretField(sectionName, key) {
         const schemaSection = SYSTEM_SCHEMA[sectionName];
         const field = schemaSection ? schemaSection[key] : null;
-        return Boolean(field && field.secret);
-    }
-
-    function isPluginSecretField(pluginName, key) {
-        const schema = pluginSchemas[pluginName];
-        const field = schema ? schema[key] : null;
         return Boolean(field && field.secret);
     }
 
@@ -240,7 +229,12 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
                     ? stagedSection[pluginName] : {};
                 const keys = new Set([...Object.keys(a), ...Object.keys(s)]);
                 for (const key of keys) {
-                    if (isPluginSecretField(pluginName, key)) {
+                    if (isPluginSecretField(pluginSchemas, pluginName, key)) {
+                        continue;
+                    }
+                    // Необъявленные configSchema ключи (ветка без configSchema)
+                    // — потенциальные секреты: в diff не попадают (m4).
+                    if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
                         continue;
                     }
                     // $VAR-ссылка в ветке плагина приравнивается к секрету
@@ -272,6 +266,35 @@ function maskSecret(value) {
     return { secret: true, set: typeof value === 'string' && value !== '' };
 }
 
+// configSchema плагинов: pluginName → schema (для фильтрации секретов
+// в ветках plugins.<name>.*).
+function buildPluginSchemas(plugins = []) {
+    const schemas = {};
+    for (const plugin of plugins || []) {
+        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
+            schemas[plugin.name] = plugin.configSchema;
+        }
+    }
+    return schemas;
+}
+
+// Объявленное configSchema секретное поле ветки плагина.
+function isPluginSecretField(pluginSchemas, pluginName, key) {
+    const schema = pluginSchemas[pluginName];
+    const field = schema ? schema[key] : null;
+    return Boolean(field && field.secret);
+}
+
+// Объявленное configSchema НЕсекретное поле ветки плагина. Ветки без
+// configSchema (неизвестный плагин) и необъявленные ключи не имеют таких
+// полей — их значения считаются потенциальными секретами и не раскрываются
+// (defense-in-depth, m4).
+function isDeclaredPluginField(pluginSchemas, pluginName, key) {
+    const schema = pluginSchemas[pluginName];
+    const field = schema ? schema[key] : null;
+    return Boolean(field && !field.secret);
+}
+
 // Маскирование staged-снапшота для ответов API: секретные поля системы и
 // плагинов не уходят наружу даже как $VAR-имя — только статус
 // { secret: true, set }. Файл на диске не трогается; export остаётся
@@ -296,12 +319,7 @@ function maskStagedSecrets(fileConfig, plugins = []) {
         result[sectionName] = masked;
     }
 
-    const pluginSchemas = {};
-    for (const plugin of plugins || []) {
-        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
-            pluginSchemas[plugin.name] = plugin.configSchema;
-        }
-    }
+    const pluginSchemas = buildPluginSchemas(plugins);
     if (result.plugins && typeof result.plugins === 'object') {
         const maskedPlugins = {};
         for (const [pluginName, pluginValue] of Object.entries(result.plugins)) {
@@ -318,11 +336,20 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                     }
                 }
             }
-            // Защита веток без configSchema (и неизвестных ключей): $VAR-ссылка
-            // приравнивается к секрету — наружу не уходит даже имя переменной.
+            // Defense-in-depth (m4): защита веток без configSchema и
+            // необъявленных ключей. $VAR-ссылка маскируется всегда (наружу не
+            // уходит даже имя переменной). Литеральная строка в необъявленном
+            // ключе тоже маскируется — без схемы нельзя отличить настройку от
+            // литерального секрета.
             for (const [key, value] of Object.entries(masked)) {
                 if (isVarReference(value)) {
                     masked[key] = maskSecret(value);
+                    continue;
+                }
+                if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                    if (typeof value === 'string' && value !== '') {
+                        masked[key] = maskSecret(value);
+                    }
                 }
             }
             maskedPlugins[pluginName] = masked;
@@ -354,12 +381,7 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
         sections[sectionName] = section;
     }
 
-    const pluginSchemas = {};
-    for (const plugin of plugins) {
-        if (plugin && plugin.name && plugin.configSchema && typeof plugin.configSchema === 'object') {
-            pluginSchemas[plugin.name] = plugin.configSchema;
-        }
-    }
+    const pluginSchemas = buildPluginSchemas(plugins);
     const pluginSection = {};
     if (fileConfig && fileConfig.plugins && typeof fileConfig.plugins === 'object') {
         for (const [pluginName, pluginValue] of Object.entries(fileConfig.plugins)) {
@@ -376,11 +398,18 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
                     }
                 }
             }
-            // Защита веток без configSchema (и неизвестных ключей): $VAR-ссылка
-            // приравнивается к секрету — наружу не уходит даже имя переменной.
+            // Defense-in-depth (m4): защита веток без configSchema и
+            // необъявленных ключей — литеральная строка в таком ключе
+            // маскируется целиком (без схемы настройка неотличима от секрета).
             for (const [key, value] of Object.entries(section)) {
                 if (isVarReference(value)) {
                     section[key] = maskSecret(value);
+                    continue;
+                }
+                if (!isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                    if (typeof value === 'string' && value !== '') {
+                        section[key] = maskSecret(value);
+                    }
                 }
             }
             pluginSection[pluginName] = section;
@@ -450,6 +479,22 @@ function createConfigApi(options = {}) {
         restoredAt: null,
         restoredFrom: null
     };
+    // ADR-0046 (M6): результат стартового детектора (rolled_back/quarantine)
+    // прокидывается из createCore через options.recovery. Без этого после
+    // crash-restart баннер отката был бы недостижим: in-memory состояние API
+    // каждый рестарт сбрасывалось в idle, хотя конфиг уже откатился к lkg.
+    const recovery = options.recovery || null;
+    if (recovery && (recovery.state === 'rolled_back' || recovery.state === 'quarantine')) {
+        state = {
+            state: recovery.state,
+            reason: recovery.reason || null,
+            appliedAt: null,
+            appliedHash: null,
+            appliedAtMs: null,
+            restoredAt: new Date().toISOString(),
+            restoredFrom: recovery.restoredFrom || null
+        };
+    }
     let mutationInProgress = false;
 
     function tryAcquireMutation() {
@@ -591,7 +636,15 @@ function createConfigApi(options = {}) {
             const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
             // UI/import не передают секреты — сохраняем $VAR-ссылки активного
             // конфига, чтобы diff был корректным и Apply не затирал их.
-            const active = readJsonFile(configPath);
+            // Толерантное чтение: повреждённый активный файл не роняет API
+            // (500) — обрабатывается как отсутствующий (карантин битого файла
+            // — задача стартового детектора), секреты не переносятся.
+            let active = null;
+            try {
+                active = readJsonFile(configPath);
+            } catch (error) {
+                active = null;
+            }
             const merged = mergePreservedSecrets(active, fileConfig);
             writeStaged(configPath, merged);
             logConfigAudit('config.stage', { configPath });
@@ -750,8 +803,14 @@ function createConfigApi(options = {}) {
 
             const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
             // Сохраняем существующие секреты активного конфига (импорт обычно
-            // редактирует несекретные поля).
-            const active = readJsonFile(configPath);
+            // редактирует несекретные поля). Толерантное чтение активного
+            // файла: повреждённый не роняет API (500) — см. putStage.
+            let active = null;
+            try {
+                active = readJsonFile(configPath);
+            } catch (error) {
+                active = null;
+            }
             const merged = mergePreservedSecrets(active, fileConfig);
             writeStaged(configPath, merged);
             logConfigAudit('config.import', { configPath });

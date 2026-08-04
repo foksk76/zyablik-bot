@@ -81,8 +81,11 @@ function prepareConfigForLoad(rawConfig) {
         return { config: rawConfig, version, error: supportedError };
     }
 
+    // Нормализация отсутствующего version к 1 должна попасть и в сам конфиг:
+    // иначе Apply через UI/import писал бы активный файл без верхнеуровневого
+    // version, расходясь с --generate-config и примерами в доках.
     if (version === CURRENT_VERSION) {
-        return { config: rawConfig, version, error: null };
+        return { config: withExplicitVersion(rawConfig, version), version, error: null };
     }
 
     try {
@@ -91,6 +94,18 @@ function prepareConfigForLoad(rawConfig) {
     } catch (migrationError) {
         return { config: rawConfig, version, error: migrationError.message };
     }
+}
+
+// Копия верхнего уровня с явным version. Создаёт новый объект, исходный не
+// мутирует (версный файл возвращается как есть).
+function withExplicitVersion(rawConfig, version) {
+    if (rawConfig === null || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+        return rawConfig;
+    }
+    if (rawConfig.version !== undefined) {
+        return rawConfig;
+    }
+    return { ...rawConfig, version };
 }
 
 module.exports = {

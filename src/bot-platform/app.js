@@ -58,9 +58,9 @@ function createBotPlatformApp(environment = process.env, options = {}) {
 }
 
 // ADR-0045: снятие pending-маркера по готовности процесса (ready). Вызывается
-// в main() ПОСЛЕ успешного старта сервисов, чтобы окно авто-отката (pending→lkg)
-// не терялось при падении boot'а до реального подъёма. Повторный вызов — no-op:
-// при включённом monitor маркер уже снят createQueueMonitor по ready.
+// в main() ПОСЛЕ успешного старта всех сервисов (включая live-бот), чтобы окно
+// авто-отката (pending→lkg) не терялось при падении boot'а до реального
+// подъёма. Повторный вызов — no-op (маркер уже снят).
 function confirmConfigIfPending(configPath, logger) {
     if (!configPath) {
         return false;
@@ -263,7 +263,8 @@ async function startIngressAndQueue(config, options, io) {
       // ADR-0046: конфигурация для /api/config/* (configPath, плагины, рестарт).
       configPath: options.configPath,
       plugins: options.plugins || [],
-      configRestart: options.configRestart
+      configRestart: options.configRestart,
+      configRecovery: options.configRecovery
     });
 
     await monitor.start();
@@ -296,12 +297,11 @@ async function startIngressAndQueue(config, options, io) {
   // массиве: queue-worker → queue-monitor → ingress → queue-store. Любая
   // ошибка логируется, но не прерывает остальные shutdown-шаги.
 
-  // ADR-0045: подтверждение конфига по готовности (ready). Раньше маркер
-  // снимался здесь, до старта live-сервиса — при падении boot'а после этого
-  // окно авто-отката (pending → lkg) терялось. Теперь confirm вызывается
-  // в main() ПОСЛЕ старта сервисов: для monitor-enabled его делает
-  // createQueueMonitor по готовности HTTP-сервера, для остальных — явный
-  // вызов после старта. Повторный вызов — no-op (маркер уже снят).
+  // ADR-0045: подтверждение конфига по готовности (ready) выполняется в main()
+  // ПОСЛЕ старта всех сервисов (включая live-бот). Dashboard-сервер НЕ снимает
+  // маркер при своём старте: он поднимается раньше live-бота, и при падении
+  // boot'а после ready dashboard'а окно авто-отката (pending → lkg) терялось
+  // бы. Повторный вызов confirm — no-op (маркер уже снят).
 
   return {
     stop: async (shutdownIo) => {
@@ -350,7 +350,15 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
   const ingressOptions = {
     ...options,
     plugins: app.plugins,
-    configPath: app.core.configPath
+    configPath: app.core.configPath,
+    // ADR-0046 (M6): результат стартового детектора (rolled_back/quarantine)
+    // попадает в /api/config/status, чтобы баннер отката был достижим после
+    // crash-restart (in-memory состояние API сбрасывается при рестарте).
+    configRecovery: {
+      state: app.core.recoveryState,
+      reason: app.core.recoveryReason,
+      restoredFrom: app.core.restoredFrom
+    }
   };
 
   if (argv.length === 0) {

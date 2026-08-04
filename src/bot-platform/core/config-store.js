@@ -97,8 +97,14 @@ function readJsonFile(filePath) {
 
 function atomicWriteJson(filePath, value) {
     const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-    fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-    fs.renameSync(tempPath, filePath);
+    try {
+        fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+        fs.renameSync(tempPath, filePath);
+    } catch (error) {
+        // Не оставлять .tmp-мусор после сбоя (падение записи, диск заполнен).
+        removeFileIfExists(tempPath);
+        throw error;
+    }
 }
 
 function writeMarker(filePath, content) {

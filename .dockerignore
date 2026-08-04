@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Исключения из build context (M5). Без них COPY src/ тащил бы в образ
+# host-сбоку node_modules и gitignored dist, раздувая его и перекрывая
+# многостадийную сборку UI (Dockerfile: стадия ui-build).
+.git
+node_modules
+src/queue-monitor/ui/node_modules
+src/queue-monitor/ui/dist
+src/queue-monitor/ui/storybook-static

@@ -351,9 +351,9 @@ node src/bot-platform/app.js --generate-config
   "version": 1,
   "bot": { "logLevel": "info", "maxTransportMode": "long_polling",
            "maxBotToken": "$MAX_BOT_TOKEN" },
-  "queue": { "queueEnabled": false },
-  "ingress": { "ingressEnabled": false },
-  "monitor": { "monitorEnabled": true, "monitorPort": 9000,
+  "queue": { "enabled": false },
+  "ingress": { "enabled": false },
+  "monitor": { "enabled": true, "port": 9000,
                "metricsApiKey": "$METRICS_API_KEY",
                "sessionSecret": "$SESSION_SECRET" },
   "plugins": {}

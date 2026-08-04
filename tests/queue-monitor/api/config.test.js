@@ -261,6 +261,37 @@ test('getStatus: idle by default', () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('getStatus: recovery из стартового детектора доступен после рестарта (M6)', () => {
+    // Регрессия: после crash-restart in-memory состояние API сбрасывается в
+    // idle, и баннер отката был бы недостижим. createCore передаёт результат
+    // детектора через options.recovery — он должен стать начальным статусом.
+    const { dir, configPath } = tmpConfig(undefined);
+    const recovery = {
+        state: 'rolled_back',
+        reason: 'предыдущий Apply не подтверждён (краш до ready), восстановлен lkg',
+        restoredFrom: 'lkg'
+    };
+    const api = createConfigApi({ environment: {}, configPath, recovery });
+    const result = api.getStatus({});
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.data.state, 'rolled_back');
+    assert.equal(result.body.data.restoredFrom, 'lkg');
+    assert.match(result.body.data.reason, /не подтверждён/);
+    assert.ok(result.body.data.restoredAt);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: idle не перетирается recovery со state=ok', () => {
+    const { dir, configPath } = tmpConfig(undefined);
+    const api = createConfigApi({
+        environment: {},
+        configPath,
+        recovery: { state: 'ok', reason: null, restoredFrom: null }
+    });
+    assert.equal(api.getStatus({}).body.data.state, 'idle');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- PUT /api/config/stage ---
 
 test('putStage: validates and stores staged config with diff', async () => {
@@ -515,48 +546,63 @@ test('putStage: секреты плагинов маскируются в staged
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// --- Schemaless-плагины: $VAR-маскирование (I5) ---
+// --- Schemaless-плагины: маскирование значений (defense-in-depth, m4) ---
 
-test('buildEffectiveSections: $VAR в ветке плагина без configSchema маскируется, литерал — как есть', () => {
+test('buildEffectiveSections: ветка плагина без configSchema маскирует и $VAR, и литералы', () => {
     const fileConfig = {
         version: CURRENT_VERSION,
-        plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } }
+        plugins: { legacy: { token: '$LEGACY_TOKEN', apiKey: 'sk-literal-secret', syncMode: 'auto' } }
     };
     const result = buildEffectiveSections(fileConfig, true, []);
     assert.deepEqual(result.sections.plugins.legacy.token, { secret: true, set: true });
-    assert.equal(result.sections.plugins.legacy.syncMode, 'auto');
+    assert.deepEqual(result.sections.plugins.legacy.apiKey, { secret: true, set: true });
+    assert.deepEqual(result.sections.plugins.legacy.syncMode, { secret: true, set: true });
     assert.ok(!JSON.stringify(result).includes('$LEGACY_TOKEN'), 'наружу не уходит даже $VAR-имя');
+    assert.ok(!JSON.stringify(result).includes('sk-literal-secret'), 'наружу не уходит литеральный секрет');
 });
 
-test('maskStagedSecrets: $VAR в ветке плагина без configSchema маскируется', () => {
-    const staged = { version: 1, plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } } };
+test('maskStagedSecrets: ветка плагина без configSchema маскирует и $VAR, и литералы', () => {
+    const staged = { version: 1, plugins: { legacy: { token: '$LEGACY_TOKEN', apiKey: 'sk-literal-secret', syncMode: 'auto' } } };
     const masked = maskStagedSecrets(staged, []);
     assert.deepEqual(masked.plugins.legacy.token, { secret: true, set: true });
-    assert.equal(masked.plugins.legacy.syncMode, 'auto');
+    assert.deepEqual(masked.plugins.legacy.apiKey, { secret: true, set: true });
+    assert.deepEqual(masked.plugins.legacy.syncMode, { secret: true, set: true });
     assert.ok(!JSON.stringify(masked).includes('$LEGACY_TOKEN'));
+    assert.ok(!JSON.stringify(masked).includes('sk-literal-secret'));
 });
 
-test('computeConfigDiff: $VAR в ветке плагина без configSchema не попадает в diff', () => {
+test('computeConfigDiff: $VAR и необъявленные литералы ветки без configSchema не попадают в diff', () => {
     const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
-    const active = { version: 1, plugins: { identity: { token: '$OLD_TOKEN', syncMode: 'auto' } } };
-    const staged = { version: 1, plugins: { identity: { token: '$NEW_TOKEN', syncMode: 'manual' } } };
+    const active = { version: 1, plugins: { identity: { token: '$OLD_TOKEN', apiKey: 'old-literal', syncMode: 'auto' } } };
+    const staged = { version: 1, plugins: { identity: { token: '$NEW_TOKEN', apiKey: 'new-literal', syncMode: 'manual' } } };
     const diff = computeConfigDiff(active, staged, plugins);
-    assert.equal(diff.length, 1, 'только несекретное изменение');
+    assert.equal(diff.length, 1, 'только объявленное несекретное изменение');
     assert.equal(diff[0].key, 'syncMode');
     assert.ok(!JSON.stringify(diff).includes('$OLD_TOKEN') && !JSON.stringify(diff).includes('$NEW_TOKEN'));
+    assert.ok(!JSON.stringify(diff).includes('old-literal') && !JSON.stringify(diff).includes('new-literal'));
 });
 
-test('getConfig: $VAR в ветке плагина без configSchema не уходит наружу', () => {
+test('getConfig: ветка плагина без configSchema не уходит наружу (ни $VAR, ни литералы)', () => {
     const { dir, configPath } = tmpConfig({
         version: CURRENT_VERSION,
-        plugins: { legacy: { token: '$LEGACY_TOKEN', syncMode: 'auto' } }
+        plugins: { legacy: { token: '$LEGACY_TOKEN', apiKey: 'sk-literal-secret', syncMode: 'auto' } }
     });
     const api = createConfigApi({ environment: {}, configPath, plugins: [] });
     const result = api.getConfig({});
     assert.deepEqual(result.body.data.sections.plugins.legacy.token, { secret: true, set: true });
-    assert.equal(result.body.data.sections.plugins.legacy.syncMode, 'auto');
+    assert.deepEqual(result.body.data.sections.plugins.legacy.apiKey, { secret: true, set: true });
+    assert.deepEqual(result.body.data.sections.plugins.legacy.syncMode, { secret: true, set: true });
     assert.ok(!JSON.stringify(result.body).includes('$LEGACY_TOKEN'));
+    assert.ok(!JSON.stringify(result.body).includes('sk-literal-secret'));
     fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('buildEffectiveSections: объявленное несекретное поле плагина остаётся видимым', () => {
+    const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const fileConfig = { version: CURRENT_VERSION, plugins: { identity: { syncMode: 'manual', apiToken: '$ID_API_TOKEN' } } };
+    const result = buildEffectiveSections(fileConfig, true, plugins);
+    assert.equal(result.sections.plugins.identity.syncMode, 'manual');
+    assert.deepEqual(result.sections.plugins.identity.apiToken, { secret: true, set: true });
 });
 
 // --- Статус: restartInitiated (ручной vs авто-рестарт) ---

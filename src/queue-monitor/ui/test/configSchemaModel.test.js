@@ -76,6 +76,7 @@ test('toFormValue: masks secrets, falls back to defaults', () => {
 test('coerceValue: number/boolean/enum/list', () => {
     assert.deepEqual(coerceValue('42', schema.bot.maxPollLimit), { ok: true, value: 42 });
     assert.deepEqual(coerceValue('abc', schema.bot.maxPollLimit), { ok: false, value: null });
+    assert.deepEqual(coerceValue('2.5', schema.bot.maxPollLimit), { ok: false, value: null });
     assert.deepEqual(coerceValue('true', schema.bot.rateLimitEnabled), { ok: true, value: true });
     assert.deepEqual(coerceValue('long_polling', schema.bot.maxTransportMode), { ok: true, value: 'long_polling' });
     assert.deepEqual(coerceValue('nope', schema.bot.maxTransportMode), { ok: false, value: null });
@@ -95,6 +96,7 @@ test('coerceValue: очищенное поле → дефолт схемы (чи
 test('validateValue: types, min/max, enum', () => {
     assert.equal(validateValue('info', schema.bot.logLevel), null);
     assert.equal(validateValue(50, schema.bot.maxPollLimit), null);
+    assert.equal(validateValue(2.5, schema.bot.maxPollLimit), 'ожидается целое число');
     assert.equal(validateValue(0, schema.bot.maxPollLimit), 'меньше минимального значения 1');
     assert.equal(validateValue(5000, schema.bot.maxPollLimit), 'больше максимального значения 1000');
     assert.equal(validateValue('nope', schema.bot.maxTransportMode), 'ожидается одно из: long_polling, webhook');
@@ -139,6 +141,19 @@ test('buildStagedConfig: skips secrets, keeps plugin values', () => {
     assert.equal(staged.bot.logLevel, 'debug');
     assert.ok(!('maxBotToken' in staged.bot));
     assert.deepEqual(staged.plugins.identity, { syncMode: 'manual' });
+});
+
+test('buildStagedConfig: необъявленные ключи плагина не отправляются (m4)', () => {
+    // Ветки без configSchema и необъявленные ключи маскируются в API-ответах;
+    // в staged их не переносим — маска не должна уехать как литеральное значение.
+    const staged = buildStagedConfig({
+        plugins: {
+            identity: { syncMode: 'manual' },
+            legacy: { token: { secret: true, set: true }, syncMode: { secret: true, set: true } }
+        }
+    }, schema);
+    assert.deepEqual(staged.plugins.identity, { syncMode: 'manual' });
+    assert.deepEqual(staged.plugins.legacy, {});
 });
 
 test('buildDiff: only changed fields', () => {

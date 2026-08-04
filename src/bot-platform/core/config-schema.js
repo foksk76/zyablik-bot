@@ -345,23 +345,6 @@ const SYSTEM_SCHEMA = Object.freeze({
 
 const SYSTEM_SECTION_KEYS = Object.freeze(Object.keys(SYSTEM_SCHEMA));
 
-// Дополнительные поля плоского effective-конфига (не в файле, не в секциях).
-const FLAT_ONLY_KEYS = Object.freeze([
-    'moduleName',
-    'status',
-    ...Object.keys(BASE_ENV_KEYS)
-]);
-
-function getAllFields() {
-    const fields = [];
-    for (const sectionName of SYSTEM_SECTION_KEYS) {
-        for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
-            fields.push({ section: sectionName, key, field });
-        }
-    }
-    return fields;
-}
-
 // Валидация значения отдельного поля.
 // Возвращает null при валидном значении, иначе строку-причину.
 function validateFieldValue(field, value) {
@@ -630,9 +613,7 @@ module.exports = {
     BASE_ENV_KEYS,
     MANAGED_ENV_KEYS,
     FILE_SECRET_ENV_KEYS,
-    FLAT_ONLY_KEYS,
     DEFAULT_MAX_POLL_TYPES,
-    getAllFields,
     getMergedConfigSchema,
     validatePluginSection,
     validateFieldValue,

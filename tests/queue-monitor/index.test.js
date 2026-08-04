@@ -78,6 +78,47 @@ test('createQueueMonitor with injected dependencies', async () => {
     await monitor.stop();
 });
 
+// ADR-0045: dashboard поднимается раньше live-бота, поэтому старт монитора НЕ
+// должен снимать pending-маркер (config.confirmed) — иначе падение boot'а после
+// ready dashboard'а теряло бы окно авто-отката (pending → lkg). Подтверждение
+// выполняется в app.js main() после старта всех сервисов.
+test('createQueueMonitor start() не подтверждает pending-конфиг', async () => {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-monitor-confirm-'));
+    const configPath = path.join(dir, 'zyablik.config.json');
+    fs.writeFileSync(`${configPath}.pending`, JSON.stringify({ hash: 'x', appliedAt: new Date().toISOString() }), 'utf8');
+
+    const fakeReader = {
+        ready: () => true,
+        close: () => {},
+        summary: () => ({ pending: 0, processing: 0, delivered: 0, failed: 0, totalAttempts: 0, total: 0 }),
+        timeseries: () => [],
+        topSource: () => [],
+        topRecipient: () => [],
+        errors: () => []
+    };
+    const fakeHttpServer = {
+        start: async () => {},
+        stop: async () => {},
+        registerRoute: () => {}
+    };
+
+    const monitor = createMonitor({
+        environment: { MONITOR_ENABLED: 'true', METRICS_API_KEY: 'test-key' },
+        configPath,
+        reader: fakeReader,
+        httpServer: fakeHttpServer
+    });
+
+    await monitor.start();
+    assert.ok(fs.existsSync(`${configPath}.pending`), 'pending-маркер не снят стартом монитора');
+    await monitor.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('createQueueMonitor shutdown closes reader', async () => {
     let closed = false;
     const fakeReader = {

@@ -80,7 +80,9 @@ export function coerceValue(raw, field) {
             return { ok: true, value: typeof defaultValue === 'number' ? defaultValue : null };
         }
         const n = Number(raw);
-        return Number.isFinite(n) ? { ok: true, value: n } : { ok: false, value: null };
+        // Серверный validateFieldValue принимает только целые (Number.isInteger)
+        // — клиент не должен пускать float, который упадёт на Apply.
+        return Number.isInteger(n) ? { ok: true, value: n } : { ok: false, value: null };
     }
     case 'boolean': {
         if (raw === null) {
@@ -162,7 +164,7 @@ export function validateValue(value, field, { required = false } = {}) {
 
     switch (field.type) {
     case 'number': {
-        if (typeof value !== 'number' || !Number.isFinite(value)) {
+        if (typeof value !== 'number' || !Number.isInteger(value)) {
             return 'ожидается целое число';
         }
         if (typeof field.min === 'number' && value < field.min) {
@@ -233,18 +235,24 @@ export function buildStagedConfig(sections, schema) {
         const fields = sectionFields(schema, sectionName);
         const source = sections[sectionName] || {};
         if (sectionName === 'plugins') {
-            // plugins.<name>.* — переносим как есть, кроме секретов
-            // (маска { secret, set } из формы не отправляется).
+            // plugins.<name>.* — переносим только объявленные configSchema
+            // НЕсекретные поля. Необъявленные ключи (ветки без configSchema)
+            // в API-ответах маскируются (defense-in-depth) и формой не
+            // редактируются — назад их не отправляем, чтобы маска не уехала
+            // в staged как литеральное значение.
             result.plugins = {};
             for (const [pluginName, pluginValues] of Object.entries(source)) {
                 if (pluginValues && typeof pluginValues === 'object' && !Array.isArray(pluginValues)) {
+                    const fields = pluginFields(schema, pluginName);
                     const pluginResult = {};
-                    for (const [key, value] of Object.entries(pluginValues)) {
-                        const field = pluginFields(schema, pluginName)[key];
-                        if (field && field.secret) {
-                            continue;
+                    for (const [key, field] of Object.entries(fields)) {
+                        if (field.secret) {
+                            continue; // секреты не отправляются
                         }
-                        pluginResult[key] = value;
+                        const value = pluginValues[key];
+                        if (value !== undefined) {
+                            pluginResult[key] = value;
+                        }
                     }
                     result.plugins[pluginName] = pluginResult;
                 }

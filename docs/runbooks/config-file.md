@@ -71,23 +71,23 @@ docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
     "maxBotToken": "$MAX_BOT_TOKEN"
   },
   "queue": {
-    "queueEnabled": false,
-    "queueMaxAttempts": 5,
-    "queueIntervalMs": 5000,
-    "queueBatchSize": 10,
-    "queueBackoffBase": 2,
-    "queueBackoffMax": 300,
-    "queueProcessingTtlSeconds": 300
+    "enabled": false,
+    "maxAttempts": 5,
+    "intervalMs": 5000,
+    "batchSize": 10,
+    "backoffBase": 2,
+    "backoffMax": 300,
+    "processingTtlSeconds": 300
   },
   "ingress": {
-    "ingressEnabled": false,
-    "ingressPort": 8443,
+    "enabled": false,
+    "port": 8443,
     "jwtClaimName": "entitlements",
     "jwtClaimValue": "zabbix"
   },
   "monitor": {
-    "monitorEnabled": true,
-    "monitorPort": 9000,
+    "enabled": true,
+    "port": 9000,
     "metricsApiKey": "$METRICS_API_KEY",
     "sessionSecret": "$SESSION_SECRET",
     "authRateLimit": true,
@@ -117,6 +117,10 @@ docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
 
 Секреты в форме не редактируются — показывается только статус
 «задан / не задан».
+
+Поля `plugins.<name>.*` плагина без `configSchema` (schemaless-ветки) в
+API-ответах маскируются целиком (значения не раскрываются), а в staged
+при «Сохранить» такие ключи не переносятся — их не редактируют из UI.
 
 ## 4. Ручная правка файла (для продвинутых)
 
@@ -164,6 +168,11 @@ node src/bot-platform/app.js --rollback-config /path/to/zyablik.config.json
 Если и `.lkg` невалиден — процесс отказывается стартовать (fail loudly),
 рестарт-политика (systemd `Restart=always`, docker `unless-stopped`)
 ограничена, чтобы не было crash-loop.
+
+После такого авто-отката/карантина dashboard показывает статус
+`rolled_back`/`quarantine` (banner «Конфигурация откачена»): результат
+стартового детектора пробрасывается в `/api/config/status` через
+`recoveryState` (M6), т.е. статус виден даже после рестарта процесса.
 
 ## 7. Восстановление из резервной копии
 

@@ -10,7 +10,6 @@ const {
     BASE_ENV_KEYS,
     MANAGED_ENV_KEYS,
     FILE_SECRET_ENV_KEYS,
-    FLAT_ONLY_KEYS,
     validateConfigFile,
     defaultsFromSchema,
     isVarReference
@@ -24,22 +23,6 @@ const TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE = 'TRANSPORT_NOT_IMPLEMENTED';
 const WEBHOOK_NOT_IMPLEMENTED_MESSAGE = 'Не реализовано: transport mode webhook';
 const INVALID_LIVE_RUNTIME_MESSAGE = 'Invalid MAX live runtime configuration';
 const SECRET_VAR_UNRESOLVED_ERROR_CODE = 'CONFIG_SECRET_VAR_UNRESOLVED';
-
-// Список env-переменных .env-слоя (ADR-0045): bootstrap, node runtime,
-// секреты, неизменяемая база.
-const ENV_LAYER_KEYS = Object.freeze([
-    'ZYABLIK_CONFIG',
-    'NODE_EXTRA_CA_CERTS',
-    'MAX_BOT_TOKEN',
-    'METRICS_API_KEY',
-    'SESSION_SECRET',
-    'IDP_CLIENT_SECRET',
-    'MAX_API_URL',
-    'IDP_ISSUER',
-    'IDP_AUDIENCE',
-    'IDP_CLIENT_ID',
-    'IDP_REDIRECT_URI'
-]);
 
 function resolveConfigPath(environment = process.env, options = {}) {
     if (options.configPath) {
@@ -503,7 +486,6 @@ module.exports = {
     TRANSPORT_NOT_IMPLEMENTED_ERROR_CODE,
     WEBHOOK_NOT_IMPLEMENTED_MESSAGE,
     SECRET_VAR_UNRESOLVED_ERROR_CODE,
-    ENV_LAYER_KEYS,
     createBotPlatformConfig,
     createQueueMonitorConfig,
     createLiveRuntimeConfig,

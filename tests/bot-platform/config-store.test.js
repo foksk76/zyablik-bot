@@ -25,7 +25,8 @@ const {
     rollbackConfig,
     DEFAULT_STARTUP_WAIT_MS,
     DEFAULT_MAX_STARTUP_ATTEMPTS,
-    computeConfigHash
+    computeConfigHash,
+    atomicWriteJson
 } = require('../../src/bot-platform/core/config-store');
 
 function makeTempConfigDir() {
@@ -50,6 +51,21 @@ const envWithSecrets = {
 };
 
 // --- Task 1: Staged storage ---
+
+test('atomicWriteJson: при сбое rename не оставляет .tmp-мусор (m3)', () => {
+    const dir = makeTempConfigDir();
+    // Цель — существующая директория: writeFileSync во временный файл
+    // проходит, renameSync на директорию падает (EISDIR) → атомарная запись
+    // должна убрать временный файл и перебросить ошибку.
+    const targetDir = path.join(dir, 'target');
+    fs.mkdirSync(targetDir);
+
+    assert.throws(() => atomicWriteJson(targetDir, { a: 1 }));
+
+    const leftovers = fs.readdirSync(dir).filter((name) => name.includes('.tmp-'));
+    assert.deepEqual(leftovers, [], 'временный файл должен быть удалён');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('staged пишется и читается атомарно', () => {
     const dir = makeTempConfigDir();
