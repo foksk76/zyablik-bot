@@ -8,7 +8,7 @@ import ConfigBanner from '../components/ConfigBanner.jsx';
 import { Button } from '../components/ui/button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card.jsx';
 import { showToast } from '../lib/showToast.js';
-import { buildStagedConfig, validateSectionValues, coerceValue } from '../lib/configSchemaModel.js';
+import { buildStagedConfig, validateSectionValues, coerceValue, fileConfigToValues } from '../lib/configSchemaModel.js';
 
 // ADR-0046: SettingsPage — schema-driven управление конфигурацией.
 // Просмотр effective → правка (staged) → diff → Apply → статус (pending/
@@ -156,6 +156,13 @@ export default function SettingsPage() {
             const result = await mutate('POST', '/api/config/import', parsed);
             setBusy(false);
             if (result.ok) {
+                // M2 (review R4): синхронизируем форму с импортированным staged,
+                // иначе values остаётся устаревшим — diff показывает «изменений
+                // нет», а «Сохранить (staged)» затирает staged старыми values.
+                const stagedFile = result.message && result.message.staged;
+                if (stagedFile && typeof stagedFile === 'object') {
+                    setValues(fileConfigToValues(stagedFile));
+                }
                 setHasStaged(true);
                 setShowDiff(true);
                 showToast('Файл импортирован в staged', 'success');

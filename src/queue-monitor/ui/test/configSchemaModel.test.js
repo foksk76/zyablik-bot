@@ -14,7 +14,8 @@ import {
     validateValue,
     validateSectionValues,
     buildStagedConfig,
-    buildDiff
+    buildDiff,
+    fileConfigToValues
 } from '../src/lib/configSchemaModel.js';
 
 const schema = {
@@ -183,4 +184,25 @@ test('buildDiff: new plugin branch in staged appears in diff (M5 review)', () =>
         { plugins: { identity: { syncMode: 'auto' }, legacy: { syncMode: 'manual' } } }
     );
     assert.ok(diff.some((d) => d.section === 'legacy' && d.key === 'syncMode' && d.old === null && d.new === 'manual'));
+});
+
+// M2 (review R4): fileConfigToValues — конвертация file-config (из /import
+// ответа) в values-формат для формы.
+test('fileConfigToValues: extracts sections from file-config (M2)', () => {
+    const values = fileConfigToValues({
+        version: 3,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        plugins: { identity: { syncMode: 'manual' } }
+    });
+    assert.deepEqual(values, {
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        plugins: { identity: { syncMode: 'manual' } }
+    });
+});
+
+test('fileConfigToValues: null/empty input returns empty object (M2)', () => {
+    assert.deepEqual(fileConfigToValues(null), {});
+    assert.deepEqual(fileConfigToValues({}), {});
 });

@@ -601,6 +601,19 @@ function validateConfigFile(rawConfig, options = {}) {
                 }
             }
             for (const pluginName of Object.keys(rawConfig.plugins)) {
+                // L3 (review R4): reject prototype-polluting property names.
+                // JSON.parse создаёт __proto__ как обычное свойство, но
+                // последующее присваивание obj['__proto__'] = value на {}
+                // меняет прототип — данные теряются (JSON.stringify их не
+                // сериализует).
+                if (pluginName === '__proto__' || pluginName === 'constructor' || pluginName === 'prototype') {
+                    errors.push({
+                        section: 'plugins',
+                        key: pluginName,
+                        reason: `недопустимое имя плагина: «${pluginName}»`
+                    });
+                    continue;
+                }
                 const pluginValue = rawConfig.plugins[pluginName];
                 if (typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
                     errors.push({

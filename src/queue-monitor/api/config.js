@@ -30,11 +30,16 @@ const {
     stagedExists,
     clearStaged,
     readJsonFile,
+    readJsonFileSafe,
     preValidateConfigFile,
     mergePreservedSecrets,
     applyConfig,
     rollbackConfig,
     confirmConfigApplied,
+    readPending,
+    pendingExists,
+    computeConfigHash,
+    serviceFilePaths,
     DEFAULT_STARTUP_WAIT_MS
 } = require('../../bot-platform/core/config-store');
 
@@ -316,7 +321,10 @@ function maskStagedSecrets(fileConfig, plugins = []) {
 
     const pluginSchemas = buildPluginSchemas(plugins);
     if (result.plugins && typeof result.plugins === 'object') {
-        const maskedPlugins = {};
+        // L3 (review R4): Object.create(null) — если в plugins попадётся
+        // ключ __proto__, присваивание в обычный {} меняло бы прототип
+        // вместо создания свойства (данные терялись при JSON.stringify).
+        const maskedPlugins = Object.create(null);
         for (const [pluginName, pluginValue] of Object.entries(result.plugins)) {
             if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
                 maskedPlugins[pluginName] = pluginValue;
@@ -380,7 +388,9 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
     }
 
     const pluginSchemas = buildPluginSchemas(plugins);
-    const pluginSection = {};
+    // L3 (review R4): Object.create(null) — защита от __proto__ как имени
+    // плагина (присваивание в {} меняет прототип, JSON.stringify теряет).
+    const pluginSection = Object.create(null);
     if (fileConfig && fileConfig.plugins && typeof fileConfig.plugins === 'object') {
         for (const [pluginName, pluginValue] of Object.entries(fileConfig.plugins)) {
             if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
@@ -562,12 +572,49 @@ function createConfigApi(options = {}) {
     // --- GET /api/config/status ---
 
     function getStatus(ctx) {
+        // L2 (review R4): после crash-restart in-memory state сбрасывается
+        // в idle, но pending-маркер на диске ещё жив — StartupWait окно
+        // активно. Без этого /api/config/status показывал бы idle (баннер
+        // pending не отрисовывался), хотя конфиг ещё не подтверждён.
+        let effectiveState = state.state;
+        let reason = state.reason;
+        let restartInitiated = state.restartInitiated;
+        let appliedAt = state.appliedAt;
+        let appliedHash = state.appliedHash;
+        let appliedAtMs = state.appliedAtMs;
+        let restoredAt = state.restoredAt;
+        let restoredFrom = state.restoredFrom;
+
+        if (effectiveState === 'idle' && pendingExists(configPath)) {
+            const pending = readPending(configPath);
+            if (pending && pending.hash) {
+                const { configPath: activePath } = serviceFilePaths(configPath);
+                const activeResult = readJsonFileSafe(activePath);
+                const activeHash = activeResult.ok && activeResult.data !== null
+                    ? computeConfigHash(activeResult.data)
+                    : null;
+                // Hash проверяется как в confirmConfigApplied: если активный
+                // файл изменён вне apply-потока — маркер устарел, не показываем
+                // ложный pending.
+                if (activeHash !== null && pending.hash === activeHash) {
+                    effectiveState = 'pending';
+                    reason = 'Apply initiated — waiting for restart confirmation';
+                    restartInitiated = pending.restartInitiated;
+                    appliedAt = pending.appliedAt;
+                    appliedHash = pending.hash;
+                    appliedAtMs = pending.appliedAt
+                        ? new Date(pending.appliedAt).getTime() || null
+                        : null;
+                }
+            }
+        }
+
         // pendingRemainingMs — только для state=pending c авто-рестартом
         // (restartInitiated): при ручном рестарте окна StartupWait нет —
         // первый boot после Apply не откатывается по возрасту appliedAt.
         let pendingRemainingMs = null;
-        if (state.state === 'pending' && state.restartInitiated && state.appliedAtMs) {
-            pendingRemainingMs = Math.max(0, state.appliedAtMs + startupWaitMs - Date.now());
+        if (effectiveState === 'pending' && restartInitiated && appliedAtMs) {
+            pendingRemainingMs = Math.max(0, appliedAtMs + startupWaitMs - Date.now());
         }
 
         return {
@@ -575,13 +622,13 @@ function createConfigApi(options = {}) {
             body: {
                 status: 'ok',
                 data: {
-                    state: state.state,
-                    reason: state.reason,
-                    restartInitiated: Boolean(state.restartInitiated),
-                    appliedAt: state.appliedAt,
-                    appliedHash: state.appliedHash,
-                    restoredAt: state.restoredAt,
-                    restoredFrom: state.restoredFrom,
+                    state: effectiveState,
+                    reason,
+                    restartInitiated: Boolean(restartInitiated),
+                    appliedAt,
+                    appliedHash,
+                    restoredAt,
+                    restoredFrom,
                     pendingRemainingMs
                 }
             }
@@ -654,12 +701,20 @@ function createConfigApi(options = {}) {
     }
 
     async function putStage(ctx) {
-        // Single-flight с apply/rollback/import (review): параллельный stage
-        // не должен быть затёрт clearStaged из in-flight apply.
+        // Single-flight сначала: конфликт (409) не должен расходовать
+        // слот sliding-window rate limit'а (ADR-0046).
         if (!tryAcquireMutation()) {
             return conflict();
         }
+
         try {
+            // M1 (review R4): PUT /stage — мутирующая операция, должна
+            // расходовать слот rate limit наравне с apply/rollback/import.
+            const rate = mutationLimiter.tryAcquire();
+            if (!rate.allowed) {
+                return tooManyRequests(rate.waitMs);
+            }
+
             let rawConfig;
             try {
                 rawConfig = await readJsonBody(ctx.req);

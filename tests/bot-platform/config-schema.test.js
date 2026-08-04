@@ -255,3 +255,26 @@ test('validateConfigFile: плагин без схемы — warning, не ош�
     assert.equal(result.errors.length, 0);
     assert.equal(result.warnings.length, 1);
 });
+
+// L3 (review R4): __proto__/constructor/prototype как имена плагинов
+// недопустимы — они вызывают prototype pollution при последующем
+// копировании свойств через obj[key] = value на обычном {}.
+test('validateConfigFile: rejects __proto__ as plugin name (L3)', () => {
+    // JSON.parse создаёт __proto__ как own-свойство (через [[DefineOwnProperty]]),
+    // а JS-литерал { __proto__: ... } меняет прототип — используем JSON.parse.
+    const rawConfig = JSON.parse('{"plugins":{"__proto__":{"foo":1}}}');
+    const result = validateConfigFile(rawConfig, { plugins: [] });
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].section, 'plugins');
+    assert.equal(result.errors[0].key, '__proto__');
+    assert.ok(result.errors[0].reason.includes('недопустимое'));
+});
+
+test('validateConfigFile: rejects constructor/prototype as plugin name (L3)', () => {
+    for (const badName of ['constructor', 'prototype']) {
+        const rawConfig = JSON.parse(`{"plugins":{"${badName}":{"foo":1}}}`);
+        const result = validateConfigFile(rawConfig, { plugins: [] });
+        assert.equal(result.errors.length, 1, `${badName} should be rejected`);
+        assert.equal(result.errors[0].key, badName);
+    }
+});

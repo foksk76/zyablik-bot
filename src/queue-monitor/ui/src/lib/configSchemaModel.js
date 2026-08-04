@@ -243,6 +243,26 @@ export function validateSectionValues(values, schema, sectionName) {
     return errors;
 }
 
+// M2 (review R4): конвертация file-config (ответ /import или /stage) в
+// values-формат для формы. После импорта форма должна синхронизироваться
+// со staged, иначе diff показывает «изменений нет», а «Сохранить (staged)»
+// затирает импортированный staged устаревшими значениями формы.
+// Секретные поля в file-config уже замаскированы ({ secret: true, set }),
+// и проходят как есть — ConfigForm не редактирует их.
+export function fileConfigToValues(fileConfig) {
+    const values = {};
+    if (!fileConfig || typeof fileConfig !== 'object') {
+        return values;
+    }
+    for (const [sectionName, sectionValue] of Object.entries(fileConfig)) {
+        if (sectionName === 'version') continue;
+        if (sectionValue && typeof sectionValue === 'object' && !Array.isArray(sectionValue)) {
+            values[sectionName] = { ...sectionValue };
+        }
+    }
+    return values;
+}
+
 // Сборка staged-конфига для PUT /api/config/stage:
 // секреты пропускаются (значения не меняются), пустые поля → ''.
 export function buildStagedConfig(sections, schema) {
@@ -256,7 +276,10 @@ export function buildStagedConfig(sections, schema) {
             // в API-ответах маскируются (defense-in-depth) и формой не
             // редактируются — назад их не отправляем, чтобы маска не уехала
             // в staged как литеральное значение.
-            result.plugins = {};
+            // L3 (review R4): Object.create(null) — защита от __proto__ как
+            // имени плагина (присваивание в {} меняет прототип, данные
+            // теряются при JSON.stringify).
+            result.plugins = Object.create(null);
             for (const [pluginName, pluginValues] of Object.entries(source)) {
                 if (pluginValues && typeof pluginValues === 'object' && !Array.isArray(pluginValues)) {
                     const fields = pluginFields(schema, pluginName);

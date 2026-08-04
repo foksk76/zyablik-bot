@@ -210,3 +210,56 @@ test('long polling cycle acks marker and processes other updates when one update
 
   service.stop();
 });
+
+// L1 (review R4): firstTick должен resolвиться только после успешного poll,
+// не до сетевого round-trip. Раньше notifyFirstTick() вызывался в начале tick()
+// — бот с неверным token/URL confirm-нулся бы до первой попытки связи.
+test('firstTick resolves after successful poll, not before (L1)', async () => {
+  let pollResolved = false;
+  const service = createLongPollingService({
+    autoStart: false,
+    pollUpdates: async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      pollResolved = true;
+      return [];
+    },
+    sleep: async () => {}
+  });
+
+  const startPromise = service.tick();
+  // До завершения pollUpdates firstTick не должен resolвиться.
+  let resolved = false;
+  service.firstTick.then(() => { resolved = true; });
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(resolved, false, 'firstTick must not resolve before poll completes');
+  assert.equal(pollResolved, false);
+
+  await startPromise;
+  await service.firstTick;
+  assert.equal(pollResolved, true);
+
+  service.stop();
+});
+
+test('firstTick does not resolve when poll throws (L1)', async () => {
+  const service = createLongPollingService({
+    autoStart: false,
+    pollUpdates: async () => {
+      throw new Error('network failure');
+    },
+    sleep: async () => {},
+    logger: { info() {}, warn() {}, error() {} }
+  });
+
+  await assert.rejects(() => service.tick(), /network failure/);
+
+  let resolved = false;
+  const timeout = new Promise((r) => setTimeout(r, 20, 'timeout'));
+  await Promise.race([
+    service.firstTick.then(() => { resolved = true; }),
+    timeout
+  ]);
+  assert.equal(resolved, false, 'firstTick must not resolve on poll failure');
+
+  service.stop();
+});

@@ -9,6 +9,7 @@ const fs = require('node:fs');
 
 const { createConfigApi, createConfigMutationRateLimiter, computeConfigDiff, buildEffectiveSections, maskStagedSecrets, buildExportConfig, DEFAULT_MUTATION_MAX, DEFAULT_MUTATION_WINDOW_MS } = require('../../../src/queue-monitor/api/config');
 const { CURRENT_VERSION } = require('../../../src/bot-platform/core/config-migrations');
+const { writePending } = require('../../../src/bot-platform/core/config-store');
 
 function tmpDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'config-api-test-'));
@@ -166,8 +167,9 @@ test('buildEffectiveSections: secrets masked, defaults filled', () => {
     assert.deepEqual(result.sections.bot.maxBotToken, { secret: true, set: true });
     assert.equal(result.sections.bot.logLevel, 'warn');
     assert.deepEqual(result.sections.monitor.metricsApiKey, { secret: true, set: false });
-    // plugins секция переносится как есть
-    assert.deepEqual(result.sections.plugins, {});
+    // plugins секция переносится как есть (L3: Object.create(null) для
+    // defense-in-depth от __proto__ — проверяем отсутствие ключей).
+    assert.equal(Object.keys(result.sections.plugins).length, 0);
 });
 
 test('buildEffectiveSections: missing file returns defaults and fileExists=false', () => {
@@ -851,7 +853,9 @@ test('rate limited mutations return 429 with Retry-After', async () => {
         environment: {},
         configPath,
         restart: () => {},
-        mutationRateLimitMax: 1,
+        // M1 (review R4): putStage теперь тоже расходует слот rate limit,
+        // поэтому лимит = 2 (putStage + apply помещаются, второй apply — 429).
+        mutationRateLimitMax: 2,
         mutationRateLimitWindowMs: 60_000,
         rateLimiterNow: () => now
     });
@@ -870,5 +874,84 @@ test('rate limited mutations return 429 with Retry-After', async () => {
     const second = await api.apply({});
     assert.equal(second.statusCode, 429);
     assert.ok(second.headers['Retry-After']);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// M1 (review R4): PUT /stage расходует слот mutation rate limit наравне с
+// apply/rollback/import. Раньше putStage обходил лимитер — два putStage при
+// mutationRateLimitMax:1 давали оба 200, stats().mutations оставался 0.
+test('putStage consumes mutation rate-limit slot (M1)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    let now = 1000;
+    const api = createConfigApi({
+        environment: {},
+        configPath,
+        restart: () => {},
+        mutationRateLimitMax: 1,
+        mutationRateLimitWindowMs: 60_000,
+        rateLimiterNow: () => now
+    });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    const first = await api.putStage({ req: mockReq(changed) });
+    assert.equal(first.statusCode, 200);
+    assert.equal(api._rateLimiter.stats().mutations, 1);
+
+    now += 5000;
+    const second = await api.putStage({ req: mockReq(changed) });
+    assert.equal(second.statusCode, 429);
+    assert.ok(second.headers['Retry-After']);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// L2 (review R4): после crash-restart in-memory state сбрасывается в idle,
+// но pending-маркер жив на диске. /api/config/status должен показывать
+// pending (StartupWait окно активно), а не вводящий idle.
+test('getStatus surfaces pending marker after restart (L2)', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    // Пишем pending-маркер, как если бы Apply записал его перед рестартом.
+    writePending(configPath, minimalConfig, new Date(), { restartInitiated: true });
+
+    // createConfigApi без recovery — in-memory state = idle (как после
+    // crash-restart, когда recovery не передал rolled_back/quarantine).
+    const api = createConfigApi({
+        environment: {},
+        configPath,
+        restart: () => {},
+        startupWaitMs: 60_000
+    });
+
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, true);
+    assert.equal(status.body.data.appliedHash !== null, true);
+    // pendingRemainingMs должно быть положительным (окно активно).
+    assert.ok(status.body.data.pendingRemainingMs > 0);
+
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus does not surface stale pending marker (hash mismatch, L2)', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    // pending-маркер от другого конфига (hash не совпадёт с активным).
+    const otherConfig = { ...minimalConfig, bot: { logLevel: 'debug' } };
+    writePending(configPath, otherConfig, new Date(), { restartInitiated: true });
+
+    const api = createConfigApi({
+        environment: {},
+        configPath,
+        restart: () => {},
+        startupWaitMs: 60_000
+    });
+
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'idle');
+
     fs.rmSync(dir, { recursive: true, force: true });
 });
