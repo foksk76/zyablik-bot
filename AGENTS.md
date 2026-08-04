@@ -153,6 +153,39 @@ LICENSE                          лицензия Apache-2.0 (EN)
 LICENSE.ru                       лицензия Apache-2.0 (RU)
 ```
 
+## Codebase Exploration Rules
+
+Для этого репозитория ведётся knowledge graph (codebase-memory-mcp,
+проект `root-zyablik-bot`). При навигации по коду **ALWAYS** предпочитать
+graph-инструменты стандартным `grep`/`glob` и последовательному чтению файлов.
+
+Выбор инструмента по задаче:
+
+```text
+проверить, что проект проиндексирован     list_projects / index_status
+найти функцию/класс/роут                  search_graph(name_pattern=".*Pattern.*")
+кто вызывает X / что вызывает X           trace_path(function_name="X", direction="inbound"|"outbound"|"both")
+прочитать исходник символа                get_code_snippet(qualified_name="...") — после search_graph
+влияние git-изменений                     detect_changes()
+мертвый код / unused                      search_graph(max_degree=0, exclude_entry_points=true)
+fan-in/fan-out, кандидаты на рефакторинг  search_graph(min_degree=10, relationship="CALLS", direction=...)
+сложные граф-запросы (Cypher)             query_graph
+высокоуровневая архитектура и границы     get_architecture()
+схема графа (node/edge типы)              get_graph_schema()
+```
+
+Стандартный поток: `list_projects` → `get_graph_schema` → `search_graph`
+→ `get_code_snippet` / `trace_path`. `trace_path` требует точное имя —
+сначала `search_graph(name_pattern=...)`. У `search_graph` есть пагинация
+(limit/offset, признак `has_more`); `query_graph` имеет лимит строк — для
+подсчётов использовать `search_graph` с degree-фильтрами.
+
+Откат на `grep`/`glob` допустим, только если граф не дал результата:
+
+- строковые литералы, тексты ошибок, значения конфигов;
+- не-кодовые файлы (Dockerfile, shell-скрипты, конфиги, systemd);
+- структурный поиск по графу не вернул ожидаемое.
+
 ## Правила работы
 
 - Делать маленькие проверяемые изменения.
