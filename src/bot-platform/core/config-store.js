@@ -203,10 +203,14 @@ function pendingExists(configPath) {
 
 // Карантин активного файла: перемещение в уникальный bad-файл с временной
 // меткой, чтобы повторный карантин не затирал предыдущий невалидный конфиг
-// (сохранение улик для диагностики).
+// (сохранение улик для диагностики). Имя строится от пути без расширения
+// .json (если оно есть): для имени файла без .json наивный
+// configPath.replace(/\.json$/, ...) возвращал бы configPath без замены, и
+// renameSync стал бы no-op — невалидный файл затирался бы без улики.
 function quarantineActiveFile(configPath) {
     const { configPath: activePath } = serviceFilePaths(configPath);
-    const badPath = configPath.replace(/\.json$/, `.${Date.now()}.bad.json`);
+    const base = configPath.replace(/\.json$/, '');
+    const badPath = `${base}.${Date.now()}.bad.json`;
     fs.renameSync(activePath, badPath);
     return badPath;
 }

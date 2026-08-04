@@ -24,7 +24,8 @@ const schema = {
         rateLimitEnabled: { type: 'boolean', default: true },
         maxTransportMode: { type: 'string', enum: ['long_polling', 'webhook'], default: 'long_polling' },
         maxPollTypes: { type: 'list', default: ['NEW_MESSAGE', 'UPDATE_MESSAGE'] },
-        maxBotToken: { type: 'string', secret: true, default: '' }
+        maxBotToken: { type: 'string', secret: true, default: '' },
+        nullableFlag: { type: 'boolean', default: null, nullable: true }
     },
     queue: {
         queueEnabled: { type: 'boolean', default: false }
@@ -81,6 +82,16 @@ test('coerceValue: number/boolean/enum/list', () => {
     assert.deepEqual(coerceValue('a, b', schema.bot.maxPollTypes), { ok: true, value: ['a', 'b'] });
 });
 
+test('coerceValue: очищенное поле → дефолт схемы (число/булево/enum)', () => {
+    assert.deepEqual(coerceValue('', schema.bot.maxPollLimit), { ok: true, value: 100 });
+    assert.deepEqual(coerceValue('', schema.bot.rateLimitEnabled), { ok: true, value: true });
+    assert.deepEqual(coerceValue('', schema.bot.maxTransportMode), { ok: true, value: 'long_polling' });
+    // Явный null (nullable «—») сохраняется как есть.
+    assert.deepEqual(coerceValue(null, schema.bot.maxPollLimit), { ok: true, value: null });
+    assert.deepEqual(coerceValue(null, schema.bot.nullableFlag), { ok: true, value: null });
+    assert.deepEqual(coerceValue('', schema.bot.nullableFlag), { ok: true, value: null });
+});
+
 test('validateValue: types, min/max, enum', () => {
     assert.equal(validateValue('info', schema.bot.logLevel), null);
     assert.equal(validateValue(50, schema.bot.maxPollLimit), null);
@@ -90,6 +101,14 @@ test('validateValue: types, min/max, enum', () => {
     assert.equal(validateValue('', schema.bot.logLevel), null); // не required
     assert.equal(validateValue('', schema.bot.logLevel, { required: true }), 'обязательное поле');
     assert.equal(validateValue('anything', schema.bot.maxBotToken), null); // секрет не валидируется
+});
+
+test('validateValue: null для не-nullable — ошибка (как на сервере)', () => {
+    assert.equal(validateValue(null, schema.bot.maxPollLimit), 'null не допускается для этого поля');
+    assert.equal(validateValue(null, schema.bot.rateLimitEnabled), 'null не допускается для этого поля');
+    assert.equal(validateValue(null, schema.bot.maxTransportMode), 'null не допускается для этого поля');
+    // Nullable — null допустим.
+    assert.equal(validateValue(null, schema.bot.nullableFlag), null);
 });
 
 test('validateSectionValues: collects errors (namespaced keys)', () => {

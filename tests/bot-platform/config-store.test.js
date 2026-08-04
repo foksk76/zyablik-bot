@@ -277,6 +277,25 @@ test('детектор: карантин снимает pending-маркер (н
     assert.equal(readPending(configPath), null);
 });
 
+test('детектор: карантин работает при имени конфига без .json (нет no-op rename)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { maxPollLimit: 99999 } }, 'zyablik.config');
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'debug' } });
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'quarantine');
+    assert.ok(result.quarantinePath, 'карантинный путь есть');
+    assert.notEqual(result.quarantinePath, configPath, 'карантин — отдельный файл, а не no-op rename');
+    assert.ok(fs.existsSync(result.quarantinePath), 'карантинный файл создан');
+    assert.ok(result.quarantinePath.endsWith('.bad.json'));
+    // В карантине — невалидная улика, активный файл восстановлен из lkg.
+    const quarantine = JSON.parse(fs.readFileSync(result.quarantinePath, 'utf8'));
+    assert.equal(quarantine.bot.maxPollLimit, 99999);
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug');
+});
+
 test('детектор: невалидный активный файл без lkg — отказ (fail loudly)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: { maxPollLimit: 99999 } });

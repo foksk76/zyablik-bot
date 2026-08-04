@@ -63,26 +63,45 @@ export function toFormValue(value, field) {
 
 // Приведение строки/сырого значения из input к типу поля.
 // Возвращает { ok, value } — value корректного типа либо null при невалидном.
+// Пустая строка (очищенное поле) сбрасывается к дефолту схемы: сервер не
+// принимает '' для number/boolean/enum (validateFieldValue), а «очистить
+// поле» в форме означает «вернуть значение по умолчанию». Явный null
+// (nullable «—») сохраняется как есть.
 export function coerceValue(raw, field) {
     const type = field && field.type ? field.type : 'string';
 
     switch (type) {
     case 'number': {
         if (raw === '' || raw === null) {
-            return { ok: true, value: raw === '' ? '' : raw };
+            if (raw === null) {
+                return { ok: true, value: null };
+            }
+            const defaultValue = fieldDefault(field);
+            return { ok: true, value: typeof defaultValue === 'number' ? defaultValue : null };
         }
         const n = Number(raw);
         return Number.isFinite(n) ? { ok: true, value: n } : { ok: false, value: null };
     }
     case 'boolean': {
-        if (raw === null || raw === '') {
-            return { ok: true, value: raw === null ? null : raw };
+        if (raw === null) {
+            return { ok: true, value: null };
+        }
+        if (raw === '') {
+            const defaultValue = fieldDefault(field);
+            return { ok: true, value: typeof defaultValue === 'boolean' ? defaultValue : null };
         }
         if (raw === true || raw === 'true') return { ok: true, value: true };
         if (raw === false || raw === 'false') return { ok: true, value: false };
         return { ok: false, value: null };
     }
     case 'enum': {
+        if (raw === '' || raw === null) {
+            if (raw === null) {
+                return { ok: true, value: null };
+            }
+            const defaultValue = fieldDefault(field);
+            return { ok: true, value: defaultValue !== '' ? defaultValue : null };
+        }
         if (field.enum && field.enum.includes(raw)) {
             return { ok: true, value: raw };
         }
@@ -98,8 +117,19 @@ export function coerceValue(raw, field) {
     }
     default: {
         // string (и type='string' с enum-ограничением, как в системной схеме)
-        if (Array.isArray(field.enum) && !field.enum.includes(raw)) {
-            return { ok: false, value: null };
+        if (Array.isArray(field.enum)) {
+            if (raw === '' || raw === null) {
+                if (raw === null) {
+                    return { ok: true, value: null };
+                }
+                // Пустая строка для enum-поля → дефолт (сервер не примет '').
+                const defaultValue = fieldDefault(field);
+                return { ok: true, value: defaultValue !== '' ? defaultValue : null };
+            }
+            if (!field.enum.includes(raw)) {
+                return { ok: false, value: null };
+            }
+            return { ok: true, value: raw };
         }
         return { ok: true, value: raw };
     }
@@ -118,6 +148,11 @@ export function validateValue(value, field, { required = false } = {}) {
 
     const isEmpty = value === '' || value === null || value === undefined;
 
+    // Согласованно с серверным validateFieldValue: null для не-nullable поля
+    // — ошибка (coerceValue возвращает null, когда у поля нет дефолта).
+    if (value === null && !field.nullable) {
+        return 'null не допускается для этого поля';
+    }
     if (required && isEmpty) {
         return 'обязательное поле';
     }
