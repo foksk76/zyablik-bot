@@ -211,7 +211,11 @@ UI dashboard использует session auth после OAuth2 логина (A
 - Стенд стартует из zyablik.config.json (секреты — $VAR-ссылки, без управляемых env)
 - Stage → Apply → рестарт → confirmed (свежий pending-маркер в окне StartupWait не откатывает конфиг)
 - Неподтверждённый Apply (краш до ready) → авто-откат к lkg + audit config.rollback
-- Policy-тесты секретов (tests/policy/config-secrets.test.js); npm test 855 pass / 0 fail
+- Ручной rollback (POST /api/config/rollback) восстанавливает lkg без рестарта
+- Export/import: секреты остаются $VAR-ссылками; литералы режектятся (400)
+- UI-флоу Dashboard (#/settings): stage → apply → restart → confirmed → rollback
+- Apply через UI/import сохраняет секретные $VAR-поля активного конфига (mergePreservedSecrets)
+- Policy-тесты секретов (tests/policy/config-secrets.test.js); npm test 861 pass / 0 fail
 - Прогон: docs/test-runs/config-apply-rollback-run.md
 ```
 

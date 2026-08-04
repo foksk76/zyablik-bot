@@ -18,6 +18,7 @@ const {
     clearPending,
     pendingExists,
     preValidateConfigFile,
+    mergePreservedSecrets,
     applyConfig,
     runStartupConfigDetector,
     confirmConfigApplied,
@@ -167,6 +168,73 @@ test('applyConfig: хеш применяемого конфига', () => {
     const fileConfig = { version: 1, bot: { logLevel: 'debug' } };
     const result = applyConfig(configPath, fileConfig, { environment: {}, restart: () => {} });
     assert.equal(result.hash, computeConfigHash(fileConfig));
+});
+
+// --- Task 5 (Sprint 41): секреты не затираются при частичном Apply (UI/import) ---
+
+test('mergePreservedSecrets: переносит $VAR-ссылки секретов из активного конфига', () => {
+    const active = {
+        version: 1,
+        bot: { logLevel: 'info', maxBotToken: '$MAX_BOT_TOKEN' },
+        monitor: { metricsApiKey: '$METRICS_API_KEY' }
+    };
+    const staged = {
+        version: 1,
+        bot: { logLevel: 'debug' },
+        monitor: { monitorPort: 9000 }
+    };
+
+    const merged = mergePreservedSecrets(active, staged);
+
+    assert.equal(merged.bot.maxBotToken, '$MAX_BOT_TOKEN');
+    assert.equal(merged.monitor.metricsApiKey, '$METRICS_API_KEY');
+    assert.equal(merged.bot.logLevel, 'debug');
+    assert.equal(merged.monitor.monitorPort, 9000);
+});
+
+test('mergePreservedSecrets: не трогает литерально заданные секреты', () => {
+    const active = {
+        version: 1,
+        bot: { maxBotToken: '$MAX_BOT_TOKEN' }
+    };
+    const staged = {
+        version: 1,
+        bot: { maxBotToken: '$OTHER_VAR' }
+    };
+
+    const merged = mergePreservedSecrets(active, staged);
+    assert.equal(merged.bot.maxBotToken, '$OTHER_VAR');
+});
+
+test('mergePreservedSecrets: пустой/отсутствующий активный конфиг — без изменений', () => {
+    const staged = { version: 1, bot: { logLevel: 'debug' } };
+    assert.deepEqual(mergePreservedSecrets(null, staged), staged);
+    assert.deepEqual(mergePreservedSecrets({}, staged), staged);
+});
+
+test('applyConfig: Apply без секретов сохраняет $VAR-ссылки активного конфига', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, {
+        version: 1,
+        bot: { logLevel: 'info', maxBotToken: '$MAX_BOT_TOKEN' },
+        monitor: { metricsApiKey: '$METRICS_API_KEY' }
+    });
+
+    const result = applyConfig(configPath, {
+        version: 1,
+        bot: { logLevel: 'debug' },
+        monitor: { monitorPort: 9000 }
+    }, {
+        environment: envWithSecrets,
+        restart: () => {}
+    });
+
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug');
+    assert.equal(active.monitor.monitorPort, 9000);
+    assert.equal(active.bot.maxBotToken, '$MAX_BOT_TOKEN');
+    assert.equal(active.monitor.metricsApiKey, '$METRICS_API_KEY');
+    assert.ok(result.lkgWritten);
 });
 
 // --- Task 3: Стартовый детектор ---

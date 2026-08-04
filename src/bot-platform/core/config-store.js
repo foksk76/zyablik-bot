@@ -237,6 +237,33 @@ function preValidateConfigFile(rawConfig, options = {}) {
 
 // --- Apply (Task 2) ---
 
+// UI/import не передают секретные поля (buildStagedConfig их пропускает,
+// export-дамп маскирует). При применении сохраняем существующие $VAR-ссылки
+// из активного конфига, чтобы не затирать секреты при частичном обновлении
+// (ADR-0045/0046).
+function mergePreservedSecrets(activeConfig, fileConfig) {
+    if (!activeConfig || !fileConfig) {
+        return fileConfig;
+    }
+    const { SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('./config-schema');
+    for (const sectionName of SYSTEM_SECTION_KEYS) {
+        const activeSection = activeConfig[sectionName];
+        const fileSection = fileConfig[sectionName];
+        if (!activeSection || !fileSection || typeof activeSection !== 'object' || typeof fileSection !== 'object') {
+            continue;
+        }
+        for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
+            if (!field.secret) {
+                continue;
+            }
+            if (fileSection[key] === undefined && activeSection[key] !== undefined) {
+                fileSection[key] = activeSection[key];
+            }
+        }
+    }
+    return fileConfig;
+}
+
 // Apply: pre-validate → lkg → атомарный write → staged очистка → рестарт.
 // options: { environment, restart } (restart — async функция, в тестах фейк).
 // Возвращает { hash, fileConfig, lkgWritten, restarted }.
@@ -244,11 +271,14 @@ function applyConfig(configPath, fileConfig, options = {}) {
     const environment = options.environment || process.env;
     const { lkgPath, configPath: activePath } = serviceFilePaths(configPath);
 
-    // 1. pre-validate (не трогает активный конфиг при отказе).
-    const { hash } = preValidateConfigFile(fileConfig, { environment, plugins: options.plugins });
-
-    // 2. lkg = копия активного (до записи нового).
+    // 1. Сохраняем существующие секреты активного конфига (UI их не шлёт).
     const activeConfig = readJsonFile(activePath);
+    const fileConfigToWrite = mergePreservedSecrets(activeConfig, fileConfig);
+
+    // 2. pre-validate (не трогает активный конфиг при отказе).
+    const { hash } = preValidateConfigFile(fileConfigToWrite, { environment, plugins: options.plugins });
+
+    // 3. lkg = копия активного (до записи нового).
     let lkgWritten = false;
     if (activeConfig !== null) {
         writeLkg(configPath, activeConfig);
@@ -258,14 +288,14 @@ function applyConfig(configPath, fileConfig, options = {}) {
     // 3. Pending-маркер: фиксирует хеш применяемого конфига до рестарта.
     // По готовности (ready) маркер снимается (config.confirmed). Краш до
     // ready → при следующем запуске авто-откат на lkg.
-    writePending(configPath, fileConfig);
+    writePending(configPath, fileConfigToWrite);
     logConfigAudit(options.logger, 'config.pending', {
         configPath: activePath,
         hash
     });
 
     // 4. Атомарный write активного конфига.
-    atomicWriteJson(activePath, fileConfig);
+    atomicWriteJson(activePath, fileConfigToWrite);
 
     // 5. Очистка staged после успешного Apply.
     clearStaged(configPath);
@@ -283,7 +313,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
         restarted = true;
     }
 
-    return { hash, fileConfig, lkgWritten, restarted };
+    return { hash, fileConfig: fileConfigToWrite, lkgWritten, restarted };
 }
 
 // --- Стартовый детектор + авто-откат (Task 3) ---
@@ -482,6 +512,7 @@ module.exports = {
     pendingExists,
     quarantineActiveFile,
     preValidateConfigFile,
+    mergePreservedSecrets,
     applyConfig,
     runStartupConfigDetector,
     confirmConfigApplied,

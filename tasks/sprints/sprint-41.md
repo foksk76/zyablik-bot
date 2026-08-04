@@ -117,7 +117,7 @@ policy-тесты): литеральные секреты не встречаю�
 **Acceptance criteria:**
 - [x] Policy-тест на отсутствие литеральных секретов в API/export/UI (`tests/policy/config-secrets.test.js`)
 - [x] Policy-тест на `$VAR`-формат в конфиг-файлах (`tests/policy/config-secrets.test.js`)
-- [x] Полный `npm test` зелёный (855 pass / 0 fail)
+- [x] Полный `npm test` зелёный (861 pass / 0 fail)
 
 **Files:** `tests/docs-leak-guard.test.js`, `tests/policy/*` (при наличии)
 
@@ -129,7 +129,7 @@ policy-тесты): литеральные секреты не встречаю�
 
 ### Task 5: Финальный e2e и чек-лист этапа
 
-**Status:** In Progress
+**Status:** Done
 
 **Description:** Полный прогон на стенде: старт из файла → правка → apply →
 confirmed; сломанный конфиг → авто-откат; rollback; export/import; UI-флоу.
@@ -138,9 +138,9 @@ confirmed; сломанный конфиг → авто-откат; rollback; ex
 **Acceptance criteria:**
 - [x] Apply → restart → confirmed (штатный цикл) — `docs/test-runs/config-apply-rollback-run.md`
 - [x] Авто-откат из lkg при неподтверждённом Apply — `docs/test-runs/config-apply-rollback-run.md`
-- [ ] Rollback, export/import, UI-флоу — оставшиеся сценарии прогона
+- [x] Rollback, export/import, UI-флоу — оставшиеся сценарии прогона (`config-apply-rollback-run.md`)
 - [ ] Чек-лист acceptance обновлён (статус этапа)
-- [ ] Документация непротиворечива; `npm test` зелёный (855 pass / 0 fail)
+- [x] Документация непротиворечива; `npm test` зелёный (861 pass / 0 fail)
 
 **Files:** `docs/project-acceptance.md`, `docs/test-runs/*`
 
@@ -154,25 +154,33 @@ confirmed; сломанный конфиг → авто-откат; rollback; ex
 
 - [x] Стенд работает из файла (без управляемых env)
 - [x] INSTALL/README/CHANGELOG/runbook непротиворечивы ADR-0045/0046
-- [x] docs-leak-guard + policy-тесты зелёные; `npm test` зелёный (855 pass / 0 fail)
+- [x] docs-leak-guard + policy-тесты зелёные; `npm test` зелёный (861 pass / 0 fail)
 - [ ] Ревью с человеком; этап закрыт
 
-## Найденный и исправленный дефект (Task 1/5)
+## Найденные и исправленные дефекты (Task 1/5)
 
-Детектор подтверждающего режима (`runStartupConfigDetector`) при любом
-pending-маркере откатывал конфиг на `lkg`, ломая штатный Apply → restart
-(ADR-0045). Воспроизведён на изолированной копии и на стенде.
+1. Детектор подтверждающего режима (`runStartupConfigDetector`) при любом
+   pending-маркере откатывал конфиг на `lkg`, ломая штатный Apply → restart
+   (ADR-0045). Воспроизведён на изолированной копии и на стенде.
 
-Исправление в `src/bot-platform/core/config-store.js`: pending-маркер
-получает `appliedAt` (`writePending`), детектор различает свежий маркер
-(age < `startupWaitMs`, default `DEFAULT_STARTUP_WAIT_MS = 30_000`) — штатный
-restart, продолжаем; старый (age >= окна) — авто-откат на `lkg`. Отсутствие
-`appliedAt` трактуется как старый. Обновлены тесты config-store/config-recovery/
-config-audit. Заодно прокинут логгер в `createCore` для аудита `config.rollback`.
+   Исправление в `src/bot-platform/core/config-store.js`: pending-маркер
+   получает `appliedAt` (`writePending`), детектор различает свежий маркер
+   (age < `startupWaitMs`, default `DEFAULT_STARTUP_WAIT_MS = 30_000`) — штатный
+   restart, продолжаем; старый (age >= окна) — авто-откат на `lkg`. Отсутствие
+   `appliedAt` трактуется как старый. Обновлены тесты config-store/config-recovery/
+   config-audit. Заодно прокинут логгер в `createCore` для аудита `config.rollback`.
 
-Сопутствующая проблема решена: тесты подхватывали `config/zyablik.config.json`
-стенда из CWD (`CONFIG_SECRET_VAR_UNRESOLVED`). Изоляция — `tests/setup.js`
-(`node --require`) + `tests/helpers/env-no-config.js`.
+2. Apply через UI/import затирал секретные `$VAR`-поля активного файла
+   (UI не отправляет секреты, `buildStagedConfig` пропускает `field.secret`,
+   `applyConfig` писал staged поверх активного) — на стенде сервис не стартовал
+   (`MONITOR_ENABLED=true requires METRICS_API_KEY`). Исправление:
+   `mergePreservedSecrets` переносит `$VAR`-ссылки секретов из активного
+   конфига при stage/import/apply (до pre-validate; литералы по-прежнему
+   режектятся). Тесты в config-store.test.js и queue-monitor/api/config.test.js.
+
+3. Тесты подхватывали `config/zyablik.config.json` стенда из CWD
+   (`CONFIG_SECRET_VAR_UNRESOLVED`). Изоляция — `tests/setup.js`
+   (`node --require`) + `tests/helpers/env-no-config.js`.
 
 ## Risks and Mitigations
 

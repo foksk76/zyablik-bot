@@ -30,6 +30,7 @@ const {
     clearStaged,
     readJsonFile,
     preValidateConfigFile,
+    mergePreservedSecrets,
     applyConfig,
     rollbackConfig,
     readPending,
@@ -331,16 +332,19 @@ function createConfigApi(options = {}) {
 
         try {
             const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
-            writeStaged(configPath, fileConfig);
-            logConfigAudit('config.stage', { configPath });
+            // UI/import не передают секреты — сохраняем $VAR-ссылки активного
+            // конфига, чтобы diff был корректным и Apply не затирал их.
             const active = readJsonFile(configPath);
+            const merged = mergePreservedSecrets(active, fileConfig);
+            writeStaged(configPath, merged);
+            logConfigAudit('config.stage', { configPath });
             return {
                 statusCode: 200,
                 body: {
                     status: 'ok',
                     data: {
-                        staged: fileConfig,
-                        diff: computeConfigDiff(active, fileConfig)
+                        staged: merged,
+                        diff: computeConfigDiff(active, merged)
                     }
                 }
             };
@@ -473,16 +477,19 @@ function createConfigApi(options = {}) {
             }
 
             const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
-            writeStaged(configPath, fileConfig);
-            logConfigAudit('config.import', { configPath });
+            // Сохраняем существующие секреты активного конфига (импорт обычно
+            // редактирует несекретные поля).
             const active = readJsonFile(configPath);
+            const merged = mergePreservedSecrets(active, fileConfig);
+            writeStaged(configPath, merged);
+            logConfigAudit('config.import', { configPath });
             return {
                 statusCode: 200,
                 body: {
                     status: 'ok',
                     data: {
-                        staged: fileConfig,
-                        diff: computeConfigDiff(active, fileConfig)
+                        staged: merged,
+                        diff: computeConfigDiff(active, merged)
                     }
                 }
             };

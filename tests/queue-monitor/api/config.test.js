@@ -258,6 +258,31 @@ test('putStage: rejects literal secret in file', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('putStage: частичное обновление сохраняет $VAR-секреты активного конфига', async () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info', maxBotToken: '$MAX_BOT_TOKEN' },
+        monitor: { monitorEnabled: true, monitorPort: 9000, metricsApiKey: '$METRICS_API_KEY' }
+    });
+    const api = createConfigApi({ environment: { MAX_BOT_TOKEN: 'x', METRICS_API_KEY: 'y' }, configPath });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        monitor: { monitorEnabled: true, monitorPort: 9000 }
+    };
+
+    const result = await api.putStage({ req: mockReq(changed) });
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.data.staged.bot.maxBotToken, '$MAX_BOT_TOKEN');
+    assert.equal(result.body.data.staged.monitor.metricsApiKey, '$METRICS_API_KEY');
+    // diff не сообщает о секретах (сохранены без изменений)
+    assert.ok(!result.body.data.diff.some((d) => d.key === 'maxBotToken' || d.key === 'metricsApiKey'));
+    // staged записан на диск с секретами
+    const stagedOnDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
+    assert.equal(stagedOnDisk.bot.maxBotToken, '$MAX_BOT_TOKEN');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- POST /api/config/apply ---
 
 test('apply: 400 when no staged config', async () => {
@@ -372,6 +397,28 @@ test('import: rejects literal secret', async () => {
     };
     const result = await api.importConfig({ req: mockReq(bad) });
     assert.equal(result.statusCode, 400);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('import: сохраняет $VAR-секреты активного конфига при частичном импорте', async () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info', maxBotToken: '$MAX_BOT_TOKEN' },
+        monitor: { monitorEnabled: true, monitorPort: 9000, metricsApiKey: '$METRICS_API_KEY' }
+    });
+    const api = createConfigApi({ environment: { MAX_BOT_TOKEN: 'x', METRICS_API_KEY: 'y' }, configPath });
+    const imported = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        monitor: { monitorEnabled: true, monitorPort: 9000 }
+    };
+
+    const result = await api.importConfig({ req: mockReq(imported) });
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.data.staged.bot.maxBotToken, '$MAX_BOT_TOKEN');
+    assert.equal(result.body.data.staged.monitor.metricsApiKey, '$METRICS_API_KEY');
+    const stagedOnDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
+    assert.equal(stagedOnDisk.bot.maxBotToken, '$MAX_BOT_TOKEN');
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
