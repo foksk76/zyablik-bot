@@ -364,6 +364,51 @@ comments):
 
 ---
 
+### Task 10: F10-L1 — предупреждение о потерях необъявленных ключей при Import/Save
+
+**Status:** Done (в PR #23)
+
+**Description:** закрыть finding round-10 **F10-L1 (LOW)** — «Import → Save
+в UI молча теряет необъявленные значения плагинов (в т.ч. `$VAR`-секреты),
+которых нет в активном конфиге». Решение пользователя: предупреждение в
+import-ответе + документация (рунбук). Обратная сторона политики
+R8/R9 «маскировать/удалять»: `mergePreservedSecrets` возвращает только
+ключи, уже присутствующие в активном конфиге, поэтому пришедшие с
+импортом `plugins.legacy = { retries: 3, token: '$LEGACY' }` при пустой
+схеме после round-trip «форма → Save» превращаются в `{}`.
+
+**Выполнено:**
+- `findUndeclaredMaskedKeys(fileConfig, activeConfig, plugins)` в
+  `src/queue-monitor/api/config.js` — собирает `section.key` /
+  `plugins.<name>.<key>` для необъявленных ключей, ОТСУТСТВУЮЩИХ в активном
+  конфиге (ключи из активного переживут Save — не в warnings).
+- `warnings` добавлены в ответы `PUT /api/config/stage`,
+  `GET /api/config/stage`, `POST /api/config/import` (вычисляются ДО
+  `mergePreservedSecrets`, т.к. тот мутирует `fileConfig`).
+- UI (`SettingsPage.handleImportFile`): при непустых `warnings` — toast
+  `warning` со списком ключей; новый стиль `warning` в `showToast.js`
+  (токены `--warning` из `index.css`).
+- Документация: рунбук `docs/runbooks/config-file.md` §3 (когда ключи
+  теряются, как сохранить) и ADR-0046 (контракт поля `warnings`).
+
+**Acceptance criteria:**
+- [x] import с необъявленными ключами (нет в active) → `data.warnings` их перечисляет; ключи в staged-файле целы (теряются только при Save из формы)
+- [x] ключи, присутствующие в active, в `warnings` не попадают
+- [x] необъявленные ключи системных секций (`bot.extraKey`) тоже в `warnings`
+- [x] putStage/getStage отдают `warnings` так же, как import
+- [x] `npm test` зелёный (957)
+
+**Files:** `src/queue-monitor/api/config.js`, `src/queue-monitor/ui/src/pages/SettingsPage.jsx`,
+`src/queue-monitor/ui/src/lib/showToast.js`, `docs/runbooks/config-file.md`,
+`docs/decisions/ADR-0046-schema-driven-config-webui.md`,
+тесты `tests/queue-monitor/api/config.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** S
+
+---
+
 ## Checkpoint: Sprint 42
 
 - [ ] M1: start не висит при сетевом сбое poll
@@ -375,6 +420,7 @@ comments):
 - [x] R7 L1–L4: утечка system-ключей, карантин rollback, async-контракт рестарта, `version: null`
 - [x] R8-L1: нестроковые необъявленные значения в stage-ответах отброшены
 - [x] R9 N1/N2: утечка в `GET /api/config` закрыта, `default` валидируется
+- [x] R10 F10-L1: предупреждение о потерях необъявленных ключей при Import/Save
 - [ ] `npm test` зелёный; PR #23 merged
 
 ## Risks and Mitigations

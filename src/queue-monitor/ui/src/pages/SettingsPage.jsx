@@ -208,6 +208,15 @@ export default function SettingsPage() {
                 setHasStaged(true);
                 setShowDiff(true);
                 showToast('Файл импортирован в staged', 'success');
+                // F10-L1 (review R10): необъявленные ключи, которые форма не
+                // отредактирует и «Сохранить (staged)» может молча потерять.
+                const warnings = result.message && result.message.warnings;
+                if (Array.isArray(warnings) && warnings.length > 0) {
+                    showToast(
+                        `Необъявленные ключи не редактируются в форме и будут потеряны при «Сохранить»: ${warnings.join(', ')}`,
+                        'warning'
+                    );
+                }
                 setTimeout(() => refresh(), 800);
             } else {
                 showToast(`Ошибка импорта: ${result.message}`, 'error');

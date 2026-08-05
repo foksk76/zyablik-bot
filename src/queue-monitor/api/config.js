@@ -402,6 +402,63 @@ function maskStagedSecrets(fileConfig, plugins = []) {
     return result;
 }
 
+// F10-L1 (review R10): ключи, которые UI не сможет отредактировать и
+// round-trip «форма → Save» молча потеряет. Это необъявленные ключи
+// (системные секции и ветки плагинов), маскируемые/отбрасываемые в ответе,
+// которых НЕТ в активном конфиге: mergePreservedSecrets доставляет их в
+// staged только из активного, а пришедшие с импортом ничем не защищены.
+// Ключи, уже присутствующие в активном конфиге, переживут Save (merge
+// вернёт их) — в предупреждение не попадают. Возвращает массив строк
+// "plugins.legacy.token" / "bot.extraKey".
+function findUndeclaredMaskedKeys(fileConfig, activeConfig, plugins = []) {
+    const warnings = [];
+    if (!fileConfig || typeof fileConfig !== 'object') {
+        return warnings;
+    }
+    const pluginSchemas = buildPluginSchemas(plugins);
+
+    for (const sectionName of SYSTEM_SECTION_KEYS) {
+        const section = fileConfig[sectionName];
+        if (!section || typeof section !== 'object') {
+            continue;
+        }
+        const activeSection = activeConfig && activeConfig[sectionName] && typeof activeConfig[sectionName] === 'object'
+            ? activeConfig[sectionName] : {};
+        for (const key of Object.keys(section)) {
+            if (SYSTEM_SCHEMA[sectionName][key]) {
+                continue;
+            }
+            if (activeSection[key] !== undefined) {
+                continue;
+            }
+            warnings.push(`${sectionName}.${key}`);
+        }
+    }
+
+    if (fileConfig.plugins && typeof fileConfig.plugins === 'object') {
+        for (const [pluginName, pluginValue] of Object.entries(fileConfig.plugins)) {
+            if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
+                continue;
+            }
+            const activePlugin = activeConfig && activeConfig.plugins && activeConfig.plugins[pluginName]
+                && typeof activeConfig.plugins[pluginName] === 'object' && !Array.isArray(activeConfig.plugins[pluginName])
+                ? activeConfig.plugins[pluginName] : {};
+            const schema = pluginSchemas[pluginName];
+            for (const key of Object.keys(pluginValue)) {
+                if (schema && schema[key]) {
+                    continue;
+                }
+                if (activePlugin[key] !== undefined) {
+                    continue;
+                }
+                warnings.push(`plugins.${pluginName}.${key}`);
+            }
+        }
+    }
+
+    return warnings;
+}
+
 // Сериализация effective-конфига: секреты маскируются до { secret: true, set }.
 // set = в файле есть непустое значение ($VAR-ссылка). Возвращает { version, fileExists, sections }.
 // plugins — список загруженных плагинов (для маскирования секретов в plugins.*).
@@ -701,7 +758,10 @@ function createConfigApi(options = {}) {
                     staged: maskStagedSecrets(staged, plugins),
                     // Без staged diff пуст: показывать активный конфиг как
                     // «удалён» (new:null) вводяще (review).
-                    diff: staged === null ? [] : computeConfigDiff(active, staged, plugins)
+                    diff: staged === null ? [] : computeConfigDiff(active, staged, plugins),
+                    // F10-L1 (review R10): предупреждение о ключах, которые
+                    // форма не отредактирует и Save может потерять.
+                    warnings: staged === null ? [] : findUndeclaredMaskedKeys(staged, active, plugins)
                 }
             }
         };
@@ -733,7 +793,10 @@ function createConfigApi(options = {}) {
                 status: 'ok',
                 data: {
                     staged: maskStagedSecrets(merged, plugins),
-                    diff: computeConfigDiff(active, merged, plugins)
+                    diff: computeConfigDiff(active, merged, plugins),
+                    // F10-L1 (review R10): необъявленные ключи, которые UI не
+                    // отредактирует и round-trip «форма → Save» потеряет.
+                    warnings: findUndeclaredMaskedKeys(merged, active, plugins)
                 }
             }
         };
@@ -1013,6 +1076,7 @@ module.exports = {
     computeConfigDiff,
     maskStagedSecrets,
     buildEffectiveSections,
+    findUndeclaredMaskedKeys,
     buildExportConfig,
     DEFAULT_MUTATION_MAX,
     DEFAULT_MUTATION_WINDOW_MS

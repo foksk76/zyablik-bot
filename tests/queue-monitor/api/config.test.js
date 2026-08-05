@@ -622,6 +622,81 @@ test('import: rejects unknown plugin config field', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// F10-L1 (review R10): import с необъявленными ключами плагина (в т.ч.
+// $VAR-секреты), которых нет в активном конфиге, предупреждает о ключах,
+// которые round-trip «форма → Save» молча потеряет.
+test('import: предупреждает о необъявленных ключах плагина, которых нет в active (F10-L1)', async () => {
+    const { dir, configPath } = tmpConfig({ version: CURRENT_VERSION, bot: { logLevel: 'info' }, plugins: {} });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const imported = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info' },
+        plugins: { legacy: { retries: 3, token: '$LEGACY' } }
+    };
+
+    const result = await api.importConfig({ req: mockReq(imported) });
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.data.warnings, ['plugins.legacy.retries', 'plugins.legacy.token']);
+    // Сами ключи в staged-файле есть (потеря — только при Save из формы).
+    const stagedOnDisk = JSON.parse(fs.readFileSync(`${configPath}.staged.json`, 'utf8'));
+    assert.equal(stagedOnDisk.plugins.legacy.retries, 3);
+    assert.equal(stagedOnDisk.plugins.legacy.token, '$LEGACY');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('import: ключи, уже присутствующие в active, в warnings не попадают (F10-L1)', async () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info' },
+        plugins: { legacy: { retries: 3, token: '$LEGACY' } }
+    });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const imported = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        plugins: { legacy: { retries: 3, token: '$LEGACY' } }
+    };
+
+    const result = await api.importConfig({ req: mockReq(imported) });
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.data.warnings, [], 'активные ключи переживут Save — предупреждений нет');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('import: необъявленные ключи системных секций попадают в warnings (F10-L1)', async () => {
+    const { dir, configPath } = tmpConfig({ version: CURRENT_VERSION, bot: { logLevel: 'info' } });
+    const api = createConfigApi({ environment: {}, configPath });
+    const imported = { version: CURRENT_VERSION, bot: { logLevel: 'info', extraKey: 'x' } };
+
+    const result = await api.importConfig({ req: mockReq(imported) });
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.data.warnings, ['bot.extraKey']);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('putStage: предупреждает о необъявленных ключах, которых нет в active (F10-L1)', async () => {
+    const { dir, configPath } = tmpConfig({ version: CURRENT_VERSION, bot: { logLevel: 'info' }, plugins: {} });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const changed = { version: CURRENT_VERSION, bot: { logLevel: 'info' }, plugins: { legacy: { retries: 3 } } };
+
+    const result = await api.putStage({ req: mockReq(changed) });
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.data.warnings, ['plugins.legacy.retries']);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStage: предупреждает о необъявленных ключах в существующем staged (F10-L1)', async () => {
+    const { dir, configPath } = tmpConfig({ version: CURRENT_VERSION, bot: { logLevel: 'info' }, plugins: {} });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const imported = { version: CURRENT_VERSION, bot: { logLevel: 'info' }, plugins: { legacy: { retries: 3 } } };
+    await api.importConfig({ req: mockReq(imported) });
+
+    const result = api.getStage({});
+    assert.equal(result.body.data.exists, true);
+    assert.deepEqual(result.body.data.warnings, ['plugins.legacy.retries']);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('putStage: секреты плагинов маскируются в staged-ответе', async () => {
     const { dir, configPath } = tmpConfig(minimalConfig);
     const plugins = [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true }, syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
