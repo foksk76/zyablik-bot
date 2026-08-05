@@ -4,6 +4,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { validateFieldValue } = require('./config-schema');
+
 const moduleName = 'plugin-loader';
 
 // ADR-0046: допустимые ключи поля configSchema плагина и типы значений.
@@ -158,6 +160,22 @@ function validateConfigSchema(configSchema, pluginName) {
             throw new Error(
                 `Plugin "${pluginName}" configSchema field "${key}" "section" must be a string`
             );
+        }
+
+        // N2 (review R9): default валидируется той же проверкой, что и реальные
+        // значения (validateFieldValue — type/enum/min/max, согласована с
+        // UI coerceValue/validateValue). Схема вида { type: 'number',
+        // default: 'oops' } или { type: 'enum', enum: ['a'], default: 'b' }
+        // раньше принималась при загрузке, но поле в UI становилось
+        // нередактируемым и несохраняемым (fieldDefault неверного типа,
+        // coerceValue → undefined, validateValue — неразрешимая ошибка).
+        if (field.default !== undefined) {
+            const defaultReason = validateFieldValue(field, field.default);
+            if (defaultReason) {
+                throw new Error(
+                    `Plugin "${pluginName}" configSchema field "${key}" has invalid default: ${defaultReason}`
+                );
+            }
         }
     }
 }

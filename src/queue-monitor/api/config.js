@@ -21,7 +21,7 @@
 // sliding-window rate limit (ADR-0046, отдельный пул от auth).
 
 const { resolveConfigPath, CONFIG_VALIDATION_ERROR_CODE, SECRET_VAR_UNRESOLVED_ERROR_CODE } = require('../../bot-platform/core/config');
-const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS, isVarReference } = require('../../bot-platform/core/config-schema');
+const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('../../bot-platform/core/config-schema');
 const { CURRENT_VERSION } = require('../../bot-platform/core/config-migrations');
 const {
     readStaged,
@@ -442,22 +442,25 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
                     }
                 }
             }
-            // Defense-in-depth (m4): защита веток без configSchema и
-            // необъявленных ключей. H3 (review): объявленные НЕсекретные поля
-            // configSchema — обычные значения (в т.ч. $VAR-ссылки); маскируется
-            // только необъявленный ключ (литеральная строка — целиком, как
-            // неотличимая от секрета без схемы).
+            // Defense-in-depth (m4) + R8/N1: защита веток без configSchema и
+            // необъявленных ключей — единая политика с maskStagedSecrets.
+            // H3 (review): объявленные поля configSchema (секреты уже
+            // замаскированы в цикле выше, НЕсекретные — обычные значения)
+            // пропускаются. Необъявленный ключ: непустая строка ($VAR-ссылка
+            // или литерал) маскируется до { secret, set }; нестроковое
+            // значение (объект/массив/число/булево) отбрасывается целиком —
+            // иначе в GET /api/config утекала бы структура ветки.
             for (const [key, value] of Object.entries(section)) {
-                if (isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                if (schema && schema[key]) {
                     continue;
                 }
-                if (isVarReference(value)) {
-                    section[key] = maskSecret(value);
+                if (typeof value === 'string') {
+                    if (value !== '') {
+                        section[key] = maskSecret(value);
+                    }
                     continue;
                 }
-                if (typeof value === 'string' && value !== '') {
-                    section[key] = maskSecret(value);
-                }
+                delete section[key];
             }
             pluginSection[pluginName] = section;
         }

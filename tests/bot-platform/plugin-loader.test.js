@@ -261,6 +261,47 @@ test('validateConfigSchema rejects non-string description and section', () => {
   );
 });
 
+// N2 (review R9): default валидируется по типу/enum/min/max той же проверкой,
+// что и значения (validateFieldValue). Схема { type: 'number', default: 'x' }
+// раньше принималась при загрузке, но ломала UI-поле (fieldDefault неверного
+// типа, coerceValue → undefined).
+test('validateConfigSchema rejects default of wrong type', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'number', default: 'oops' } }, 'test'),
+    /has invalid default: /
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'boolean', default: 'yes' } }, 'test'),
+    /has invalid default: /
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'list', default: 42 } }, 'test'),
+    /has invalid default: /
+  );
+});
+
+test('validateConfigSchema rejects default outside enum/min/max', () => {
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'enum', enum: ['a'], default: 'b' } }, 'test'),
+    /has invalid default: /
+  );
+  assert.throws(
+    () => validateConfigSchema({ foo: { type: 'number', min: 1, max: 10, default: 0 } }, 'test'),
+    /has invalid default: /
+  );
+});
+
+test('validateConfigSchema accepts valid defaults', () => {
+  assert.doesNotThrow(() => validateConfigSchema(
+    { foo: { type: 'number', default: 5 }, bar: { type: 'string', default: 'x' } },
+    'test'
+  ));
+  assert.doesNotThrow(() => validateConfigSchema(
+    { foo: { type: 'enum', enum: ['a', 'b'], default: 'b' }, bar: { type: 'list', default: ['x'] } },
+    'test'
+  ));
+});
+
 test('validatePlugin accepts plugin with valid configSchema', () => {
   const plugin = {
     name: 'test',

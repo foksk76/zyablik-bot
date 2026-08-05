@@ -1,15 +1,16 @@
-# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–8)
+# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–9)
 
-**Цель:** закрыть замечания auto-review PR #23 (раунды 5–8, Approve with
+**Цель:** закрыть замечания auto-review PR #23 (раунды 5–9, Approve with
 comments) перед боевым запуском long-polling режима: M1 (зависание start при
 сетевом сбое poll), M2 (двойной инкремент `boots` в синтетическом режиме),
 R5-M3 (required отсутствующих plugin-веток), L1–L3 (plugin-`$VAR` в UI,
 рассинхрон `pendingRemainingMs`, stage-валидация до слияния секретов), L5
 (дрейф доков карантина), R6-M1 (rollback 500 на битом lkg), R7 L1–L4
 (необъявленные system-ключи в diff/stage, карантин при ручном rollback,
-асинхронный контракт рестарта, нормализация `version: null`) и R8-L1
-(нестроковые необъявленные значения в stage-ответах). R5–R8 уже исправлены
-в PR.
+асинхронный контракт рестарта, нормализация `version: null`), R8-L1
+(нестроковые необъявленные значения в stage-ответах) и R9 N1/N2
+(утечка нестроковых необъявленных значений веток плагинов в `GET /api/config`,
+валидация `default` в `validateConfigSchema`). R5–R9 уже исправлены в PR.
 
 **ADR:** [ADR-0045](../../docs/decisions/ADR-0045-config-file-source-of-truth.md)
 [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
@@ -73,6 +74,17 @@ R6-M1 поправлены в этом же PR.
   веток плагинов (строки маскируются до `{ secret, set }`, как раньше;
   объявленные поля не трогаются). `computeConfigDiff` такие ключи уже
   выкидывал (`isDeclaredSystemField`) — теперь согласован и stage-ответ.
+- **R9-N1 (утечка в GET /api/config):** R8-фикс применялся только к
+  `maskStagedSecrets`; `buildEffectiveSections` копировал ветку плагина
+  целиком (`{ ...pluginValue }`) и нестроковые необъявленные значения
+  утекали в `GET /api/config`. Единая политика необъявленных ключей
+  перенесена и туда (нестроковое → `delete`); цикл унифицирован по
+  `schema[key]` (как `maskStagedSecrets`), а не `isDeclaredPluginField`.
+- **R9-N2 (валидация default):** `validateConfigSchema` (plugin-loader)
+  теперь валидирует `default` полей configSchema той же проверкой, что и
+  значения (`validateFieldValue` — type/enum/min/max, согласована с UI
+  `coerceValue`/`validateValue`). Схема `{ type: 'number', default: 'x' }`
+  отклоняется при загрузке, а не ломает UI-поле при первом реальном плагине.
 
 ## Tasks
 
@@ -311,6 +323,47 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ---
 
+### Task 9: R9 N1/N2 — утечка в GET /api/config, валидация default в configSchema
+
+**Status:** Done (в PR #23)
+
+**Description:** закрыть findings round-9 (comment `5187207500`, Approve with
+comments):
+
+- **N1 (LOW→MEDIUM):** R8-фикс применялся только к `maskStagedSecrets`
+  (stage/diff/import), но `buildEffectiveSections` (строки 450–461 до фикса)
+  копировал ветку плагина целиком — нестроковые необъявленные значения
+  утекали в `GET /api/config`
+  (`plugins.legacy.nested = { token: 'sk-nested' }, retries: 3`).
+  Тесис R7-L1 «GET /api/config не затронут» верен только для системных
+  секций. Фикс: единая политика необъявленных ключей перенесена в
+  `buildEffectiveSections` (нестроковое значение → `delete`; непустая строка
+  → `{ secret, set }`). Стиль/семантика цикла унифицированы с
+  `maskStagedSecrets` (skip по `schema[key]`, а не `isDeclaredPluginField`);
+  `isVarReference` из импортов `api/config.js` удалён (не используется).
+- **N2 (LOW):** `validateConfigSchema` (plugin-loader) не валидировал
+  `default` против `type`/`enum`/`min`/`max` — схема
+  `{ type: 'number', default: 'x' }` принималась при загрузке, но поле в UI
+  становилось нередактируемым/несохраняемым (`fieldDefault` неверного типа,
+  `coerceValue` → undefined, `validateValue` — неразрешимая ошибка). Фикс:
+  `default` валидируется `validateFieldValue` (та же проверка, что и реальные
+  значения, — не может разойтись с runtime).
+
+**Acceptance criteria:**
+- [x] N1: `GET /api/config` не отдаёт нестроковые необъявленные значения веток плагинов (регрессы: schemaless + с configSchema)
+- [x] N1: объявленные поля плагинов видимы, секреты — статус (регресс)
+- [x] N2: `default` неверного типа / вне enum / вне min-max → ошибка загрузки; валидные дефолты проходят (регрессы)
+- [x] `npm test` зелёный
+
+**Files:** `src/queue-monitor/api/config.js`, `src/bot-platform/core/plugin-loader.js`,
+тесты `tests/queue-monitor/api/config.test.js`, `tests/bot-platform/plugin-loader.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** S (уже сделано в PR #23)
+
+---
+
 ## Checkpoint: Sprint 42
 
 - [ ] M1: start не висит при сетевом сбое poll
@@ -321,6 +374,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 - [ ] L3: Stage валидирует после слияния секретов
 - [x] R7 L1–L4: утечка system-ключей, карантин rollback, async-контракт рестарта, `version: null`
 - [x] R8-L1: нестроковые необъявленные значения в stage-ответах отброшены
+- [x] R9 N1/N2: утечка в `GET /api/config` закрыта, `default` валидируется
 - [ ] `npm test` зелёный; PR #23 merged
 
 ## Risks and Mitigations

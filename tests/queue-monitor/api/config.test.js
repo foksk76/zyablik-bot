@@ -755,6 +755,44 @@ test('getConfig: ветка плагина без configSchema не уходит
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// N1 (review R9): R8-фикс не покрывал buildEffectiveSections — нестроковые
+// необъявленные значения веток плагинов утекали в GET /api/config.
+test('getConfig: нестроковые необъявленные значения ветки плагина не утекают (N1 R9)', () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        plugins: { legacy: { token: '$LEGACY_TOKEN', nested: { token: 'sk-nested' }, retries: 3, arr: ['sk-arr'], flag: true } }
+    });
+    const api = createConfigApi({ environment: {}, configPath, plugins: [] });
+    const result = api.getConfig({});
+    const legacy = result.body.data.sections.plugins.legacy;
+    assert.deepEqual(legacy.token, { secret: true, set: true }, 'строка маскируется');
+    assert.ok(!('nested' in legacy), 'объект отброшен');
+    assert.ok(!('arr' in legacy), 'массив отброшен');
+    assert.ok(!('retries' in legacy), 'число отброшено');
+    assert.ok(!('flag' in legacy), 'булево отброшено');
+    assert.ok(!JSON.stringify(result.body).includes('sk-nested'));
+    assert.ok(!JSON.stringify(result.body).includes('sk-arr'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// N1 (review R9): то же для плагина с configSchema — объявленное несекретное
+// поле видимо, необъявленные нестроковые ключи отбрасываются.
+test('getConfig: объявленное поле плагина видимо, необъявленные нестроковые — нет (N1 R9)', () => {
+    const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        plugins: { identity: { syncMode: 'auto', apiToken: '$ID_API_TOKEN', nested: { token: 'sk-nested' } } }
+    });
+    const api = createConfigApi({ environment: {}, configPath, plugins });
+    const result = api.getConfig({});
+    const identity = result.body.data.sections.plugins.identity;
+    assert.equal(identity.syncMode, 'auto', 'объявленный несекретный ключ цел');
+    assert.deepEqual(identity.apiToken, { secret: true, set: true }, 'объявленный секрет — статус');
+    assert.ok(!('nested' in identity), 'необъявленный объект отброшен');
+    assert.ok(!JSON.stringify(result.body).includes('sk-nested'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('buildEffectiveSections: объявленное несекретное поле плагина остаётся видимым', () => {
     const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
     const fileConfig = { version: CURRENT_VERSION, plugins: { identity: { syncMode: 'manual', apiToken: '$ID_API_TOKEN' } } };
