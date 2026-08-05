@@ -237,82 +237,111 @@ async function startIngressAndQueue(config, options, io) {
   const stopHandles = [];
 
   let queueStore = null;
-  if (config.queueEnabled) {
-    queueStore = options.queueStore || createQueueStore({
-      dbPath: options.queueDbPath || 'delivery-queue.db',
-      backoffBase: config.queueBackoffBase,
-      backoffMax: config.queueBackoffMax,
-      processingTtlSeconds: config.queueProcessingTtlSeconds
-    });
-  }
-
-  let ingress = null;
-  if (config.ingressEnabled) {
-    ingress = createIngressPipeline({
-      port: config.ingressPort,
-      issuer: config.idpIssuer,
-      audience: config.idpAudience,
-      claimName: config.jwtClaimName,
-      claimValue: config.jwtClaimValue,
-      verifierFactory: createIssuerVerifierFactory(config.idpIssuer),
-      outboundClient,
-      queueStore,
-      logAudit: config.logAudit,
-      logTrace: config.logTrace,
-      logger: options.logger || console
-    });
-
-    await ingress.start();
-    io.stdout.write(`HTTP-ingress server started on port ${config.ingressPort}\n`);
-    stopHandles.push({ name: 'ingress', stop: () => ingress.stop() });
-  }
-
-  // ADR-0034: queue monitor dashboard — readonly replica + HTTP server.
-  // Запускается после queue-store (нужен dbPath), останавливается ПОСЛЕ worker.
   let monitorService = null;
-  if (config.monitorEnabled) {
-    const monitorDbPath = options.monitorDbPath || options.queueDbPath || 'delivery-queue.db';
-    const monitor = options.monitor || createQueueMonitor({
-      environment,
-      dbPath: monitorDbPath,
-      queueStore,
-      logger: options.logger || console,
-      // ADR-0045 (M3, review R13): runtime-конфиг queue-monitor из ФАЙЛА
-      // (buildMonitorFlat), а не из env — иначе dashboard и /api/config/*
-      // не поднимаются в file-based схеме без дублирования MONITOR_ENABLED
-      // в env (нарушало бы «файл — источник правды»).
-      config: buildMonitorFlat(config),
-      // ADR-0046: конфигурация для /api/config/* (configPath, плагины, рестарт).
-      configPath: options.configPath,
-      plugins: options.plugins || [],
-      configRestart: options.configRestart,
-      configRecovery: options.configRecovery
-    });
-    monitorService = monitor;
+  try {
+    if (config.queueEnabled) {
+      queueStore = options.queueStore || createQueueStore({
+        dbPath: options.queueDbPath || 'delivery-queue.db',
+        backoffBase: config.queueBackoffBase,
+        backoffMax: config.queueBackoffMax,
+        processingTtlSeconds: config.queueProcessingTtlSeconds
+      });
+    }
 
-    await monitor.start();
-    io.stdout.write(`Queue monitor dashboard started on port ${config.monitorPort}\n`);
-    stopHandles.unshift({ name: 'queue-monitor', stop: () => monitor.stop() });
-  }
+    let ingress = null;
+    if (config.ingressEnabled) {
+      ingress = createIngressPipeline({
+        port: config.ingressPort,
+        issuer: config.idpIssuer,
+        audience: config.idpAudience,
+        claimName: config.jwtClaimName,
+        claimValue: config.jwtClaimValue,
+        verifierFactory: createIssuerVerifierFactory(config.idpIssuer),
+        outboundClient,
+        queueStore,
+        logAudit: config.logAudit,
+        logTrace: config.logTrace,
+        logger: options.logger || console
+      });
 
-  if (config.queueEnabled) {
-    stopHandles.push({ name: 'queue-store', stop: () => queueStore.close() });
+      await ingress.start();
+      io.stdout.write(`HTTP-ingress server started on port ${config.ingressPort}\n`);
+      stopHandles.push({ name: 'ingress', stop: () => ingress.stop() });
+    }
 
-    const worker = createQueueWorker({
-      queueStore,
-      outboundClient,
-      batchSize: config.queueBatchSize,
-      intervalMs: config.queueIntervalMs,
-      maxAttempts: config.queueMaxAttempts,
-      logAudit: config.logAudit,
-      logTrace: config.logTrace,
-      logger: options.logger || console
-    });
+    // ADR-0034: queue monitor dashboard — readonly replica + HTTP server.
+    // Запускается после queue-store (нужен dbPath), останавливается ПОСЛЕ worker.
+    if (config.monitorEnabled) {
+      const monitorDbPath = options.monitorDbPath || options.queueDbPath || 'delivery-queue.db';
+      const monitor = options.monitor || createQueueMonitor({
+        environment,
+        dbPath: monitorDbPath,
+        queueStore,
+        logger: options.logger || console,
+        // ADR-0045 (M3, review R13): runtime-конфиг queue-monitor из ФАЙЛА
+        // (buildMonitorFlat), а не из env — иначе dashboard и /api/config/*
+        // не поднимаются в file-based схеме без дублирования MONITOR_ENABLED
+        // в env (нарушало бы «файл — источник правды»).
+        config: buildMonitorFlat(config),
+        // ADR-0046: конфигурация для /api/config/* (configPath, плагины, рестарт).
+        configPath: options.configPath,
+        plugins: options.plugins || [],
+        configRestart: options.configRestart,
+        configRecovery: options.configRecovery
+      });
+      monitorService = monitor;
 
-    worker.start();
-    io.stdout.write('Queue worker started\n');
-    // Worker первым в очереди остановки (завершаем polling до закрытия ingress/БД).
-    stopHandles.unshift({ name: 'queue-worker', stop: () => worker.stop() });
+      await monitor.start();
+      io.stdout.write(`Queue monitor dashboard started on port ${config.monitorPort}\n`);
+      stopHandles.unshift({ name: 'queue-monitor', stop: () => monitor.stop() });
+    }
+
+    if (config.queueEnabled) {
+      stopHandles.push({ name: 'queue-store', stop: () => queueStore.close() });
+
+      const worker = createQueueWorker({
+        queueStore,
+        outboundClient,
+        batchSize: config.queueBatchSize,
+        intervalMs: config.queueIntervalMs,
+        maxAttempts: config.queueMaxAttempts,
+        logAudit: config.logAudit,
+        logTrace: config.logTrace,
+        logger: options.logger || console
+      });
+
+      worker.start();
+      io.stdout.write('Queue worker started\n');
+      // Worker первым в очереди остановки (завершаем polling до закрытия ingress/БД).
+      stopHandles.unshift({ name: 'queue-worker', stop: () => worker.stop() });
+    }
+  } catch (error) {
+    // R15 (review): ресурс не стартовал — например, `monitor.start()` бросил
+    // EADDRINUSE (monitor.port совпал с ingress.port или занят). Без этой
+    // очистки уже запущенный ingress остаётся слушать: его listen-сокет держит
+    // event loop, main() ставит exitCode=1, но процесс не завершается — тот же
+    // «зомби» с замороженными boots и неработающим авто-откатом, ради которого
+    // делался M1/R13. Останавливаем запущенные сервисы (в обратном порядке) и
+    // закрываем queueStore, если он создан, но ещё не зарегистрирован.
+    for (let i = stopHandles.length - 1; i >= 0; i -= 1) {
+      try {
+        await stopHandles[i].stop();
+      } catch (stopError) {
+        if (io && io.stderr) {
+          io.stderr.write(`shutdown step '${stopHandles[i].name}' failed during failed start: ${stopError.message}\n`);
+        }
+      }
+    }
+    if (queueStore && !stopHandles.some((handle) => handle.name === 'queue-store')) {
+      try {
+        queueStore.close();
+      } catch (closeError) {
+        if (io && io.stderr) {
+          io.stderr.write(`failed to close queue store after failed start: ${closeError.message}\n`);
+        }
+      }
+    }
+    throw error;
   }
 
   // ADR-0033: единый shutdown handle для signal handlers. Цикл ниже
@@ -326,8 +355,19 @@ async function startIngressAndQueue(config, options, io) {
   // boot'а после ready dashboard'а окно авто-отката (pending → lkg) терялось
   // бы. Повторный вызов confirm — no-op (маркер уже снят).
 
+  // R15 (review): stop() идемпотентен. Двойные вызовы реальны: при
+  // firstTick-таймауте stopLiveService() → liveService.stop() →
+  // shutdownHandle.stop(), затем catch в main() вызывает stop() повторно.
+  // Без guard второй queueStore.close() на better-sqlite3 бросал «This database
+  // connection is not open» (ловился, но шумел в логах).
+  let stopped = false;
+
   return {
     stop: async (shutdownIo) => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
       for (const handle of stopHandles) {
         try {
           await handle.stop();

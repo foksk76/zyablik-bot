@@ -197,7 +197,16 @@ function createQueueStore(options = {}) {
     return result;
   }
 
+  // R15 (review): close() идемпотентен. Двойной вызов реален (firstTick-таймаут
+  // → liveService.stop() → shutdownHandle.stop(), затем повтор в main()).
+  // Повторный db.close() на better-sqlite3 бросает «This database connection
+  // is not open» — ловился, но шумел в логах.
+  let closed = false;
   function close() {
+    if (closed) {
+      return;
+    }
+    closed = true;
     db.close();
   }
 

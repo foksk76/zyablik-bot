@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const net = require('node:net');
 
 const { startIngressAndQueue } = require('../../src/bot-platform/app');
+const { buildMonitorFlat } = require('../../src/bot-platform/core/config');
 const { createLiveBotPlatformService, createLiveServiceShutdownHandlers } = require('../../src/bot-platform/runtime');
 const { envWithoutConfig } = require('../helpers/env-no-config');
 
@@ -10,6 +12,28 @@ const { envWithoutConfig } = require('../helpers/env-no-config');
 // а queue worker, SQLite connection и ingress HTTP server оставались открытыми.
 // HTTP listen-сокет удерживал event loop, а зависшие processing-строки
 // накапливались при каждом restart (усугубляя BUG A).
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+    server.once('error', reject);
+  });
+}
+
+function canConnect(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host: '127.0.0.1' });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+  });
+}
 
 function buildConfig(overrides = {}) {
   return {
@@ -287,5 +311,157 @@ test('startIngressAndQueue does not throw ReferenceError on environment when mon
   assert.equal(typeof handle.stop, 'function');
 
   await handle.stop({ stderr: { write: () => {} } });
+});
+
+// R15 (review): startIngressAndQueue без try/catch вокруг фазы старта ресурсов.
+// Если monitor.start() бросает (например, EADDRINUSE) ПОСЛЕ ingress.start(),
+// прежний код кидал ошибку, не остановив ingress: его listen-сокет держал event
+// loop, main() ставил exitCode=1, но процесс не завершался («зомби» с
+// замороженными boots и неработающим авто-откатом — тот же класс, что M1/R13).
+test('R15: при фейле monitor.start() уже запущенный ingress останавливается (нет утечки)', async () => {
+  const port = await getFreePort();
+  const monitorStops = [];
+  const fakeMonitor = {
+    async start() {
+      throw new Error('MONITOR_START_FAILED');
+    },
+    async stop() {
+      monitorStops.push('monitor.stop');
+    }
+  };
+  const outboundClient = { send: async () => ({}) };
+
+  await assert.rejects(
+    () => startIngressAndQueue(
+      buildConfig({
+        queueEnabled: false,
+        ingressEnabled: true,
+        ingressPort: port,
+        monitorEnabled: true,
+        monitorPort: port + 1
+      }),
+      { outboundClient, monitor: fakeMonitor },
+      { stdout: { write: () => {} }, stderr: { write: () => {} } }
+    ),
+    /MONITOR_START_FAILED/
+  );
+
+  // Ingress стартовал первым и должен быть остановлен в catch.
+  assert.equal(await canConnect(port), false, 'ingress must not keep listening after failed start');
+  // Монитор не зарегистрирован в stopHandles (его start() не вернулся) — stop не зовём.
+  assert.deepEqual(monitorStops, [], 'monitor.stop() must not be called for failed monitor start');
+});
+
+// R15: queueStore создаётся ДО monitor и в stopHandles регистрируется только в
+// конце. Если monitor.start() бросает, queueStore обязан закрыться в catch —
+// иначе SQLite-соединение остаётся открытым.
+test('R15: queueStore закрывается, если фейл произошёл до его регистрации в stopHandles', async () => {
+  const closed = [];
+  const fakeQueueStore = {
+    enqueue: () => ({}),
+    dequeue: () => [],
+    reclaimStale: () => 0,
+    ack: () => {},
+    nack: () => {},
+    stats: () => ({}),
+    close: () => { closed.push('queue-store'); }
+  };
+  const fakeMonitor = {
+    async start() {
+      throw new Error('MONITOR_START_FAILED');
+    },
+    async stop() {}
+  };
+
+  await assert.rejects(
+    () => startIngressAndQueue(
+      buildConfig({ queueEnabled: true, monitorEnabled: true, monitorPort: 9124 }),
+      { queueStore: fakeQueueStore, monitor: fakeMonitor },
+      { stdout: { write: () => {} }, stderr: { write: () => {} } }
+    ),
+    /MONITOR_START_FAILED/
+  );
+
+  assert.deepEqual(closed, ['queue-store'], 'queueStore.close() must be called on failed start');
+});
+
+// R15: коллизия портов ingress/dashboard — чистый отказ на этапе сборки конфига
+// (buildMonitorFlat), а не EADDRINUSE в monitor.start() ПОСЛЕ старта ingress.
+test('R15: buildMonitorFlat отклоняет коллизию портов ingress/dashboard', () => {
+  assert.throws(
+    () => buildMonitorFlat({
+      monitorEnabled: true,
+      ingressEnabled: true,
+      ingressPort: 8443,
+      monitorPort: 8443
+    }),
+    /Port collision: monitor\.port \(8443\) equals ingress\.port \(8443\)/
+  );
+  assert.doesNotThrow(() => buildMonitorFlat({
+    monitorEnabled: true,
+    ingressEnabled: true,
+    ingressPort: 8443,
+    monitorPort: 9000
+  }));
+  // Если один из серверов выключен — коллизия неважна.
+  assert.doesNotThrow(() => buildMonitorFlat({
+    monitorEnabled: false,
+    ingressEnabled: true,
+    ingressPort: 8443,
+    monitorPort: 8443
+  }));
+});
+
+// R15: коллизия портов через startIngressAndQueue (реальный ingress + реальный
+// createQueueMonitor): buildMonitorFlat(config) бросает при создании монитора
+// ПОСЛЕ старта ingress → catch останавливает ingress, порт освобождается.
+test('R15: startIngressAndQueue — коллизия портов отклоняется до старта монитора, ingress не течёт', async () => {
+  const port = await getFreePort();
+
+  await assert.rejects(
+    () => startIngressAndQueue(
+      buildConfig({
+        queueEnabled: false,
+        ingressEnabled: true,
+        ingressPort: port,
+        monitorEnabled: true,
+        monitorPort: port
+      }),
+      { outboundClient: { send: async () => ({}) }, environment: {} },
+      { stdout: { write: () => {} }, stderr: { write: () => {} } }
+    ),
+    /Port collision/
+  );
+
+  assert.equal(await canConnect(port), false, 'ingress must not keep listening after port-collision rejection');
+});
+
+// R15: stop() идемпотентен. Двойной вызов реален: при firstTick-таймауте
+// liveService.stop() → shutdownHandle.stop(), затем catch в main() вызывает
+// stop() повторно. Второй queueStore.close() на better-sqlite3 бросал «This
+// database connection is not open» (ловился, но шумел в логах).
+test('R15: handle.stop() идемпотентен — повторный stop не закрывает queueStore дважды', async () => {
+  const closed = [];
+  const queueStore = {
+    enqueue: () => ({ id: 1 }),
+    dequeue: () => [],
+    reclaimStale: () => 0,
+    ack: () => {},
+    nack: () => {},
+    stats: () => ({}),
+    close: () => { closed.push('queue-store'); }
+  };
+  const outboundClient = { send: async () => ({}) };
+
+  const handle = await startIngressAndQueue(
+    buildConfig({ queueEnabled: true }),
+    { queueStore, outboundClient },
+    { stdout: { write: () => {} }, stderr: { write: () => {} } }
+  );
+
+  await handle.stop({ stderr: { write: () => {} } });
+  await handle.stop({ stderr: { write: () => {} } });
+
+  assert.deepEqual(closed, ['queue-store'], 'queue-store.close() must be called exactly once');
 });
 

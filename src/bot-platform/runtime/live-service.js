@@ -125,7 +125,7 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
           // Остановить loop и поднятые сервисы (ingress/worker/queue-store),
           // иначе они держат event loop и процесс не завершится с ненулевым
           // кодом (зомби сохранится, авто-откат не сработает).
-          await stopLiveService(liveService, shutdownHandle, logger);
+          await stopLiveService(liveService, logger);
         }
         throw error;
       }
@@ -203,7 +203,9 @@ function waitForFirstTick(service, timeoutMs) {
   });
 }
 
-async function stopLiveService(liveService, shutdownHandle, logger) {
+async function stopLiveService(liveService, logger) {
+  // liveService.stop() сам выполняет coordinated shutdown
+  // (shutdownHandle.stop() внутри — ingress/worker/queue-store, ADR-0033).
   try {
     await liveService.stop();
   } catch (error) {

@@ -23,6 +23,17 @@ test('createQueueStore initializes without errors', () => {
   store.close();
 });
 
+// R15 (review): close() идемпотентен. Двойной вызов реален: при firstTick-
+// таймауте liveService.stop() → shutdownHandle.stop(), затем повтор в main().
+// Повторный db.close() на better-sqlite3 бросал «This database connection is
+// not open» — ловился, но шумел в логах.
+test('close() is idempotent — second call does not throw', () => {
+  const store = createStore();
+  assert.doesNotThrow(() => store.close());
+  assert.doesNotThrow(() => store.close());
+  assert.doesNotThrow(() => store.close());
+});
+
 test('enqueue creates a pending record and returns id', () => {
   const store = createStore();
   const entry = makeEntry();

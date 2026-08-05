@@ -102,9 +102,25 @@ test('CLI fails fast for webhook transport without starting network work', async
 });
 
 test('CLI live command routes to live service entrypoint without using fixtures', async () => {
+  // Изоляция от рантайм-конфига стенда (config/zyablik.config.json с $VAR-
+  // секретами не валиден без окружения): тест не должен зависеть от состояния
+  // стендового файла, поэтому задаём явный путь к временному конфигу.
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-live-route-'));
+  const configPath = path.join(dir, 'zyablik.config.json');
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    bot: {
+      maxTransportMode: 'long_polling'
+    }
+  }, null, 2), 'utf8');
+
   const calls = [];
   const result = await runMainWithEnv({
-    MAX_TRANSPORT_MODE: 'long_polling'
+    MAX_TRANSPORT_MODE: 'long_polling',
+    ZYABLIK_CONFIG: configPath
   }, ['--live'], {
     liveOptions: {
       installSignalHandlers: false

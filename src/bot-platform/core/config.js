@@ -171,6 +171,16 @@ const FLAT_MANAGED_FIELDS = (() => {
 
 // Секция monitor плоского результата (поля, которые потребляет queue-monitor).
 function buildMonitorFlat(flat) {
+    // R15 (review): коллизия портов ingress и dashboard — чистый отказ на этапе
+    // сборки конфига, а не «зомби» при старте: при совпадении port
+    // monitor.start() бросает EADDRINUSE ПОСЛЕ ingress.start(), и без отката
+    // ingress остаётся слушать (event loop держится, boots заморожены, авто-
+    // откат не срабатывает — тот же класс, что M1/R13).
+    if (flat.monitorEnabled && flat.ingressEnabled && flat.ingressPort === flat.monitorPort) {
+        throw new Error(
+            `Port collision: monitor.port (${flat.monitorPort}) equals ingress.port (${flat.ingressPort})`
+        );
+    }
     return {
         moduleName: 'queue-monitor-config',
         monitorEnabled: flat.monitorEnabled,
