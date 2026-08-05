@@ -1,19 +1,22 @@
-# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунд 5)
+# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–6)
 
-**Цель:** закрыть замечания auto-review PR #23 (раунд 5, Approve with
+**Цель:** закрыть замечания auto-review PR #23 (раунды 5–6, Approve with
 comments) перед боевым запуском long-polling режима: M1 (зависание start при
 сетевом сбое poll), M2 (двойной инкремент `boots` в синтетическом режиме),
-L1–L3 (plugin-`$VAR` в UI, рассинхрон `pendingRemainingMs`, stage-валидация
-до слияния секретов). L5 (дрейф доков карантина) уже исправлен в PR.
+R5-M3 (required отсутствующих plugin-веток), L1–L3 (plugin-`$VAR` в UI,
+рассинхрон `pendingRemainingMs`, stage-валидация до слияния секретов). L5
+(дрейф доков карантина) и R6-M1 (rollback 500 на битом lkg) уже исправлены
+в PR.
 
 **ADR:** [ADR-0045](../../docs/decisions/ADR-0045-config-file-source-of-truth.md)
 [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
-**Источник:** ревью PR #23, комментарий `5186794443` (round 5)
+**Источник:** ревью PR #23, комментарии `5186794443` (round 5),
+`5186875105` (round 6)
 
 **Контекст:** ревьюер подтвердил фиксы раундов 1–5 и вынес новые
-замечания. Блокеров нет; M1–M2 и L1–L3 — задачи «до merge»/«до боевого
-запуска» (M1 — обязательно перед long-polling на стенде). L5 поправлен в
-этом же PR.
+замечания. Блокеров нет; M1–M2, R5-M3 и L1–L3 — задачи «до merge»/«до
+боевого запуска» (M1 — обязательно перед long-polling на стенде). L5 и
+R6-M1 поправлены в этом же PR.
 
 **Границы:** без изменений поведения webhook (`src/zabbix-media-type/`).
 Только бот-платформа/UI/docs.
@@ -37,6 +40,13 @@ L1–L3 (plugin-`$VAR` в UI, рассинхрон `pendingRemainingMs`, stage-�
 - **L3:** Stage валидирует staged после слияния секретов
   (`mergePreservedSecrets`), а не до — литеральный секрет из активного файла
   отклоняется на Stage (400), а не всплывает только на Apply.
+- **R5-M3 (required отсутствующих plugin-веток):** required-поля валидируются
+  и для веток плагинов, отсутствующих в `rawConfig.plugins` (сейчас
+  `validateConfigFile` и клиент итерируют только присутствующие ветки — для
+  плагина с обязательными полями это «тихая» неконфигурация).
+- **R6-M1 (rollback 500):** битый lkg читается толерантно
+  (`readJsonFileSafe`) и превращается в `CONFIG_VALIDATION_ERROR` (400),
+  а не raw SyntaxError (500). Уже исправлено в PR.
 
 ## Tasks
 
@@ -172,10 +182,40 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ---
 
+### Task 6: R5-M3 — required-поля целиком отсутствующих plugin-веток
+
+**Status:** Pending
+
+**Description:** `validateConfigFile` (сервер) и `validateSectionValues`
+(клиент) обходят только ветки, присутствующие в `rawConfig.plugins` / в
+форме. Импорт конфига без ветки `plugins.<name>` при схеме с
+`required: true` проходит без ошибок — «тихая» неконфигурация до первого
+плагина с обязательными полями. Требуется: required-поля валидируются и для
+отсутствующих веток объявленных плагинов (наличие ветки тоже становится
+частью валидации), согласованно сервер/клиент.
+
+**Acceptance criteria:**
+- [ ] Сервер: `plugins: {}` при схеме плагина с `required`-полем → ошибка валидации (поле указано)
+- [ ] Клиент: `validateSectionValues` даёт ту же ошибку при отсутствующей ветке плагина
+- [ ] Плагин без required-полей не ломается при отсутствующей ветке (регресс)
+- [ ] Регресс-тесты в `config-schema`/UI-тестах; `npm test` зелёный
+
+**Files:** `src/bot-platform/core/config-schema.js`,
+`src/queue-monitor/ui/src/lib/configSchemaModel.js`,
+тесты `tests/bot-platform/config-store.test.js`,
+`src/queue-monitor/ui/test/configSchemaModel.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** M
+
+---
+
 ## Checkpoint: Sprint 42
 
 - [ ] M1: start не висит при сетевом сбое poll
 - [ ] M2: boots растёт 1 раз за boot (crash-loop откат после 5 boot)
+- [ ] R5-M3: required отсутствующих plugin-веток (сервер и клиент)
 - [ ] L1: plugin-`$VAR` документирован
 - [ ] L2: pendingRemainingMs согласован с откатом
 - [ ] L3: Stage валидирует после слияния секретов
@@ -187,6 +227,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 |------|--------|------------|
 | M1 «зомби»-процесс на боевом long-polling | High | Таймаут/N-неудач firstTick + exit/работа без подтверждения; задача до боевого запуска |
 | M2 ложный откат по crash-loop на стенде | Medium | Гард-флаг/проброс app; симуляция boots |
+| R5-M3 «тихая» неконфигурация плагина | Medium | Валидация required для отсутствующих веток; до первого плагина с required-полями |
 | Дрейф доков (карантин) | Low | L5 исправлен в PR; doc-синк в конце спринта |
 
 ## Файлы для изменения (сводка)
@@ -195,8 +236,9 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 src/bot-platform/core/live-service.js     (M1)
 src/bot-platform/app.js                   (M1/M2)
 src/bot-platform/core/index.js            (M2)
+src/bot-platform/core/config-schema.js    (R5-M3)
 src/queue-monitor/api/config.js           (L1/L2/L3)
-src/queue-monitor/ui/...                  (L1/L2)
+src/queue-monitor/ui/...                  (L1/L2, R5-M3 клиент)
 docs/runbooks/*, docs/decisions/ADR-0046  (L1, M1-поведение)
-tests/                                    (M1/M2/L3 регрессы)
+tests/                                    (M1/M2/R5-M3/L3 регрессы)
 ```

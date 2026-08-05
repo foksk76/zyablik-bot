@@ -528,6 +528,20 @@ test('rollback: 202 with restart, restores from manual', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// M1 (review R6): битый lkg (коррупция JSON) на rollback — 400
+// CONFIG_VALIDATION_ERROR, а не 500 (raw SyntaxError). rollback — самая
+// аварийная операция, битый lkg в ней наиболее вероятен.
+test('rollback: битый lkg — 400, а не 500', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    fs.writeFileSync(`${configPath}.lkg`, '{ broken json', 'utf8');
+    const result = await api.rollback({});
+    assert.equal(result.statusCode, 400);
+    assert.equal(result.body.code, 'CONFIG_VALIDATION_ERROR');
+    assert.match(result.body.error, /lkg повреждён/);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- GET /api/config/export ---
 
 test('export: returns current active config', () => {

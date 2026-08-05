@@ -704,9 +704,20 @@ function confirmConfigApplied(configPath, options = {}) {
 // плагина в lkg, нарушающая configSchema, прошла бы ручной rollback, но
 // упала бы в детекторе на следующем boot (несогласованная поверхность
 // валидации apply/detector/import vs rollback).
+// M1 (review R6): битый lkg (коррупция JSON) читается толерантно и
+// превращается в CONFIG_VALIDATION_ERROR (400), а не raw SyntaxError (500).
+// Откат — самая аварийная операция, и именно в ней битый lkg наиболее
+// вероятен; остальное окружение уже толерантно (readJsonFileSafe:
+// детектор, apply, getStage, getConfig).
 function rollbackConfig(configPath, options = {}) {
-    const { configPath: activePath } = serviceFilePaths(configPath);
-    const lkg = readLkg(configPath);
+    const { configPath: activePath, lkgPath } = serviceFilePaths(configPath);
+    const lkgResult = readJsonFileSafe(lkgPath);
+    if (!lkgResult.ok) {
+        throw createConfigError(CONFIG_VALIDATION_ERROR_CODE, 'lkg повреждён — rollback невозможен', {
+            reason: 'corrupt-lkg'
+        });
+    }
+    const lkg = lkgResult.data;
 
     if (lkg === null) {
         throw createConfigError(CONFIG_VALIDATION_ERROR_CODE, 'Нет lkg для восстановления (rollback невозможен)');

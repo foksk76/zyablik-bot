@@ -729,6 +729,28 @@ test('rollbackConfig: без lkg — ошибка', () => {
     assert.throws(() => rollbackConfig(configPath, {}), /Нет lkg/);
 });
 
+// M1 (review R6): битый lkg (коррупция JSON) — CONFIG_VALIDATION_ERROR, а не
+// raw SyntaxError: rollback — самая аварийная операция, битый lkg в ней
+// наиболее вероятен, и API не должен отвечать 500 (остальное окружение
+// уже толерантно через readJsonFileSafe).
+test('rollbackConfig: битый lkg — ошибка валидации (не raw SyntaxError)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: {} });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    fs.writeFileSync(`${configPath}.lkg`, '{ broken json', 'utf8');
+    assert.throws(
+        () => rollbackConfig(configPath, {}),
+        (error) => {
+            assert.equal(error.code, 'CONFIG_VALIDATION_ERROR');
+            assert.equal(error.details && error.details.reason, 'corrupt-lkg');
+            return true;
+        }
+    );
+    // Активный файл и lkg не тронуты (откат не выполнен).
+    assert.equal(lkgExists(configPath), true);
+    assert.equal(stagedExists(configPath), false);
+});
+
 test('rollbackConfig: невалидный lkg — ошибка', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, { version: 1, bot: {} });
