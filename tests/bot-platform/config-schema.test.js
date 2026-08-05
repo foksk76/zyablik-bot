@@ -133,6 +133,37 @@ test('validateConfigFile: plugins должен быть объектом', () =>
     assert.equal(result.errors.length, 1);
 });
 
+test('validateConfigFile: plugins: null — ошибка, ветки не затираются при Apply (M1 R13)', () => {
+    const result = validateConfigFile({ plugins: null });
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].section, 'plugins');
+    assert.equal(result.errors[0].key, null);
+});
+
+test('validateConfigFile: ветка плагина null — ошибка (M1 R13, data-loss path)', () => {
+    const plugins = [{ name: 'alerts', configSchema: { timeout: { type: 'number', min: 1 } } }];
+    const result = validateConfigFile(
+        { plugins: { alerts: null } },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].section, 'plugins');
+    assert.equal(result.errors[0].key, 'alerts');
+    assert.ok(result.errors[0].reason.includes('объектом'));
+});
+
+test('validateConfigFile: системная секция null — ошибка (M1 R13)', () => {
+    const result = validateConfigFile({ bot: null, version: 1 });
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].section, 'bot');
+    assert.equal(result.errors[0].key, null);
+});
+
+test('validateConfigFile: отсутствующая секция (undefined) — ок', () => {
+    const result = validateConfigFile({ version: 1, bot: { logLevel: 'debug' } });
+    assert.equal(result.errors.length, 0);
+});
+
 test('validateConfigFile: не объект — ошибка', () => {
     const result = validateConfigFile([]);
     assert.equal(result.errors.length, 1);

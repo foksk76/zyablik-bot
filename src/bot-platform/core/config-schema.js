@@ -533,11 +533,13 @@ function validateSection(sectionName, sectionValue) {
     const errors = [];
     const warnings = [];
 
-    if (sectionValue === undefined || sectionValue === null) {
+    // undefined — секция отсутствует в файле (нормально); null — явно заданный
+    // мусор, который при Apply затирает ветку (M1, review R13): ошибка.
+    if (sectionValue === undefined) {
         return { errors, warnings };
     }
 
-    if (typeof sectionValue !== 'object' || Array.isArray(sectionValue)) {
+    if (sectionValue === null || typeof sectionValue !== 'object' || Array.isArray(sectionValue)) {
         errors.push({ section: sectionName, key: null, reason: 'секция должна быть объектом' });
         return { errors, warnings };
     }
@@ -590,8 +592,10 @@ function validateConfigFile(rawConfig, options = {}) {
         warnings.push(...sectionResult.warnings);
     }
 
-    if (rawConfig.plugins !== undefined && rawConfig.plugins !== null) {
-        if (typeof rawConfig.plugins !== 'object' || Array.isArray(rawConfig.plugins)) {
+    // undefined — секции нет в файле (нормально); null — мусор, затирающий
+    // ветки плагинов при Apply (M1, review R13): ошибка.
+    if (rawConfig.plugins !== undefined) {
+        if (rawConfig.plugins === null || typeof rawConfig.plugins !== 'object' || Array.isArray(rawConfig.plugins)) {
             errors.push({ section: 'plugins', key: null, reason: 'секция plugins должна быть объектом' });
         } else {
             const pluginSchemas = {};
@@ -615,7 +619,10 @@ function validateConfigFile(rawConfig, options = {}) {
                     continue;
                 }
                 const pluginValue = rawConfig.plugins[pluginName];
-                if (typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
+                // typeof null === 'object' обходил проверку ниже — ветка null
+                // проходила валидацию и затирала ветку плагина при Apply
+                // (M1, review R13): явная проверка null.
+                if (pluginValue === null || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
                     errors.push({
                         section: 'plugins',
                         key: pluginName,
