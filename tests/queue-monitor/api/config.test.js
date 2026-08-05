@@ -107,12 +107,12 @@ test('mutation rate limiter: defaults exported', () => {
 // --- computeConfigDiff / buildEffectiveSections / buildExportConfig ---
 
 test('computeConfigDiff: only changed fields reported', () => {
-    const active = { version: 1, bot: { logLevel: 'info', httpProxy: null }, queue: { queueEnabled: true } };
-    const staged = { version: 1, bot: { logLevel: 'debug', httpProxy: null }, queue: { queueEnabled: false } };
+    const active = { version: 1, bot: { logLevel: 'info', httpProxy: null }, queue: { enabled: true } };
+    const staged = { version: 1, bot: { logLevel: 'debug', httpProxy: null }, queue: { enabled: false } };
     const diff = computeConfigDiff(active, staged);
     assert.equal(diff.length, 2);
     assert.ok(diff.some((d) => d.section === 'bot' && d.key === 'logLevel' && d.old === 'info' && d.new === 'debug'));
-    assert.ok(diff.some((d) => d.section === 'queue' && d.key === 'queueEnabled' && d.old === true && d.new === false));
+    assert.ok(diff.some((d) => d.section === 'queue' && d.key === 'enabled' && d.old === true && d.new === false));
 });
 
 test('computeConfigDiff: секретные поля не попадают в diff', () => {
@@ -673,6 +673,35 @@ test('computeConfigDiff: $VAR и необъявленные литералы в�
     assert.equal(diff[0].key, 'syncMode');
     assert.ok(!JSON.stringify(diff).includes('$OLD_TOKEN') && !JSON.stringify(diff).includes('$NEW_TOKEN'));
     assert.ok(!JSON.stringify(diff).includes('old-literal') && !JSON.stringify(diff).includes('new-literal'));
+});
+
+test('computeConfigDiff: необъявленные ключи системных секций не попадают в diff (L1 R7)', () => {
+    const active = { version: 1, bot: { logLevel: 'info', authTokenX: 'sk-active-literal' } };
+    const staged = { version: 1, bot: { logLevel: 'debug', authTokenX: '$NEW_VAR' } };
+    const diff = computeConfigDiff(active, staged);
+    assert.equal(diff.length, 1, 'только объявленное изменение');
+    assert.equal(diff[0].key, 'logLevel');
+    assert.ok(!JSON.stringify(diff).includes('authTokenX'), 'необъявленный ключ не в diff');
+    assert.ok(!JSON.stringify(diff).includes('sk-active-literal') && !JSON.stringify(diff).includes('$NEW_VAR'));
+});
+
+test('computeConfigDiff: необъявленная системная секция целиком не попадает в diff (L1 R7)', () => {
+    const active = { version: 1, unknownSection: { apiKey: 'sk-literal' } };
+    const staged = { version: 1, unknownSection: { apiKey: '$NEW_VAR' } };
+    const diff = computeConfigDiff(active, staged);
+    assert.equal(diff.length, 0, 'необъявленная секция молчит');
+    assert.ok(!JSON.stringify(diff).includes('unknownSection'));
+    assert.ok(!JSON.stringify(diff).includes('sk-literal'));
+});
+
+test('maskStagedSecrets: необъявленные ключи системных секций маскируются (L1 R7)', () => {
+    const staged = { version: 1, bot: { logLevel: 'info', authTokenX: 'sk-literal-secret', legacyToken: '$LEGACY_TOKEN' } };
+    const masked = maskStagedSecrets(staged, []);
+    assert.deepEqual(masked.bot.authTokenX, { secret: true, set: true });
+    assert.deepEqual(masked.bot.legacyToken, { secret: true, set: true });
+    assert.equal(masked.bot.logLevel, 'info', 'объявленный несекретный ключ не маскируется');
+    assert.ok(!JSON.stringify(masked).includes('sk-literal-secret'));
+    assert.ok(!JSON.stringify(masked).includes('$LEGACY_TOKEN'));
 });
 
 test('getConfig: ветка плагина без configSchema не уходит наружу (ни $VAR, ни литералы)', () => {

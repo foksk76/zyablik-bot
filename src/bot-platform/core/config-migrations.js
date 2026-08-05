@@ -102,7 +102,10 @@ function withExplicitVersion(rawConfig, version) {
     if (rawConfig === null || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
         return rawConfig;
     }
-    if (rawConfig.version !== undefined) {
+    // L4 (review R7): version: null трактуется как отсутствующий (readVersion
+    // отображает null на 1) — round-trip Apply/import не должен сохранять
+    // null в файле (расходилось бы с intent «явный version в файле»).
+    if (rawConfig.version !== undefined && rawConfig.version !== null) {
         return rawConfig;
     }
     return { ...rawConfig, version };

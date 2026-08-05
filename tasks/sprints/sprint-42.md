@@ -1,12 +1,14 @@
-# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–6)
+# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–7)
 
-**Цель:** закрыть замечания auto-review PR #23 (раунды 5–6, Approve with
+**Цель:** закрыть замечания auto-review PR #23 (раунды 5–7, Approve with
 comments) перед боевым запуском long-polling режима: M1 (зависание start при
 сетевом сбое poll), M2 (двойной инкремент `boots` в синтетическом режиме),
 R5-M3 (required отсутствующих plugin-веток), L1–L3 (plugin-`$VAR` в UI,
-рассинхрон `pendingRemainingMs`, stage-валидация до слияния секретов). L5
-(дрейф доков карантина) и R6-M1 (rollback 500 на битом lkg) уже исправлены
-в PR.
+рассинхрон `pendingRemainingMs`, stage-валидация до слияния секретов), L5
+(дрейф доков карантина), R6-M1 (rollback 500 на битом lkg) и R7 L1–L4
+(необъявленные system-ключи в diff/stage, карантин при ручном rollback,
+асинхронный контракт рестарта, нормализация `version: null`). R5–R6 и R7
+уже исправлены в PR.
 
 **ADR:** [ADR-0045](../../docs/decisions/ADR-0045-config-file-source-of-truth.md)
 [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
@@ -47,6 +49,22 @@ R6-M1 поправлены в этом же PR.
 - **R6-M1 (rollback 500):** битый lkg читается толерантно
   (`readJsonFileSafe`) и превращается в `CONFIG_VALIDATION_ERROR` (400),
   а не raw SyntaxError (500). Уже исправлено в PR.
+- **R7-L1 (утечка system-ключей):** необъявленные схемой ключи системных
+  секций (и целиком необъявленные секции) — те же потенциальные секреты,
+  что и необъявленные ключи плагинов (m4): в `stage`/`diff` не попадают,
+  в `maskStagedSecrets` маскируются (литерал/$VAR → `{ secret, set }`).
+  `GET /api/config` не затронут (отдаёт только ключи схемы).
+- **R7-L2 (карантин при ручном rollback):** текущий активный файл перед
+  записью lkg карантинится (`quarantineActiveFile`), как при авто-откате —
+  битый JSON активного файла не затирается без улики. Результат отдаёт
+  `quarantinePath`.
+- **R7-L3 (асинхронный контракт рестарта):** делегированный `configRestart`
+  обязан завершать процесс после отправки `202` и установки `state.pending`
+  (next tick / setImmediate). Сейчас `restart=null` во всех прод-путях —
+  путь дремлет; контракт зафиксирован в ADR-0046 и runbook §3.
+- **R7-L4 (нормализация version: null):** `version: null` трактуется как
+  отсутствующий (`readVersion` отображает null → 1); `withExplicitVersion`
+  добавляет явный `version` — round-trip Apply/import не сохраняет `null`.
 
 ## Tasks
 
@@ -211,6 +229,46 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ---
 
+### Task 7: R7 L1–L4 — утечка system-ключей, карантин rollback, async-контракт рестарта, version: null
+
+**Status:** Done (в PR #23)
+
+**Description:** закрыть Low-замечания round-7 (review id `4860616364`):
+
+- **L1:** `computeConfigDiff` и `maskStagedSecrets` пропускали только
+  объявленные `SYSTEM_SCHEMA` ключи — необъявленные (ручная правка, `$VAR`
+  или литерал) утекали в `stage`/`diff`-ответы (асимметрия с плагинами m4).
+  Фикс: `isDeclaredSystemField` — необъявленные ключи в diff не попадают;
+  в `maskStagedSecrets` маскируются до `{ secret, set }`.
+- **L2:** `rollbackConfig` молча затирал текущий активный файл (в худшем
+  случае битый JSON) без улики. Фикс: карантин через `quarantineActiveFile`,
+  путь в результате и audit-логе.
+- **L3:** `applyConfig` вызывает `options.restart` синхронно внутри — при
+  подключённом рестарте потерялся бы ответ 202 и `state.pending`. Сейчас
+  `restart=null` во всех прод-путях (дремлет); контракт асинхронности
+  зафиксирован в ADR-0046 и runbook §3.
+- **L4:** `version: null` не нормализовался (`withExplicitVersion` проверял
+  только `!== undefined`) — round-trip сохранял `null` в файле. Фикс:
+  null трактуется как отсутствующий, добавляется явный `version`.
+
+**Acceptance criteria:**
+- [x] L1: необъявленные system-ключи/секции не в diff; в stage маскируются (3 регресса)
+- [x] L2: ручной rollback карантинит активный файл (регресс + `quarantinePath`)
+- [x] L3: async-контракт `configRestart` в ADR-0046 + runbook §3
+- [x] L4: `version: null` → явный `version` (регресс)
+- [x] `npm test` зелёный
+
+**Files:** `src/queue-monitor/api/config.js`, `src/bot-platform/core/config-store.js`,
+`src/bot-platform/core/config-migrations.js`, `docs/decisions/ADR-0046*`,
+`docs/runbooks/config-file.md`, тесты `tests/queue-monitor/api/config.test.js`,
+`tests/bot-platform/config-store.test.js`, `tests/bot-platform/config-migrations.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** S (уже сделано в PR #23)
+
+---
+
 ## Checkpoint: Sprint 42
 
 - [ ] M1: start не висит при сетевом сбое poll
@@ -219,6 +277,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 - [ ] L1: plugin-`$VAR` документирован
 - [ ] L2: pendingRemainingMs согласован с откатом
 - [ ] L3: Stage валидирует после слияния секретов
+- [x] R7 L1–L4: утечка system-ключей, карантин rollback, async-контракт рестарта, `version: null`
 - [ ] `npm test` зелёный; PR #23 merged
 
 ## Risks and Mitigations

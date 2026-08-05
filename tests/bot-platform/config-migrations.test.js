@@ -72,6 +72,16 @@ test('prepareConfigForLoad: отсутствие version добавляет кл
     assert.deepEqual(result.config, { version: CURRENT_VERSION, bot: { logLevel: 'debug' } });
 });
 
+test('prepareConfigForLoad: version: null нормализуется до явного version (L4 R7)', () => {
+    // Регрессия: readVersion отображает null на 1, но withExplicitVersion не
+    // добавлял ключ (version !== undefined), и round-trip Apply/import сохранял
+    // version: null в файле, расходясь с intent «явный version в файле».
+    const result = prepareConfigForLoad({ version: null, bot: { logLevel: 'debug' } });
+    assert.equal(result.error, null);
+    assert.equal(result.version, CURRENT_VERSION);
+    assert.deepEqual(result.config, { version: CURRENT_VERSION, bot: { logLevel: 'debug' } });
+});
+
 test('prepareConfigForLoad: отсутствие version не мутирует исходный объект', () => {
     const raw = { bot: {} };
     prepareConfigForLoad(raw);

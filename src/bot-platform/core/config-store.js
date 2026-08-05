@@ -709,6 +709,10 @@ function confirmConfigApplied(configPath, options = {}) {
 // Откат — самая аварийная операция, и именно в ней битый lkg наиболее
 // вероятен; остальное окружение уже толерантно (readJsonFileSafe:
 // детектор, apply, getStage, getConfig).
+// L2 (review R7): текущий активный файл перед записью lkg карантинится
+// (асимметрия с авто-откатом, который сохраняет «плохой» конфиг как улику).
+// Худший случай — битый JSON активного файла: ручной rollback не должен
+// молча затирать его без улики.
 function rollbackConfig(configPath, options = {}) {
     const { configPath: activePath, lkgPath } = serviceFilePaths(configPath);
     const lkgResult = readJsonFileSafe(lkgPath);
@@ -727,6 +731,10 @@ function rollbackConfig(configPath, options = {}) {
     const plugins = options.plugins || [];
     preValidateConfigFile(lkg, { environment, plugins });
 
+    let quarantinePath = null;
+    if (fs.existsSync(activePath)) {
+        quarantinePath = quarantineActiveFile(configPath);
+    }
     atomicWriteJson(activePath, lkg);
     clearPending(configPath);
     clearStaged(configPath);
@@ -735,6 +743,7 @@ function rollbackConfig(configPath, options = {}) {
         configPath: activePath,
         auto: false,
         restoredFrom: 'lkg',
+        quarantinePath,
         success: true
     });
 
@@ -744,7 +753,7 @@ function rollbackConfig(configPath, options = {}) {
         restarted = true;
     }
 
-    return { restoredFrom: 'lkg', restarted, fileConfig: lkg };
+    return { restoredFrom: 'lkg', restarted, fileConfig: lkg, quarantinePath };
 }
 
 module.exports = {

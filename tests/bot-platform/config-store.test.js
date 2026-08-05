@@ -729,6 +729,26 @@ test('rollbackConfig: без lkg — ошибка', () => {
     assert.throws(() => rollbackConfig(configPath, {}), /Нет lkg/);
 });
 
+// L2 (review R7): ручной rollback карантинит текущий активный файл перед
+// записью lkg (асимметрия с авто-откатом, который сохраняет «плохой» конфиг
+// как улику). Худший случай — битый JSON активного файла: rollback не должен
+// молча затирать его без улики.
+test('rollbackConfig: текущий активный файл карантинится перед восстановлением lkg (L2 R7)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+
+    const result = rollbackConfig(configPath, {});
+
+    assert.ok(result.quarantinePath, 'карантинный путь в результате');
+    assert.ok(result.quarantinePath.endsWith('.bad.json'));
+    assert.ok(fs.existsSync(result.quarantinePath), 'активный файл карантинизирован');
+    const quarantine = JSON.parse(fs.readFileSync(result.quarantinePath, 'utf8'));
+    assert.equal(quarantine.bot.logLevel, 'debug', 'в карантине — откатываемый (текущий активный) конфиг');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'info', 'активный файл восстановлен из lkg');
+});
+
 // M1 (review R6): битый lkg (коррупция JSON) — CONFIG_VALIDATION_ERROR, а не
 // raw SyntaxError: rollback — самая аварийная операция, битый lkg в ней
 // наиболее вероятен, и API не должен отвечать 500 (остальное окружение

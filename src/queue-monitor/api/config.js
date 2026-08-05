@@ -207,6 +207,15 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
         return Boolean(field && field.secret);
     }
 
+    // L1 (review R7): объявленное системной схемой поле (включая несекретные).
+    // Необъявленный ключ — потенциальный секрет (асимметрия с плагинами,
+    // m4): его значение не должно уходить в diff/маскированные ответы.
+    function isDeclaredSystemField(sectionName, key) {
+        const schemaSection = SYSTEM_SCHEMA[sectionName];
+        const field = schemaSection ? schemaSection[key] : null;
+        return Boolean(field);
+    }
+
     function pushRow(section, key, oldValue, newValue) {
         if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
             diff.push({
@@ -251,6 +260,13 @@ function computeConfigDiff(activeConfig, stagedConfig, plugins = []) {
         const keys = new Set([...Object.keys(activeSection), ...Object.keys(stagedSection)]);
         for (const key of keys) {
             if (isSecretField(sectionName, key)) {
+                continue;
+            }
+            // L1 (review R7): необъявленные ключи системных секций — те же
+            // потенциальные секреты, что и необъявленные ключи плагинов (m4):
+            // в diff не попадают, иначе литерал из ручной правки утекал бы в
+            // stage/diff-ответы.
+            if (!isDeclaredSystemField(sectionName, key)) {
                 continue;
             }
             pushRow(sectionName, key, activeSection[key], stagedSection[key]);
@@ -314,6 +330,23 @@ function maskStagedSecrets(fileConfig, plugins = []) {
         for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
             if (field.secret && masked[key] !== undefined) {
                 masked[key] = maskSecret(masked[key]);
+            }
+        }
+        // L1 (review R7): необъявленные ключи системных секций — те же
+        // потенциальные секреты, что и в ветках плагинов (m4): литеральная
+        // строка или $VAR-ссылка маскируются до { secret: true, set }.
+        // (GET /api/config не затронут — buildEffectiveSections отдаёт только
+        // ключи схемы; здесь маскируется сам stage/diff-снапшот.)
+        for (const [key, value] of Object.entries(masked)) {
+            if (SYSTEM_SCHEMA[sectionName][key]) {
+                continue;
+            }
+            if (isVarReference(value)) {
+                masked[key] = maskSecret(value);
+                continue;
+            }
+            if (typeof value === 'string' && value !== '') {
+                masked[key] = maskSecret(value);
             }
         }
         result[sectionName] = masked;
