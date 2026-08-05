@@ -637,6 +637,37 @@ function validateConfigFile(rawConfig, options = {}) {
         }
     }
 
+    // R5-M3 (review): required-поля валидируются и для целиком отсутствующей
+    // ветки плагина. Иначе `plugins: {}` при схеме с required-полем — «тихая»
+    // неконфигурация: Apply проходит без ошибок, а плагин остаётся без
+    // обязательных параметров (и в сервере, и в клиенте итерация шла только
+    // по присутствующим веткам).
+    for (const plugin of options.plugins || []) {
+        if (!plugin || !plugin.name) {
+            continue;
+        }
+        const configSchema = plugin.configSchema;
+        if (!configSchema || typeof configSchema !== 'object') {
+            continue;
+        }
+        const branchPresent = rawConfig.plugins
+            && typeof rawConfig.plugins === 'object'
+            && !Array.isArray(rawConfig.plugins)
+            && rawConfig.plugins[plugin.name] !== undefined;
+        if (branchPresent) {
+            continue;
+        }
+        for (const [key, field] of Object.entries(configSchema)) {
+            if (field && field.required) {
+                errors.push({
+                    section: 'plugins',
+                    key: `${plugin.name}.${key}`,
+                    reason: 'обязательное поле (ветка плагина отсутствует)'
+                });
+            }
+        }
+    }
+
     const knownSections = new Set([...SYSTEM_SECTION_KEYS, 'plugins', 'version']);
     for (const topKey of Object.keys(rawConfig)) {
         if (!knownSections.has(topKey)) {

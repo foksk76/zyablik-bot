@@ -5,6 +5,8 @@ import React from 'react';
 // pending — «применяется»; rolled_back — причина; confirmed — успех.
 // При ручном рестарте (restartInitiated=false) процесс рестартует оператор:
 // banner сообщает об этом вместо таймера окна StartupWait.
+// R5-L3: restartHappened=true (процесс уже перезапущен, ждёт confirm) —
+// «перезапустите вручную» больше не показывается.
 export default function ConfigBanner({ status }) {
     const state = status && status.state;
     if (!state || state === 'idle' || state === 'confirmed') {
@@ -12,12 +14,15 @@ export default function ConfigBanner({ status }) {
     }
 
     if (state === 'pending') {
+        const message = status.restartHappened
+            ? 'Применение конфигурации… ожидается подтверждение перезапуска.'
+            : status.restartInitiated
+                ? 'Применение конфигурации… ожидается перезапуск.'
+                : 'Конфигурация применена. Перезапустите процесс вручную (systemctl restart), чтобы применить изменения.';
         return (
             <div className="bg-warning-light border border-warning/20 text-warning-dark text-sm rounded-lg p-3 flex items-center justify-between gap-2" data-testid="banner-pending">
                 <span>
-                    {status.restartInitiated
-                        ? 'Применение конфигурации… ожидается перезапуск.'
-                        : 'Конфигурация применена. Перезапустите процесс вручную (systemctl restart), чтобы применить изменения.'}
+                    {message}
                 </span>
             </div>
         );

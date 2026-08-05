@@ -278,6 +278,48 @@ test('validateConfigFile: валидная plugins-ветка без ошибо�
     assert.equal(result.errors.length, 0);
 });
 
+// R5-M3 (review): required-поле плагина валидируется и при отсутствующей
+// ветке целиком — `plugins: {}` не должен быть «тихой» неконфигурацией.
+test('validateConfigFile: отсутствующая ветка с required-полем — ошибка (R5-M3)', () => {
+    const plugins = [{ name: 'alerts', configSchema: { apiKey: { type: 'string', required: true } } }];
+    const result = validateConfigFile(
+        { plugins: {} },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].section, 'plugins');
+    assert.equal(result.errors[0].key, 'alerts.apiKey');
+    assert.match(result.errors[0].reason, /обязательное поле/);
+});
+
+test('validateConfigFile: plugins без ключа — required-поля тоже проверяются (R5-M3)', () => {
+    const plugins = [{ name: 'alerts', configSchema: { apiKey: { type: 'string', required: true } } }];
+    const result = validateConfigFile(
+        { version: 1, bot: { logLevel: 'info' } },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].key, 'alerts.apiKey');
+});
+
+test('validateConfigFile: ветка без required-полей может отсутствовать (R5-M3)', () => {
+    const plugins = [{ name: 'alerts', configSchema: { timeout: { type: 'number', min: 1 } } }];
+    const result = validateConfigFile(
+        { plugins: {} },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 0);
+});
+
+test('validateConfigFile: присутствующая ветка с required-полем — ок (R5-M3)', () => {
+    const plugins = [{ name: 'alerts', configSchema: { apiKey: { type: 'string', required: true } } }];
+    const result = validateConfigFile(
+        { plugins: { alerts: { apiKey: '$ALERTS_KEY' } } },
+        { plugins }
+    );
+    assert.equal(result.errors.length, 0);
+});
+
 test('validateConfigFile: плагин без схемы — warning, не ошибка', () => {
     const result = validateConfigFile(
         { plugins: { legacy: { foo: 1 } } },

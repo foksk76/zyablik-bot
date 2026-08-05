@@ -157,6 +157,33 @@ test('validateSectionValues: plugins — валидирует под-поля с
     assert.equal(errors['identity.syncMode'], 'ожидается одно из: auto, manual');
 });
 
+test('validateSectionValues: отсутствующая ветка плагина с required-полем — ошибка (R5-M3)', () => {
+    const pluginSchema = {
+        plugins: {
+            alerts: { apiKey: { type: 'string', required: true } },
+            optional: { timeout: { type: 'number', min: 1 } }
+        }
+    };
+    const errors = validateSectionValues({}, pluginSchema, 'plugins');
+    assert.ok(errors['alerts.apiKey']);
+    assert.equal(errors['alerts.apiKey'], 'обязательное поле');
+    assert.ok(!errors['optional.timeout']);
+});
+
+test('validateSectionValues: присутствующая ветка с required-полем — без ошибок (R5-M3)', () => {
+    const pluginSchema = {
+        plugins: {
+            alerts: { apiKey: { type: 'string', required: true } }
+        }
+    };
+    const errors = validateSectionValues(
+        { alerts: { apiKey: '$ALERTS_KEY' } },
+        pluginSchema,
+        'plugins'
+    );
+    assert.deepEqual(errors, {});
+});
+
 test('buildStagedConfig: skips secrets, keeps plugin values', () => {
     const staged = buildStagedConfig({
         bot: { logLevel: 'debug', maxBotToken: { secret: true, set: true } },
@@ -196,6 +223,41 @@ test('buildDiff: new plugin branch in staged appears in diff (M5 review)', () =>
         { plugins: { identity: { syncMode: 'auto' }, legacy: { syncMode: 'manual' } } }
     );
     assert.ok(diff.some((d) => d.section === 'legacy' && d.key === 'syncMode' && d.old === null && d.new === 'manual'));
+});
+
+test('buildDiff: со schema фильтрует секреты и необъявленные ключи (R12-N1)', () => {
+    // Секретная маска ({ secret, set }) и необъявленный ключ не должны
+    // попадать в diff — как на сервере (computeConfigDiff, L1/R7/m4),
+    // иначе ConfigDiff рендерит их как [object Object].
+    const diff = buildDiff(
+        {
+            bot: { logLevel: 'info', maxBotToken: { secret: true, set: true }, undeclaredKey: 'x' },
+            plugins: { identity: { syncMode: 'auto', apiToken: { secret: true, set: true }, legacyKey: 'y' } }
+        },
+        {
+            bot: { logLevel: 'debug', maxBotToken: { secret: true, set: true }, undeclaredKey: 'y' },
+            plugins: { identity: { syncMode: 'manual', apiToken: { secret: true, set: true }, legacyKey: 'z' } }
+        },
+        schema
+    );
+    // В diff только объявленные несекретные ключи.
+    assert.ok(diff.some((d) => d.section === 'bot' && d.key === 'logLevel'));
+    assert.ok(diff.some((d) => d.section === 'identity' && d.key === 'syncMode'));
+    assert.ok(!diff.some((d) => d.key === 'maxBotToken'));
+    assert.ok(!diff.some((d) => d.key === 'apiToken'));
+    assert.ok(!diff.some((d) => d.key === 'undeclaredKey'));
+    assert.ok(!diff.some((d) => d.key === 'legacyKey'));
+});
+
+test('buildDiff: со schema не объявляет секрет заданным/незаданным (R12-N1)', () => {
+    // Изменение маски секрета (set false → true) — не «изменение конфига»,
+    // а статус секрета: в diff не должно быть строк про секрет.
+    const diff = buildDiff(
+        { bot: { logLevel: 'info', maxBotToken: { secret: true, set: false } } },
+        { bot: { logLevel: 'info', maxBotToken: { secret: true, set: true } } },
+        schema
+    );
+    assert.equal(diff.length, 0);
 });
 
 // M2 (review R4): fileConfigToValues — конвертация file-config (из /import

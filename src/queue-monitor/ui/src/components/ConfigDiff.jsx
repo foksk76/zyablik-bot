@@ -3,9 +3,10 @@ import React from 'react';
 import { buildDiff } from '../lib/configSchemaModel.js';
 
 // ADR-0046: diff staged против effective перед Apply.
-// rows: [ { section, key, old, new } ]. Секреты маскируются.
-export default function ConfigDiff({ activeSections, stagedSections }) {
-    const rows = buildDiff(activeSections || {}, stagedSections || {});
+// rows: [ { section, key, old, new } ]. Секреты и необъявленные ключи
+// фильтруются buildDiff по merged-схеме (R12-N1) — маски в UI не рендерятся.
+export default function ConfigDiff({ activeSections, stagedSections, schema }) {
+    const rows = buildDiff(activeSections || {}, stagedSections || {}, schema);
 
     if (rows.length === 0) {
         return <p className="text-sm text-muted-foreground">Изменений нет</p>;
@@ -15,6 +16,7 @@ export default function ConfigDiff({ activeSections, stagedSections }) {
         if (value === null || value === undefined) return '—';
         if (typeof value === 'boolean') return value ? 'да' : 'нет';
         if (Array.isArray(value)) return value.join(', ');
+        if (typeof value === 'object') return JSON.stringify(value);
         return String(value);
     };
 

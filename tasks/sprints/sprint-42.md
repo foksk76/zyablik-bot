@@ -90,7 +90,7 @@ R6-M1 поправлены в этом же PR.
 
 ### Task 1: M1 — зависание `start()` при устойчивом сетевом сбое poll
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `live-service.js` — `await service.firstTick`
 (`firstTick` резолвится только после первого успешного `pollUpdates`). При
@@ -105,12 +105,12 @@ N неудач); при сбое — либо корректный exit != 0 (р
 задокументировать в runbook.
 
 **Acceptance criteria:**
-- [ ] При неверных MAX_BOT_TOKEN/MAX_API_URL процесс не висит бесконечно: таймаут/N-неудач → exit != 0 или работа без подтверждения
-- [ ] Покрыто тестом (симуляция: N неудачных poll без резолва firstTick)
-- [ ] Поведение зафиксировано в `docs/runbooks/config-file.md` (или профильном runbook)
+- [x] При неверных MAX_BOT_TOKEN/MAX_API_URL процесс не висит бесконечно: таймаут/N-неудач → exit != 0 или работа без подтверждения
+- [x] Покрыто тестом (симуляция: N неудачных poll без резолва firstTick)
+- [x] Поведение зафиксировано в `docs/runbooks/config-file.md` (или профильном runbook)
 - [ ] `npm test` зелёный
 
-**Files:** `src/bot-platform/core/live-service.js`,
+**Files:** `src/bot-platform/runtime/live-service.js`,
 `src/bot-platform/app.js`, тесты `tests/bot-platform/*`,
 `docs/runbooks/*`
 
@@ -411,7 +411,7 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 
 ## Checkpoint: Sprint 42
 
-- [ ] M1: start не висит при сетевом сбое poll
+- [x] M1: start не висит при сетевом сбое poll
 - [ ] M2: boots растёт 1 раз за boot (crash-loop откат после 5 boot)
 - [ ] R5-M3: required отсутствующих plugin-веток (сервер и клиент)
 - [ ] L1: plugin-`$VAR` документирован
@@ -427,7 +427,7 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| M1 «зомби»-процесс на боевом long-polling | High | Таймаут/N-неудач firstTick + exit/работа без подтверждения; задача до боевого запуска |
+| M1 «зомби»-процесс на боевом long-polling | High | Таймаут/N-неудач firstTick + exit/работа без подтверждения; задача до боевого запуска. Закрыто: firstTick-таймаут (60s) + exit != 0 + остановка сервисов |
 | M2 ложный откат по crash-loop на стенде | Medium | Гард-флаг/проброс app; симуляция boots |
 | R5-M3 «тихая» неконфигурация плагина | Medium | Валидация required для отсутствующих веток; до первого плагина с required-полями |
 | Дрейф доков (карантин) | Low | L5 исправлен в PR; doc-синк в конце спринта |
@@ -435,7 +435,7 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 ## Файлы для изменения (сводка)
 
 ```
-src/bot-platform/core/live-service.js     (M1)
+src/bot-platform/runtime/live-service.js (M1)
 src/bot-platform/app.js                   (M1/M2)
 src/bot-platform/core/index.js            (M2)
 src/bot-platform/core/config-schema.js    (R5-M3)

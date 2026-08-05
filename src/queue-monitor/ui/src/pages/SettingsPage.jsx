@@ -287,7 +287,7 @@ export default function SettingsPage() {
                         <CardTitle>Изменения к применению</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <ConfigDiff activeSections={config ? config.sections : null} stagedSections={values} />
+                        <ConfigDiff activeSections={config ? config.sections : null} stagedSections={values} schema={schema} />
                     </CardContent>
                 </Card>
             )}

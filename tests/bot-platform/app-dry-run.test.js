@@ -135,6 +135,38 @@ test('CLI live command routes to live service entrypoint without using fixtures'
   assert.ok(calls[0].liveOptions.io);
 });
 
+test('CLI live command exits with code 1 and stops services when live boot fails (M1 review)', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-live-fail-'));
+  const configPath = path.join(dir, 'zyablik.config.json');
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    version: 1,
+    bot: {
+      maxTransportMode: 'long_polling'
+    }
+  }, null, 2), 'utf8');
+
+  const result = await runMainWithEnv({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    ZYABLIK_CONFIG: configPath
+  }, ['--live'], {
+    liveOptions: {
+      installSignalHandlers: false
+    },
+    startLiveBotPlatformService() {
+      const error = new Error('Live MAX Identity Bot service did not start within 50ms (no successful long-polling cycle)');
+      error.code = 'LIVE_FIRST_TICK_TIMEOUT';
+      throw error;
+    }
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /did not start within 50ms/);
+});
+
 test('CLI live command passes file-loaded config to live service (H1 review)', async () => {
   const fs = require('node:fs');
   const os = require('node:os');

@@ -232,13 +232,29 @@ export function validateValue(value, field, { required = false } = {}) {
 export function validateSectionValues(values, schema, sectionName) {
     const errors = {};
     if (sectionName === 'plugins') {
-        for (const [pluginName, pluginValues] of Object.entries(values || {})) {
+        const present = values || {};
+        for (const [pluginName, pluginValues] of Object.entries(present)) {
             const fields = pluginFields(schema, pluginName);
             for (const [key, field] of Object.entries(fields)) {
                 const raw = pluginValues && pluginValues[key];
                 const reason = validateValue(raw, field, { required: field.required });
                 if (reason) {
                     errors[`${pluginName}.${key}`] = reason;
+                }
+            }
+        }
+        // R5-M3 (review): required-поля валидируются и для целиком
+        // отсутствующей ветки плагина (как серверный validateConfigFile).
+        // Иначе «тихая» неконфигурация: ветки нет, форму можно сохранить,
+        // а Apply упадёт на сервере.
+        for (const pluginName of pluginNames(schema)) {
+            if (present[pluginName]) {
+                continue;
+            }
+            const fields = pluginFields(schema, pluginName);
+            for (const [key, field] of Object.entries(fields)) {
+                if (field.required) {
+                    errors[`${pluginName}.${key}`] = 'обязательное поле';
                 }
             }
         }
@@ -324,7 +340,12 @@ export function buildStagedConfig(sections, schema) {
 
 // Diff между effective-конфигом и staged (для показа перед Apply).
 // Возвращает [ { section, key, old, new } ].
-export function buildDiff(activeSections, stagedSections) {
+// Третий аргумент — merged-схема (как в SettingsPage). Если она передана,
+// фильтруются секретные поля и необъявленные configSchema ключи — то же, что
+// серверный computeConfigDiff (L1/R7, m4): замаскированные секреты
+// ({ secret, set }) и необъявленные ключи не должны рендериться в UI.
+// Без схемы — старое поведение (полный дифф) для обратной совместимости.
+export function buildDiff(activeSections, stagedSections, schema) {
     const diff = [];
     for (const sectionName of SECTION_ORDER) {
         const active = activeSections && activeSections[sectionName]
@@ -340,6 +361,12 @@ export function buildDiff(activeSections, stagedSections) {
                 const stagedValues = staged[pluginName] || {};
                 const keys = new Set([...Object.keys(activeValues), ...Object.keys(stagedValues)]);
                 for (const key of keys) {
+                    if (schema) {
+                        const field = pluginFields(schema, pluginName)[key];
+                        if (!field || field.secret) {
+                            continue;
+                        }
+                    }
                     const oldValue = activeValues[key];
                     const newValue = stagedValues[key];
                     if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
@@ -356,6 +383,12 @@ export function buildDiff(activeSections, stagedSections) {
         }
         const keys = new Set([...Object.keys(active), ...Object.keys(staged)]);
         for (const key of keys) {
+            if (schema) {
+                const field = sectionFields(schema, sectionName)[key];
+                if (!field || field.secret) {
+                    continue;
+                }
+            }
             const oldValue = active[key];
             const newValue = staged[key];
             if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {

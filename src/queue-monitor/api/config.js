@@ -559,6 +559,11 @@ function createConfigApi(options = {}) {
     // restart — делегированная наружу функция рестарта (ADR-0045).
     const restart = typeof options.restart === 'function' ? options.restart : null;
     const startupWaitMs = options.startupWaitMs || DEFAULT_STARTUP_WAIT_MS;
+    // R5-L3: момент старта этого процесса. Используется в getStatus, чтобы
+    // отличить «рестарт ещё не произошёл» от «процесс уже перезапущен, ждём
+    // confirm()»: если маркер pending написан предыдущим процессом, а этот
+    // стартовал позже appliedAt — рестарт уже состоялся.
+    const processStartedAtMs = Date.now();
 
     // ADR-0046: отдельный sliding-window пул для мутирующих /api/config/*.
     const mutationLimiter = options.rateLimiter || createConfigMutationRateLimiter({
@@ -713,6 +718,17 @@ function createConfigApi(options = {}) {
             pendingRemainingMs = Math.max(0, appliedAtMs + startupWaitMs - Date.now());
         }
 
+        // R5-L3: рестарт уже состоялся, если текущий процесс стартовал ПОСЛЕ
+        // Apply (appliedAt). В pending после рестарта баннер «перезапустите
+        // вручную» вводил бы в заблуждение — оператор/авто-рестарт уже
+        // перезапустил процесс, идёт окно подтверждения (confirm).
+        // >= (не >): appliedAt пишется предыдущим процессом, текущий стартует
+        // строго позже; совпадение миллисекунд возможно только в быстром
+        // тесте и должно трактоваться как «рестарт состоялся».
+        const restartHappened = Boolean(
+            appliedAtMs && processStartedAtMs >= appliedAtMs
+        );
+
         return {
             statusCode: 200,
             body: {
@@ -721,6 +737,7 @@ function createConfigApi(options = {}) {
                     state: effectiveState,
                     reason,
                     restartInitiated: Boolean(restartInitiated),
+                    restartHappened,
                     appliedAt,
                     appliedHash,
                     restoredAt,

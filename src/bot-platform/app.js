@@ -420,8 +420,10 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
   }
 
   if (isLiveCommand(argv)) {
+    let shutdownHandle = null;
+
     try {
-      const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
+      shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 
       const startLiveService = typeof options.startLiveBotPlatformService === 'function'
         ? options.startLiveBotPlatformService
@@ -443,6 +445,17 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
       return 0;
     } catch (error) {
       io.stderr.write(`${error.message}\n`);
+      // M1 (review): boot не удался (например, live-сервис не стартовал в
+      // пределах firstTick-таймаута). Останавливаем ingress/worker/queue-store,
+      // иначе серверы держат event loop, процесс не выходит с ненулевым кодом,
+      // boots не растут и авто-откат к lkg не срабатывает (зомби).
+      if (shutdownHandle) {
+        try {
+          await shutdownHandle.stop(io);
+        } catch (stopError) {
+          io.stderr.write(`Ошибка остановки после сбоя boot: ${stopError.message}\n`);
+        }
+      }
       return 1;
     }
   }

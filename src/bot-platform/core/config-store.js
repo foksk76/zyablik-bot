@@ -6,7 +6,7 @@
 //   zyablik.config.json            — активный конфиг
 //   zyablik.config.json.lkg     — last known good (копия активного перед Apply)
 //   zyablik.config.json.pending    — pending-маркер (содержит хеш применяемого конфига)
-//   zyablik.config.bad.json        — карантин невалидного файла
+//   zyablik.config.json.<ts>.bad.json — карантин невалидного файла (ts = Date.now())
 //   zyablik.config.staged.json     — полный снапшот для Stage→Apply
 //
 // Запись конфига и staged — атомарная (temp + rename). lkg — простая

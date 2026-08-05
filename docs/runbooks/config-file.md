@@ -193,6 +193,20 @@ node src/bot-platform/app.js --rollback-config /path/to/zyablik.config.json
 стартового детектора пробрасывается в `/api/config/status` через
 `recoveryState` (M6), т.е. статус виден даже после рестарта процесса.
 
+**Зависание boot'а при сетевом сбое (M1).** В live-режиме `start()` ждёт
+первый успешный long-polling цикл (`firstTick`) ограниченно: по умолчанию
+60 секунд (`DEFAULT_FIRST_TICK_TIMEOUT_MS`, кнопка `firstTickTimeoutMs` в
+live-опциях). Если первый успешный poll не случился в пределах лимита
+(неверный `MAX_BOT_TOKEN`/`MAX_API_URL`, сеть недоступна) — процесс логирует
+ошибку, останавливает сервисы (ingress/worker/queue-store) и завершается с
+ненулевым кодом. Рестарт-политика (systemd `Restart=on-failure`, docker
+`unless-stopped`) перезапускает процесс; pending-маркер при этом не
+подтверждён, поэтому после истечения окна `StartupWait` или счётчика
+`boots` (`maxStartupAttempts`, по умолчанию 5) следующий boot откатывает
+конфиг к `.lkg`. Так авто-откат покрывает и сетевые сбои конфигурации, а не
+только краш до ready. Подтверждение (`confirm`) выполняется только после
+успешного `firstTick`.
+
 ## 7. Восстановление из резервной копии
 
 ```bash

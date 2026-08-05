@@ -24,6 +24,13 @@ function tmpConfig(contents) {
     return { dir, configPath };
 }
 
+// restartHappened сравнивает процессный старт с appliedAt (Date.now(), ms).
+// В проде рестарт занимает секунды; в тесте apply и создание нового API могут
+// упасть в одну миллисекунду — детерминированно разделяем таймстемпы.
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function mockReq(body, { limit = 1_000_000 } = {}) {
     const encoded = body === undefined ? Buffer.alloc(0) : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
     let offset = 0;
@@ -930,6 +937,84 @@ test('getStatus: ручной apply — restartInitiated=false, pendingRemaining
     assert.equal(status.body.data.state, 'pending');
     assert.equal(status.body.data.restartInitiated, false);
     assert.equal(status.body.data.pendingRemainingMs, null);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- R5-L3: restartHappened (рестарт уже состоялся → баннер не просит
+// перезапустить вручную) ---
+
+test('getStatus: restartHappened=false сразу после Apply (рестарт ещё не произошёл)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath, restart: () => {} });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    await api.putStage({ req: mockReq(changed) });
+    // Тот же процесс: appliedAt (момент Apply) должен быть строго ПОЗЖЕ
+    // старта процесса, иначе коллизия миллисекунд даёт ложный restartHappened.
+    await sleep(5);
+    await api.apply({});
+    // Тот же процесс: appliedAt (момент Apply) позже старта процесса.
+    assert.equal(api.getStatus({}).body.data.restartHappened, false);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: restartHappened=true после перезапуска (маркер написан предыдущим процессом)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    // «Первый» процесс: Apply пишет pending-маркер (авто-рестарт).
+    const first = createConfigApi({ environment: {}, configPath, restart: () => {} });
+    await first.putStage({ req: mockReq(changed) });
+    await first.apply({});
+    // Коллизия миллисекунд (apply и старт «нового» процесса в одном ms)
+    // дала бы ложный restartHappened=false — разделяем таймстемпы.
+    await sleep(5);
+
+    // «Новый» процесс (перезапуск): тот же configPath, свежий API.
+    // getStatus выводит pending из дискового маркера; процесс стартовал
+    // после appliedAt → restartHappened=true (баннер не просит рестарт).
+    const second = createConfigApi({ environment: {}, configPath, restart: () => {} });
+    const status = second.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartHappened, true);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: restartHappened=true и для ручного рестарта (restartInitiated=false)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        queue: { queueEnabled: true },
+        ingress: { ingressEnabled: false },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+    // Ручной режим (restart=null): Apply пишет маркер restartInitiated=false.
+    const first = createConfigApi({ environment: {}, configPath, restart: null });
+    await first.putStage({ req: mockReq(changed) });
+    await first.apply({});
+    assert.equal(first.getStatus({}).body.data.restartHappened, false);
+    await sleep(5);
+
+    // Оператор перезапустил процесс вручную → новый процесс, restartHappened=true.
+    const second = createConfigApi({ environment: {}, configPath, restart: null });
+    const status = second.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, false);
+    assert.equal(status.body.data.restartHappened, true);
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
