@@ -63,6 +63,22 @@ test('startIngressAndQueue returns a shutdown handle with stop()', async () => {
   assert.deepEqual(closed, ['queue-store'], 'queue-store.close() must be called on shutdown');
 });
 
+// M3 (review R13): runtime-конфиг queue-monitor строится из файла
+// (buildMonitorFlat(config)), а не из env — иначе dashboard и /api/config/*
+// не поднимаются в file-based схеме без дублирования MONITOR_ENABLED в env.
+// env БЕЗ MONITOR_ENABLED, но файловый конфиг monitorEnabled=true с пустым
+// metricsApiKey: реальный монитор бросает (нет METRICS_API_KEY), no-op не бросал.
+test('startIngressAndQueue: файловый flat-конфиг передаётся в createQueueMonitor (M3 R13)', async () => {
+  await assert.rejects(
+    () => startIngressAndQueue(
+      buildConfig({ monitorEnabled: true, monitorPort: 9123, metricsApiKey: '' }),
+      { environment: {} },
+      { stdout: { write: () => {} }, stderr: { write: () => {} } }
+    ),
+    /MONITOR_ENABLED=true requires METRICS_API_KEY/
+  );
+});
+
 test('shutdown handle calls worker.stop() and queue-store.close() in correct order', async () => {
   // Проверяем реальный порядок stop-шагов, а не просто факт вызова.
   // worker создаётся внутри startIngressAndQueue из реального createQueueWorker,
@@ -253,14 +269,15 @@ test('startIngressAndQueue does not throw ReferenceError on environment when mon
   };
   const fakeOutboundClient = { send: async () => ({}) };
 
+  // M3 (review R13): runtime-конфиг монитора теперь берётся из файлового
+  // flat-конфига (buildMonitorFlat(config)), а не из env — env MONITOR_ENABLED
+  // при наличии файла игнорируется. Здесь файловый конфиг отключает монитор.
   const handle = await startIngressAndQueue(
-    buildConfig({ queueEnabled: false, monitorEnabled: true, monitorPort: 0 }),
+    buildConfig({ queueEnabled: false, monitorEnabled: false, monitorPort: 0 }),
     {
       queueStore: fakeQueueStore,
       outboundClient: fakeOutboundClient,
-      // Внутренний config монитора читает MONITOR_ENABLED из environment.
-      // false → createQueueMonitor вернёт no-op, без открытия порта/БД.
-      environment: envWithoutConfig({ MONITOR_ENABLED: 'false' })
+      environment: envWithoutConfig({ MONITOR_ENABLED: 'true' })
     },
     { stdout: { write: () => {} }, stderr: { write: () => {} } }
   );

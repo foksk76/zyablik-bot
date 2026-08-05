@@ -15,6 +15,7 @@ const { createRateLimiter } = require('./core/rate-limiter');
 const { createQueueMonitor } = require('../queue-monitor');
 const {
   buildConfigFileFromEnvironment,
+  buildMonitorFlat,
   loadConfig,
   resolveConfigPath
 } = require('./core/config');
@@ -276,6 +277,11 @@ async function startIngressAndQueue(config, options, io) {
       dbPath: monitorDbPath,
       queueStore,
       logger: options.logger || console,
+      // ADR-0045 (M3, review R13): runtime-конфиг queue-monitor из ФАЙЛА
+      // (buildMonitorFlat), а не из env — иначе dashboard и /api/config/*
+      // не поднимаются в file-based схеме без дублирования MONITOR_ENABLED
+      // в env (нарушало бы «файл — источник правды»).
+      config: buildMonitorFlat(config),
       // ADR-0046: конфигурация для /api/config/* (configPath, плагины, рестарт).
       configPath: options.configPath,
       plugins: options.plugins || [],

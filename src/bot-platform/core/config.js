@@ -493,6 +493,7 @@ module.exports = {
     createBotPlatformConfig,
     createQueueMonitorConfig,
     createLiveRuntimeConfig,
+    buildMonitorFlat,
     loadConfig,
     resolveConfigPath,
     buildConfigFileFromEnvironment,
