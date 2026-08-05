@@ -132,7 +132,8 @@ node src/bot-platform/app.js
 
 Валидация при старте: JSON, `version`, схема, литеральные секреты (reject),
 `$VAR`-резолв. Ошибки — в stdout/stderr; файл карантинится в
-`zyablik.config.bad.json`, восстанавливается `.lkg`.
+`zyablik.config.<ts>.bad.json` (`<ts>` — уникальная временная метка, чтобы
+повторный карантин не затирал предыдущие улики), восстанавливается `.lkg`.
 
 ## 5. Apply / Rollback из API или UI
 
@@ -199,9 +200,10 @@ node src/bot-platform/app.js   # валидация + старт
 ## 9. Служебные файлы
 
 ```text
-config/zyablik.config.json        — активный конфиг
-config/zyablik.config.json.lkg    — last-known-good (перед apply)
-config/zyablik.config.json.pending — pending-маркер (хеш применяемого)
-config/zyablik.config.json.staged  — staged-снапшот (редактирование)
-config/zyablik.config.json.bad.json — карантин невалидного файла
+config/zyablik.config.json           — активный конфиг
+config/zyablik.config.json.lkg       — last-known-good (перед apply)
+config/zyablik.config.json.pending   — pending-маркер (хеш применяемого)
+config/zyablik.config.json.staged    — staged-снапшот (редактирование)
+config/zyablik.config.<ts>.bad.json  — карантин невалидного файла
+                                       (<ts> — уникальная временная метка)
 ```
