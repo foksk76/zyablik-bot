@@ -332,22 +332,25 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                 masked[key] = maskSecret(masked[key]);
             }
         }
-        // L1 (review R7): необъявленные ключи системных секций — те же
-        // потенциальные секреты, что и в ветках плагинов (m4): литеральная
-        // строка или $VAR-ссылка маскируются до { secret: true, set }.
+        // L1 (review R7) + R8: необъявленные ключи системных секций — те же
+        // потенциальные секреты, что и в ветках плагинов (m4). Без схемы
+        // нельзя отличить настройку от литерального секрета, поэтому:
+        // непустая строка ($VAR-ссылка или литерал) маскируется до
+        // { secret: true, set }; нестроковое значение (объект/массив/число/
+        // булево) отбрасывается целиком — структура/значение не утекают.
         // (GET /api/config не затронут — buildEffectiveSections отдаёт только
         // ключи схемы; здесь маскируется сам stage/diff-снапшот.)
         for (const [key, value] of Object.entries(masked)) {
             if (SYSTEM_SCHEMA[sectionName][key]) {
                 continue;
             }
-            if (isVarReference(value)) {
-                masked[key] = maskSecret(value);
+            if (typeof value === 'string') {
+                if (value !== '') {
+                    masked[key] = maskSecret(value);
+                }
                 continue;
             }
-            if (typeof value === 'string' && value !== '') {
-                masked[key] = maskSecret(value);
-            }
+            delete masked[key];
         }
         result[sectionName] = masked;
     }
@@ -373,23 +376,23 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                 }
             }
             // Defense-in-depth (m4): защита веток без configSchema и
-            // необъявленных ключей. H3 (review): объявленные НЕсекретные поля
-            // configSchema — обычные значения (в т.ч. $VAR-ссылки), наружу
-            // отдаются как есть. Необъявленный ключ: $VAR-ссылка маскируется
-            // всегда (наружу не уходит даже имя переменной); литеральная
-            // строка тоже маскируется — без схемы нельзя отличить настройку
-            // от литерального секрета.
+            // необъявленных ключей. H3 (review): объявленные поля configSchema
+            // (в т.ч. НЕсекретные — обычные значения, секреты уже замаскированы
+            // в цикле выше) пропускаются. Необъявленный ключ: непустая строка
+            // ($VAR-ссылка или литерал) маскируется до { secret, set };
+            // нестроковое значение (объект/массив/число/булево) отбрасывается
+            // целиком (R8: та же политика, что и для системных секций).
             for (const [key, value] of Object.entries(masked)) {
-                if (isDeclaredPluginField(pluginSchemas, pluginName, key)) {
+                if (schema && schema[key]) {
                     continue;
                 }
-                if (isVarReference(value)) {
-                    masked[key] = maskSecret(value);
+                if (typeof value === 'string') {
+                    if (value !== '') {
+                        masked[key] = maskSecret(value);
+                    }
                     continue;
                 }
-                if (typeof value === 'string' && value !== '') {
-                    masked[key] = maskSecret(value);
-                }
+                delete masked[key];
             }
             maskedPlugins[pluginName] = masked;
         }

@@ -704,6 +704,42 @@ test('maskStagedSecrets: необъявленные ключи системны�
     assert.ok(!JSON.stringify(masked).includes('$LEGACY_TOKEN'));
 });
 
+test('maskStagedSecrets: необъявленные нестроковые ключи системных секций отбрасываются (R8)', () => {
+    const staged = {
+        version: 1,
+        bot: {
+            logLevel: 'info',
+            extraNested: { token: 'sk-nested' },
+            extraArr: ['sk-arr'],
+            extraNum: 42,
+            extraBool: true,
+            extraEmpty: ''
+        }
+    };
+    const masked = maskStagedSecrets(staged, []);
+    assert.equal(masked.bot.logLevel, 'info', 'объявленный ключ цел');
+    assert.ok(!('extraNested' in masked.bot), 'объект отброшен');
+    assert.ok(!('extraArr' in masked.bot), 'массив отброшен');
+    assert.ok(!('extraNum' in masked.bot), 'число отброшено');
+    assert.ok(!('extraBool' in masked.bot), 'булево отброшено');
+    assert.equal(masked.bot.extraEmpty, '', 'пустая строка не секрет — остаётся');
+    assert.ok(!JSON.stringify(masked).includes('sk-nested'));
+    assert.ok(!JSON.stringify(masked).includes('sk-arr'));
+});
+
+test('maskStagedSecrets: необъявленные нестроковые ключи ветки плагина отбрасываются (R8)', () => {
+    const plugins = [{ name: 'identity', configSchema: { syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const staged = {
+        version: 1,
+        plugins: { identity: { syncMode: 'auto', nested: { token: 'sk-nested' }, retries: 3 } }
+    };
+    const masked = maskStagedSecrets(staged, plugins);
+    assert.equal(masked.plugins.identity.syncMode, 'auto', 'объявленный несекретный ключ цел');
+    assert.ok(!('nested' in masked.plugins.identity), 'объект отброшен');
+    assert.ok(!('retries' in masked.plugins.identity), 'число отброшено');
+    assert.ok(!JSON.stringify(masked).includes('sk-nested'));
+});
+
 test('getConfig: ветка плагина без configSchema не уходит наружу (ни $VAR, ни литералы)', () => {
     const { dir, configPath } = tmpConfig({
         version: CURRENT_VERSION,
