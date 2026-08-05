@@ -35,17 +35,21 @@ TLS-терминированием для HTTP-серверов бота — п�
 │    │  HTTPS POST /ingest                                     │
 │    ▼                                                         │
 │  Nginx (reverse proxy)  ─── TLS-терминирование ───┐          │
-│    listen 443 ssl                                  │          │
+│    listen 443 ssl / 8444 ssl                       │          │
 │    ┌────────────────────────────┬─────────────────▼────────┐ │
 │    │ location /ingest          │ location / (всё остальное) │
 │    │ → http://127.0.0.1:8443   │ → http://127.0.0.1:9000    │
 │    └────────────────────────────┴───────────────────────────┘ │
+│    server :8444 (IdP) → http://127.0.0.1:8000                │
 │                                                              │
 │  bot-platform (app.js)                                       │
 │    ingress        http://127.0.0.1:8443   POST /ingest       │
 │    queue-monitor  http://127.0.0.1:9000   UI + /api/* + /readyz
 │                                                              │
+│  NanoIDP (IdP)     http://127.0.0.1:8000   (через nginx :8444)
+│                                                              │
 │  Оператор (браузер) → https://<stand-host>/ (dashboard UI)   │
+│    вход: https://<stand-host> → https://<stand-host>:8444    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,6 +61,7 @@ TLS-терминированием для HTTP-серверов бота — п�
 |---|---|---|
 | `POST /ingest` | `http://127.0.0.1:8443` | HTTP-ingress (ADR-0023), JWT-auth (ADR-0038) |
 | `/api/metrics/*`, `/api/archive/*`, `/api/auth/*`, `/readyz`, `/` | `http://127.0.0.1:9000` | Queue Monitor dashboard (ADR-0034, ADR-0042) |
+| `:8444` (весь путь) | `http://127.0.0.1:8000` | NanoIDP на том же origin (same-site вход, раздел 4.1) |
 
 Dashboard отдаёт SPA fallback для `/` (ADR-0042), поэтому `location /`
 проксируется целиком на queue-monitor — никакой логики на стороне Nginx не нужно.
@@ -168,6 +173,29 @@ server {
         proxy_read_timeout 65s;
     }
 }
+
+# IdP (NanoIDP) на том же origin — https://<stand-host>:8444 → контейнер :8000.
+# Нужен для same-site входа в дашборд: переход https-дашборд → http://<stand>:8000
+# кросс-сайтовый (смена схемы), в реальном Chrome сессионная cookie IdP (Strict)
+# не сохранялась → POST /authorize отвечал 400 unsupported_response_type.
+server {
+    listen 8444 ssl http2;
+    server_name <stand-host>;
+
+    ssl_certificate     /etc/nginx/ssl/<stand-host>.crt;
+    ssl_certificate_key /etc/nginx/ssl/<stand-host>.key;
+
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8000;
+        client_max_body_size 1m;
+        proxy_read_timeout 65s;
+    }
+}
 ```
 
 Применить конфигурацию:
@@ -202,8 +230,41 @@ IDP_REDIRECT_URI=https://<stand-host>/api/auth/callback
 `https://<stand-host>/api/auth/callback` в зарегистрированные URI клиента
 dashboard.
 
-`IDP_ISSUER` менять не нужно: бот ходит к IdP (NanoIDP на `localhost:8000`)
-напрямую, минуя Nginx.
+IdP должен отдаваться на HTTPS **того же origin**, что и дашборд. Для этого
+NanoIDP проксируется через Nginx на `https://<stand-host>:8444` (server block
+выше), а не живёт на `http://<stand-host>:8000` напрямую:
+
+```bash
+# .env (источник правды, ADR-0045)
+IDP_ISSUER=https://<stand-host>:8444
+IDP_RELAX_SSRF=true          # <stand-host> — приватный IP, SSRF-проверка (ADR-0037) блокирует его
+NODE_EXTRA_CA_CERTS=/etc/nginx/ssl/zyablik-ca-bundle.crt  # русский корень + self-signed стенда
+```
+
+Почему:
+
+- `IDP_ISSUER` обязан совпадать с `oauth.issuer` в `settings.yaml` NanoIDP
+  (`https://<stand-host>:8444`) — discovery отдаёт authorize/token/jwks на этом
+  же origin.
+- Причина для HTTPS на том же origin: если вход уходит на
+  `http://<stand-host>:8000`, браузер считает переход
+  `https://<stand-host>` → `http://<stand-host>:8000` кросс-сайтовым (смена
+  схемы) и в реальном Chrome сессионная cookie IdP (Strict, SameSite=Lax на
+  `:8000`) не сохраняется → POST `/authorize` отвечает
+  `400 unsupported_response_type`. Через `:8444` переход same-site, cookie
+  работает (проверено end-to-end).
+- `NODE_EXTRA_CA_CERTS` — бандл из русского корневого CA (MAX API) и
+  self-signed сертификата стенда: бот ходит и к MAX API, и к IdP по HTTPS
+  (token exchange, userinfo, JWKS для ingress-верификации ADR-0038).
+  Собрать: `cat russian_trusted_root_ca_pem.crt <stand-host>.crt >
+  zyablik-ca-bundle.crt` (файлы должны быть в LF, не CRLF — иначе PEM
+  «bad end line»).
+- `IDP_RELAX_SSRF=true`: discovery/token/jwks на приватном IP, а
+  `assertSafeUrl` (ADR-0037) блокирует приватные адреса для https-issuer.
+
+M2M-флоу (Zabbix → ingress, `client_credentials`) тоже ходит на
+`https://<stand-host>:8444/token` и `.../jwks.json` — сервер бота валидирует
+`iss`/`aud` по `IDP_ISSUER`/`IDP_AUDIENCE` (ADR-0038).
 
 ### 4.2 Привязка серверов
 
@@ -236,7 +297,7 @@ curl -k https://<stand-host>/readyz
 
 # Ingress (Bearer-токен от IdP)
 # client_id:client_secret — клиент IdP (значения задаются в .env / NanoIDP, не в репо)
-TOKEN=$(curl -s -X POST http://localhost:8000/token \
+TOKEN=$(curl -sk -X POST https://<stand-host>:8444/token \
   -u '<client_id>:<client_secret>' \
   -d 'grant_type=client_credentials' | jq -r '.access_token')
 
@@ -283,13 +344,15 @@ curl -k -X POST https://<stand-host>/ingest \
 
 Внешние HTTP-порты бота `8443` и `9000` не должны быть доступны из сети — только
 loopback для Nginx (и docker-сети для контейнерных клиентов — Zabbix/NanoIDP).
-Снаружи открыт только `443`.
+Снаружи открыты `443` (dashboard/ingress) и `8444` (IdP на том же origin,
+раздел 4.1 — браузер ходит на него при входе).
 
 Вариант **ufw** (если установлен):
 
 ```bash
 sudo ufw allow 22/tcp
 sudo ufw allow 443/tcp
+sudo ufw allow 8444/tcp
 sudo ufw deny 8443/tcp
 sudo ufw deny 9000/tcp
 sudo ufw enable
@@ -332,8 +395,8 @@ docker network inspect $(docker network ls -q) \
 
 При появлении нового docker-сети правило нужно дополнить её подсетью.
 
-Проверка после применения: Nginx отвечает на `443`, а `8443`/`9000` недоступны
-с других хостов.
+Проверка после применения: Nginx отвечает на `443` и `8444`, а `8443`/`9000`
+недоступны с других хостов.
 
 ## 7. Проверка
 
@@ -343,6 +406,7 @@ Checklist:
 nginx -t:                            pass | fail
 systemctl status nginx:              active
 curl -k https://<stand-host>/readyz: 200 {"status":"ok"...}
+curl -k https://<stand-host>:8444/.well-known/openid-configuration: issuer = https://<stand-host>:8444
 curl -k POST https://<stand-host>/ingest (с Bearer): 200 {"status":"queued"}
 Zabbix Media type test send:         доставлено в MAX
 Dashboard https://<stand-host>/:     UI открывается, login через IdP работает

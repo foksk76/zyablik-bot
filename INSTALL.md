@@ -392,7 +392,13 @@ HTTP-серверы bot-platform (ingress `8443`, dashboard `9000`) по умо�
 ```text
 POST /ingest → https://<stand-host>/ingest → http://127.0.0.1:8443
 dashboard   → https://<stand-host>/        → http://127.0.0.1:9000
+IdP (NanoIDP) → https://<stand-host>:8444  → http://127.0.0.1:8000
 ```
+
+IdP проксируется через Nginx на тот же origin (`:8444`), чтобы вход в дашборд
+был same-site: переход `https://<stand-host>` → `http://<stand-host>:8000`
+кросс-сайтовый и в реальном Chrome ломает session-cookie IdP (POST `/authorize`
+отвечает `400 unsupported_response_type`).
 
 Изменения в настройке после включения Nginx:
 
@@ -400,6 +406,15 @@ dashboard   → https://<stand-host>/        → http://127.0.0.1:9000
 # bot-platform: OAuth2 redirect должен идти через публичный HTTPS-адрес.
 # Secure-флаг session cookie зависит от https:// в этом значении.
 export IDP_REDIRECT_URI=https://<stand-host>/api/auth/callback
+
+# IdP должен отдаваться на https://<stand-host>:8444 (тот же origin):
+export IDP_ISSUER=https://<stand-host>:8444
+export IDP_RELAX_SSRF=true     # приватный IP стенда (ADR-0037)
+
+# Бот ходит и к MAX API, и к IdP по HTTPS: бандл из русского корневого CA
+# (MAX API) + self-signed сертификат стенда. Файлы в LF (не CRLF), иначе
+# Node не прочитает бандл (PEM "bad end line").
+export NODE_EXTRA_CA_CERTS=/etc/nginx/ssl/zyablik-ca-bundle.crt
 ```
 
 ```text
