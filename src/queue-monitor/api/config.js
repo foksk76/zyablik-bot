@@ -815,7 +815,9 @@ function createConfigApi(options = {}) {
             if (!rate.allowed) {
                 return tooManyRequests(rate.waitMs);
             }
-            const result = rollbackConfig(configPath, { environment, logger, restart });
+            // M3 (review R5): plugins передаются в rollbackConfig — валидация
+            // lkg по configSchema плагинов (как в apply/detector/import).
+            const result = rollbackConfig(configPath, { environment, plugins, logger, restart });
             state = {
                 state: 'rolled_back',
                 reason: 'manual rollback',

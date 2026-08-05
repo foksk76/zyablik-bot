@@ -97,6 +97,18 @@ test('coerceValue: очищенное поле → дефолт схемы (чи
 test('coerceValue: очистка number без дефолта → undefined, а не null (M3 review)', () => {
     const field = { type: 'number' };
     assert.deepEqual(coerceValue('', field), { ok: true, value: undefined });
+
+test('coerceValue: очистка list → дефолт схемы, а не [] (M1 review R5)', () => {
+    assert.deepEqual(coerceValue('', schema.bot.maxPollTypes), { ok: true, value: ['NEW_MESSAGE', 'UPDATE_MESSAGE'] });
+    // Копия дефолта, а не ссылка (мутация формы не должна течь в схему).
+    const first = coerceValue('', schema.bot.maxPollTypes).value;
+    first.push('X');
+    assert.deepEqual(schema.bot.maxPollTypes.default, ['NEW_MESSAGE', 'UPDATE_MESSAGE']);
+    // list без дефолта → [] (старое поведение).
+    assert.deepEqual(coerceValue('', { type: 'list' }), { ok: true, value: [] });
+    // Явный null (nullable «—») сохраняется как есть.
+    assert.deepEqual(coerceValue(null, schema.bot.maxPollTypes), { ok: true, value: null });
+});
     assert.equal(validateValue(undefined, field), null);
 });
 

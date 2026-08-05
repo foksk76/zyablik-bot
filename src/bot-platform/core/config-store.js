@@ -699,7 +699,11 @@ function confirmConfigApplied(configPath, options = {}) {
 
 // Восстановление lkg + рестарт. Ручной rollback снимает pending-маркер
 // (явное решение оператора — повторный авто-откат не нужен) и очищает staged.
-// options: { restart, environment }.
+// options: { restart, environment, plugins }.
+// M3 (review R5): плагины передаются в preValidateConfigFile — иначе ветка
+// плагина в lkg, нарушающая configSchema, прошла бы ручной rollback, но
+// упала бы в детекторе на следующем boot (несогласованная поверхность
+// валидации apply/detector/import vs rollback).
 function rollbackConfig(configPath, options = {}) {
     const { configPath: activePath } = serviceFilePaths(configPath);
     const lkg = readLkg(configPath);
@@ -709,7 +713,8 @@ function rollbackConfig(configPath, options = {}) {
     }
 
     const environment = options.environment || process.env;
-    preValidateConfigFile(lkg, { environment });
+    const plugins = options.plugins || [];
+    preValidateConfigFile(lkg, { environment, plugins });
 
     atomicWriteJson(activePath, lkg);
     clearPending(configPath);

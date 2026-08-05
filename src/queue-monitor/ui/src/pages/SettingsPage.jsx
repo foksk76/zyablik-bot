@@ -21,24 +21,66 @@ export default function SettingsPage() {
     const [showDiff, setShowDiff] = useState(false);
     const [busy, setBusy] = useState(false);
     const fileInputRef = useRef(null);
+    // M2 (review R5): staged-конфиг, существующий на диске до загрузки
+    // страницы (другая сессия/оператор). Без этого reload оставлял его
+    // невидимым (hasStaged=false, «Применить» выключена), а «Сохранить
+    // (staged)» молча перезаписывал бы серверный staged старыми values.
+    const [stagedFile, setStagedFile] = useState(null);
+    const [stageLoaded, setStageLoaded] = useState(false);
     // Инициализация формы выполняется один раз, по первому загруженному
-    // effective-конфигу. Повторные refresh() (30-сек poll, «Обновить», после
+    // конфигу. Повторные refresh() (30-сек poll, «Обновить», после
     // apply/rollback) НЕ перезаписывают values — иначе несохранённая правка
     // пользователя стиралась бы при каждом опросе.
     const valuesInitializedRef = useRef(false);
 
-    // При первой загрузке effective-конфига — инициализация значений для правки.
+    // M2 (review R5): при mount — проверяем существующий staged и
+    // синхронизируем форму с ним (иначе diff/Save вводят в заблуждение).
     useEffect(() => {
-        if (valuesInitializedRef.current || !config || !config.sections) {
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch('/api/config/stage', { credentials: 'same-origin' });
+                if (res.status === 401) {
+                    window.location.href = '/api/auth/login';
+                    return;
+                }
+                const json = await res.json().catch(() => null);
+                if (cancelled || !res.ok || !json || !json.data) {
+                    return;
+                }
+                if (json.data.exists) {
+                    setHasStaged(true);
+                    setStagedFile(json.data.staged && typeof json.data.staged === 'object' ? json.data.staged : null);
+                }
+            } catch (err) {
+                // Сетевой сбой — не фатально: форма живёт на effective.
+            } finally {
+                if (!cancelled) {
+                    setStageLoaded(true);
+                }
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    // При первой загрузке — инициализация значений для правки. Если на диске
+    // есть staged (M2) — из него; иначе из effective. Ждём и config, и
+    // результат /stage, чтобы staged не терялся при гонке с effective.
+    useEffect(() => {
+        if (valuesInitializedRef.current || !config || !config.sections || !stageLoaded) {
             return;
         }
-        const next = {};
-        for (const [sectionName, sectionValues] of Object.entries(config.sections)) {
-            next[sectionName] = { ...(sectionValues || {}) };
+        if (stagedFile) {
+            setValues(fileConfigToValues(stagedFile));
+        } else {
+            const next = {};
+            for (const [sectionName, sectionValues] of Object.entries(config.sections)) {
+                next[sectionName] = { ...(sectionValues || {}) };
+            }
+            setValues(next);
         }
-        setValues(next);
         valuesInitializedRef.current = true;
-    }, [config]);
+    }, [config, stagedFile, stageLoaded]);
 
     const staged = useMemo(() => (schema ? buildStagedConfig(values, schema) : null), [values, schema]);
 

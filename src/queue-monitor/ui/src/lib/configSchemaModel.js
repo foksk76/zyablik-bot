@@ -121,6 +121,17 @@ export function coerceValue(raw, field) {
         return { ok: false, value: null };
     }
     case 'list': {
+        // M1 (review R5): очистка list-поля → дефолт схемы (как number/
+        // boolean/enum), а не [] — иначе в staged уезжал "maxPollTypes": []
+        // (файл расходился с документированными дефолтами, diff вводил в
+        // заблуждение). Явный null (nullable) сохраняется как null.
+        if (raw === '' || raw === null) {
+            if (raw === null) {
+                return { ok: true, value: null };
+            }
+            const defaultValue = fieldDefault(field);
+            return { ok: true, value: Array.isArray(defaultValue) ? [...defaultValue] : [] };
+        }
         if (Array.isArray(raw)) return { ok: true, value: raw };
         if (typeof raw === 'string') {
             const items = raw.split(',').map((s) => s.trim()).filter(Boolean);

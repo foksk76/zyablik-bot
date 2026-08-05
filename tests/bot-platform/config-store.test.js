@@ -742,6 +742,52 @@ test('rollbackConfig: невалидный lkg — ошибка', () => {
     );
 });
 
+// M3 (review R5): rollbackConfig валидирует lkg по configSchema плагинов,
+// как apply/detector/import. Без plugins ветка, нарушающая схему, прошла бы
+// ручной rollback (warn+ignore), но упала бы в детекторе на следующем boot.
+test('rollbackConfig: невалидная по configSchema ветка плагина в lkg — ошибка (M3)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: {} });
+    writeLkg(configPath, {
+        version: 1,
+        bot: {},
+        plugins: { identity: { syncMode: 'nope' } }
+    });
+    const identityPlugin = {
+        name: 'identity',
+        configSchema: {
+            syncMode: { type: 'enum', enum: ['auto', 'manual'], default: 'auto' }
+        }
+    };
+    // Без plugins — проходит (warn+ignore), старый API-rollback не видел ошибку.
+    rollbackConfig(configPath, {});
+    writeLkg(configPath, {
+        version: 1,
+        bot: {},
+        plugins: { identity: { syncMode: 'nope' } }
+    });
+    // С plugins — CONFIG_VALIDATION_ERROR (как apply/detector/import).
+    assert.throws(
+        () => rollbackConfig(configPath, { plugins: [identityPlugin] }),
+        (error) => {
+            assert.equal(error.code, 'CONFIG_VALIDATION_ERROR');
+            assert.ok(error.details && Array.isArray(error.details.errors));
+            const detail = String(error.details.errors.map((e) => `${e.key} ${e.reason}`).join(' '));
+            assert.match(detail, /identity\.syncMode/);
+            assert.match(detail, /auto/);
+            return true;
+        }
+    );
+    // Валидная ветка плагина с plugins — проходит.
+    writeLkg(configPath, {
+        version: 1,
+        bot: {},
+        plugins: { identity: { syncMode: 'manual' } }
+    });
+    const result = rollbackConfig(configPath, { plugins: [identityPlugin], restart: () => {} });
+    assert.equal(result.restoredFrom, 'lkg');
+});
+
 test('DEFAULT_STARTUP_WAIT_MS = 30 секунд', () => {
     assert.equal(DEFAULT_STARTUP_WAIT_MS, 30_000);
 });
