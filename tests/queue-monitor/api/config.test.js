@@ -497,6 +497,21 @@ test('confirm: без pending-маркера — no-op, состояние не 
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('confirm: после ручного рестарта appliedHash берётся из pending-маркера (in-memory null)', async () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    // apply был в прошлом процессе — in-memory state.idle, appliedHash null.
+    const api = createConfigApi({ environment: {}, configPath });
+    const { writePending } = require('../../../src/bot-platform/core/config-store');
+    writePending(configPath, minimalConfig);
+
+    const confirmed = api.confirm();
+    assert.equal(confirmed, true);
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'confirmed');
+    assert.notEqual(status.body.data.appliedHash, null);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- POST /api/config/rollback ---
 
 test('rollback: 202 with restart, restores from manual', async () => {

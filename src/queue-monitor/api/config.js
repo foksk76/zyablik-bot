@@ -1000,13 +1000,18 @@ function createConfigApi(options = {}) {
 
     // Подтверждение apply по готовности процесса (ready): снимает pending-маркер.
     function confirm() {
+        // После ручного рестарта in-memory appliedHash === null (apply был в
+        // прошлом процессе), а pending.hash фиксирует применённый конфиг.
+        // Читаем hash до снятия маркера, чтобы статус сохранил его.
+        const pending = pendingExists(configPath) ? readPending(configPath) : null;
+        const pendingHash = pending && pending.hash ? pending.hash : null;
         const confirmed = confirmConfigApplied(configPath, { logger });
         if (confirmed) {
             state = {
                 state: 'confirmed',
                 reason: 'apply confirmed on ready',
                 appliedAt: new Date().toISOString(),
-                appliedHash: state.appliedHash,
+                appliedHash: state.appliedHash || pendingHash || null,
                 appliedAtMs: null,
                 restoredAt: null,
                 restoredFrom: null
