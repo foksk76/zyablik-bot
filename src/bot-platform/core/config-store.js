@@ -378,8 +378,14 @@ function applyConfig(configPath, fileConfig, options = {}) {
     const activeConfig = activeResult.ok ? activeResult.data : null;
     const fileConfigToWrite = mergePreservedSecrets(activeConfig, fileConfig, options.plugins);
 
-    // 2. pre-validate (не трогает активный конфиг при отказе).
-    const { hash } = preValidateConfigFile(fileConfigToWrite, { environment, plugins: options.plugins });
+    // 2. pre-validate (не трогает активный конфиг при отказе). Нормализованный
+    // fileConfig (явный version) пишем на диск и в pending — иначе versionless
+    // конфиг уходил бы в файл без version, а возвращаемый hash (от
+    // нормализованного) не совпадал бы с pending.hash (M1, review R12).
+    const { fileConfig: normalizedConfig, hash } = preValidateConfigFile(fileConfigToWrite, {
+        environment,
+        plugins: options.plugins
+    });
 
     // 3. lkg = копия активного (до записи нового).
     let lkgWritten = false;
@@ -394,7 +400,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
     // сообщает детектору, что рестарт инициировал сам Apply (окно StartupWait
     // отсчитывается от appliedAt); при ручном рестарте окно по appliedAt не
     // применяется (задержка между Apply и рестартом не признак краша).
-    writePending(configPath, fileConfigToWrite, new Date(), {
+    writePending(configPath, normalizedConfig, new Date(), {
         restartInitiated: typeof options.restart === 'function'
     });
     logConfigAudit(options.logger, 'config.pending', {
@@ -404,7 +410,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
     });
 
     // 4. Атомарный write активного конфига.
-    atomicWriteJson(activePath, fileConfigToWrite);
+    atomicWriteJson(activePath, normalizedConfig);
 
     // 5. Очистка staged после успешного Apply.
     clearStaged(configPath);
@@ -422,7 +428,7 @@ function applyConfig(configPath, fileConfig, options = {}) {
         restarted = true;
     }
 
-    return { hash, fileConfig: fileConfigToWrite, lkgWritten, restarted };
+    return { hash, fileConfig: normalizedConfig, lkgWritten, restarted };
 }
 
 // --- Стартовый детектор + авто-откат (Task 3) ---

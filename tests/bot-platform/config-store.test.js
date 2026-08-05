@@ -187,6 +187,27 @@ test('applyConfig: хеш применяемого конфига', () => {
     assert.equal(result.hash, computeConfigHash(fileConfig));
 });
 
+test('applyConfig: versionless конфиг нормализуется — файл и pending.hash согласованы (M1, review R12)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: {} });
+    // Прямой вызов applyConfig (будущий CLI): вход без version.
+    const fileConfig = { bot: { logLevel: 'debug' } };
+    const result = applyConfig(configPath, fileConfig, { environment: {}, restart: () => {} });
+
+    // Активный файл на диске — с явным version (как generate-config/доки).
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.version, 1);
+    assert.equal(active.bot.logLevel, 'debug');
+
+    // Возвращённый hash === pending.hash === hash записанного файла.
+    const pending = readPending(configPath);
+    assert.notEqual(pending, null);
+    assert.equal(result.hash, pending.hash);
+    assert.equal(result.hash, computeConfigHash(active));
+    assert.equal(result.hash, computeConfigHash(result.fileConfig));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // --- Task 5 (Sprint 41): секреты не затираются при частичном Apply (UI/import) ---
 
 test('mergePreservedSecrets: переносит $VAR-ссылки секретов из активного конфига', () => {
