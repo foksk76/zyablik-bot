@@ -273,9 +273,12 @@ export default function SettingsPage() {
                 <div className="bg-warning-light border border-warning/20 text-warning-dark text-sm rounded-lg p-3" data-testid="banner-config-warnings">
                     <p className="font-semibold mb-1">Предупреждения при загрузке конфигурации</p>
                     <ul className="list-disc pl-5 space-y-0.5">
-                        {config.warnings.map((warning, index) => (
-                            <li key={index}>{warning}</li>
-                        ))}
+                        {config.warnings.map((warning, index) => {
+                            const text = typeof warning === 'object' && warning !== null
+                                ? (warning.key ? `${warning.key}: ${warning.reason}` : warning.reason)
+                                : warning;
+                            return <li key={index}>{text}</li>;
+                        })}
                     </ul>
                 </div>
             )}

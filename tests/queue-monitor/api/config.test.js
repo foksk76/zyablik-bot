@@ -1256,16 +1256,16 @@ test('getConfig: отдаёт configWarnings из loadConfig (R11-L3)', () => {
         environment: {},
         configPath,
         configWarnings: [
-            'неизвестный ключ верхнего уровня extraKey (warn + ignore)',
-            'значение bot.maxPollLimit вне min/max'
+            { section: null, key: 'extraKey', reason: 'неизвестный ключ верхнего уровня (warn + ignore)' },
+            { section: 'bot', key: 'maxPollLimit', reason: 'значение вне min/max' }
         ]
     });
 
     const result = api.getConfig({});
     assert.equal(result.statusCode, 200);
     assert.deepEqual(result.body.data.warnings, [
-        'неизвестный ключ верхнего уровня extraKey (warn + ignore)',
-        'значение bot.maxPollLimit вне min/max'
+        { section: null, key: 'extraKey', reason: 'неизвестный ключ верхнего уровня (warn + ignore)' },
+        { section: 'bot', key: 'maxPollLimit', reason: 'значение вне min/max' }
     ]);
     fs.rmSync(dir, { recursive: true, force: true });
 });
