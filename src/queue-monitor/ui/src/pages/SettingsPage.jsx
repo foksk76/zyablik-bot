@@ -274,9 +274,11 @@ export default function SettingsPage() {
                     <p className="font-semibold mb-1">Предупреждения при загрузке конфигурации</p>
                     <ul className="list-disc pl-5 space-y-0.5">
                         {config.warnings.map((warning, index) => {
-                            const text = typeof warning === 'object' && warning !== null
-                                ? (warning.key ? `${warning.key}: ${warning.reason}` : warning.reason)
-                                : warning;
+                            let text = warning;
+                            if (typeof warning === 'object' && warning !== null) {
+                                const prefix = warning.section ? `${warning.section}.${warning.key}` : warning.key;
+                                text = prefix ? `${prefix}: ${warning.reason}` : warning.reason;
+                            }
                             return <li key={index}>{text}</li>;
                         })}
                     </ul>
