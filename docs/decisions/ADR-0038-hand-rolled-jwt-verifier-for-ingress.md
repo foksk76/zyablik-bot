@@ -38,7 +38,7 @@ ADR-0024 принимает `@okta/jwt-verifier` как исключение и�
 - ingress layer не зависит от IdP-провайдера (ADR-0022: multi-source);
 - JWT от внешних источников могут использовать разные JWKS-endpoints;
 - `@okta/jwt-verifier` привязан к Okta-специфичным API;
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~480 строк с
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~560 строк с
   OIDC discovery, кешами и ограничениями сети), легко audit-уется.
 
 ### OIDC discovery (изменение 2026-08)
@@ -52,9 +52,9 @@ OIDC discovery: `GET {issuer}/.well-known/openid-configuration`, читает
 `{issuer}/.well-known/jwks.json` (NanoIDP). Относительный `jwks_uri`
 резолвится через `new URL(jwks_uri, issuer)` и принимается только при
 совпадении protocol+host с issuer. Успешный discovery кешируется на 1 час,
-404 (авторитетный «эндпоинта нет») — тоже на 1 час, транзиентный сбой
+404 (авторитетный «эндпоинта нет») — на 15 минут, транзиентный сбой
 (5xx/сеть/таймаут) — на короткий отрицательный TTL (5 минут), чтобы
-недоступный IdP не застревал на час. Если JWKS-fetch по `jwks_uri` из
+недоступный IdP не застревал надолго. Если JWKS-fetch по `jwks_uri` из
 discovery падает (протухший адрес) — один retry на дефолтный путь
 `{issuer}/.well-known/jwks.json`. JWKS кешируются на 1 час независимо.
 
@@ -84,10 +84,13 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   аналогично JWKS: burst параллельных `/ingest` на холодном старте делает
   один discovery-запрос, а не по одному на каждый запрос.
 - Ответ discovery с кодом 404 кешируется как авторитетный «эндпоинта нет»
-  на тот же TTL, что и успешный (1 час), а не на короткий отрицательный
+  на `DISCOVERY_NOT_FOUND_TTL_MS` (15 минут), а не на короткий отрицательный
   (5 минут): NanoIDP — целевой сценарий PR — отдаёт 404 на
   `openid-configuration` всегда, и 5-минутный пере-пробинг давал бы вечный
   поток бесполезных discovery-запросов (по одному на verifier каждые 5 минут).
+  15 минут вместо 1 часа — чтобы транзиентный 404 (рестарт/deploy реального
+  IdP; fallback `/.well-known/jwks.json` тоже 404) не оставлял auth сломанным
+  на час после восстановления IdP: после истечения TTL discovery пере-пробуется.
   Короткий отрицательный TTL остаётся для транзиентных сбоев (5xx, сетевые
   ошибки, таймауты).
 - kid-miss форсит refresh JWKS только вне отрицательного окна (5 минут
@@ -95,6 +98,12 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   (5 минут) — иначе kid-miss после протухания 1h-кеша давал бы 2 лишних
   исходящих запроса (обновление в getJwks + отдельный forced refresh), в т.ч.
   амплификация через случайные `kid` от атакующего.
+- Первый short-circuit поиска ключа по `kid` в `findKeyForKid` учитывает TTL
+  JWKS-кеша (`isJwksFresh()`): если IdP переиспользует `kid` при ротации
+  (RFC 7517 — `kid` это hint, а не гарантия уникальности), старый ключ под
+  тем же `kid` не матчится вечно — по истечении 1h-кеша даже известный `kid`
+  проходит через `getJwks()` → refresh, и вся ротационная механика
+  (grace/negative/kid-miss) не обходится.
 - JWKS-ответ без массива `keys` (200 с пустым/странным телом) трактуется
   как сбойный и уходит в отрицательный кеш — иначе такой ответ кешировался
   бы на час и форсил бы refresh на каждый `/ingest`.
@@ -167,8 +176,8 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
 ```
 
 - **JWKS fetching**: OIDC discovery (`/.well-known/openid-configuration` → `jwks_uri`)
-  с fallback на `/.well-known/jwks.json`; успешный discovery кеш 1 час, отрицательный
-  кеш сбойного discovery 5 минут; JWKS-кеш TTL 1 час; retry на дефолтный путь при сбое
+  с fallback на `/.well-known/jwks.json`; успешный discovery кеш 1 час, авторитетный
+  404 — 15 минут, отрицательный кеш сбойного discovery 5 минут; JWKS-кеш TTL 1 час; retry на дефолтный путь при сбое
   fetch по discovered `jwks_uri`; отрицательный кеш сбойного JWKS-fetch 5 минут (без
   retry-шторма на каждый `/ingest`); все fetch под `AbortSignal.timeout` (дефолт 15 с)
   + общий дедлайн на цепочку редиректов (`fetchTotalTimeoutMs`, дефолт 30 с);
@@ -209,14 +218,14 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
 | Issuer | `iss` проверяется against configured `issuer` (нормализованный: трейлинг-слэш срезан; `payload.iss` нормализуется так же); поле `issuer` discovery-документа (RFC 8414) сверяется с конфигурированным issuer — mismatch → warn + fallback на дефолтный путь |
 | Log injection | `kid`, `alg`, `iss` из токена санитизируются (без control chars, усечены до 64 символов) перед попаданием в ошибки/логи |
 | Audience | `aud` проверяется если `expectedAudience` задан; `createVerifier({ audience })` используется как default при вызове `verifyAccessToken(token)` без второго аргумента |
-| JWKS rotation | Кеш 1 час; kid-miss принудительно форсит refresh (минуя TTL, вне отрицательного окна сбойного fetch и вне grace-периода 5 минут после успешного fetch), fallback на последний успешный кеш при сбое; отрицательный кеш сбойного fetch 5 минут; JWKS-тело валидируется (массив `keys`) до кеширования |
+| JWKS rotation | Кеш 1 час; kid-miss принудительно форсит refresh (минуя TTL, вне отрицательного окна сбойного fetch и вне grace-периода 5 минут после успешного fetch); по истечении TTL refresh форсится и для известного `kid` (переиспользование kid при ротации); fallback на последний успешный кеш при сбое; отрицательный кеш сбойного fetch 5 минут; JWKS-тело валидируется (массив `keys`) до кеширования |
 | Insecure HTTP | `logger.warn` при HTTP issuer, но верификация работает |
 
 ### Почему не унифицировать через `@okta/jwt-verifier`
 
 - `@okta/jwt-verifier` привязан к Okta SDK API;
 - ingress layer работает с произвольными OIDC-провайдерами (не только Okta);
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~480 строк);
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~560 строк);
 - оба модуля решают разные задачи в разных слоях.
 
 ### Связь с queue-monitor/auth/oidc.js
@@ -241,7 +250,7 @@ queue-monitor auth — отдельный слой (ADR-0034), отдельны�
 
 ### Вынести в отдельный пакет
 
-Минус: один модуль (сейчас ~480 строк), один потребитель (`app.js`;
+Минус: один модуль (сейчас ~560 строк), один потребитель (`app.js`;
 `queue-monitor/auth/oidc.js` — отдельный модуль, зеркалирующий паттерн,
 а не импортирующий `oidc-verifier.js`).
 Вынос в пакет = overengineering. Отклонено.

@@ -1300,21 +1300,22 @@ test('SSRF-rejected jwks_uri is cached authoritatively — no 5-minute re-probe 
         assert.ok(result.claims);
         assert.equal(discoveryCount, 1);
 
-        // kid-miss (kid-b) форсирует refresh; внутри 1h авторитетного кеша discovery
-        // НЕ пере-пробуется, хотя для неавторитетного отказа прошёл бы 5-мин TTL.
+        // kid-miss (kid-b) форсирует refresh; внутри 15-мин авторитетного кеша
+        // (DISCOVERY_NOT_FOUND_TTL_MS) discovery НЕ пере-пробуется, хотя для
+        // неавторитетного отказа прошёл бы 5-мин TTL.
         jwksBody.keys.push(createJwksResponse('kid-b').keys[0]);
         currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
         const result2 = await verifier.verifyAccessToken(tokenFor('kid-b'));
         assert.ok(result2.claims);
         assert.equal(discoveryCount, 1, 'foreign-origin jwks_uri must not re-probe discovery at the 5-minute mark');
 
-        // kid-miss (kid-c) форсирует refresh; прошёл 1h TTL авторитетного отказа
-        // → discovery разрешается заново.
+        // kid-miss (kid-c) форсирует refresh; прошёл 15-мин авторитетный TTL
+        // отказа (плюс 1h тестовое смещение) → discovery разрешается заново.
         jwksBody.keys.push(createJwksResponse('kid-c').keys[0]);
         currentTime += JWKS_CACHE_TTL_MS + 1;
         const result3 = await verifier.verifyAccessToken(tokenFor('kid-c'));
         assert.ok(result3.claims);
-        assert.equal(discoveryCount, 2, 'after 1h authoritative TTL the discovery is re-resolved');
+        assert.equal(discoveryCount, 2, 'after the authoritative notFound TTL the discovery is re-resolved');
     } finally {
         dateMock.mock.restore();
     }
@@ -1437,6 +1438,54 @@ test('unknown kid after cache expiry triggers a single refresh, not two (review 
         currentTime += JWKS_CACHE_TTL_MS + 1;
         await assert.rejects(() => verifier.verifyAccessToken(tokenFor('new-kid')));
         assert.equal(getJwksCallCount(), 2, 'single refresh on cache expiry — no double refresh');
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('reused kid after rotation + cache expiry forces refresh — stale key not used (review round 10)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    // Вторая пара RSA-ключей: IdP «ротирует» ключ, ПЕРЕИСПОЛЬЗУЯ kid
+    // (RFC 7517 — kid это hint, а не гарантия уникальности). Первый
+    // short-circuit в findKeyForKid обязан учитывать TTL кеша — иначе
+    // старый ключ под тем же kid матчился бы вечно и refresh не
+    // форсировался бы никогда (обход ротационной механики).
+    const rotatedKeyPair = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs8', format: 'jwk' },
+        publicKeyEncoding: { type: 'spki', format: 'jwk' }
+    });
+    const jwksV1 = { keys: [createJwksResponse('reused-kid').keys[0]] };
+    const jwksV2 = { keys: [createJwksResponse('reused-kid', rotatedKeyPair.publicKey).keys[0]] };
+    const { fetch: mockFetch, getJwksCallCount } = createRotatingJwksFetch([jwksV1, jwksV2]);
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const payload = () => makePayload({ exp: ts() + 86400, iat: ts() });
+
+        // t0: старый ключ A под kid 'reused-kid' загружен и верифицирует.
+        const tokenA = createJwt(keyPair.privateKey, makeHeader('RS256', 'reused-kid'), payload());
+        const result1 = await verifier.verifyAccessToken(tokenA);
+        assert.ok(result1.claims);
+        assert.equal(getJwksCallCount(), 1);
+
+        // Прошёл 1h-кеш; IdP сменил ключ на B, сохранив kid.
+        currentTime += JWKS_CACHE_TTL_MS + 1;
+
+        // Токен подписан новым ключом B: протухший кеш со старым ключом A под
+        // тем же kid не должен использоваться — по истечении TTL первый
+        // short-circuit не срабатывает, findKeyForKid обновляет JWKS.
+        const tokenB = createJwt(rotatedKeyPair.privateKey, makeHeader('RS256', 'reused-kid'), payload());
+        const result2 = await verifier.verifyAccessToken(tokenB);
+        assert.ok(result2.claims, 'rotated key under the same kid must verify after cache expiry');
+        assert.equal(getJwksCallCount(), 2, 'stale JWKS cache must be refreshed before reusing a known kid');
     } finally {
         dateMock.mock.restore();
     }
@@ -2038,15 +2087,20 @@ test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix
         assert.equal(jwksCount, 1);
 
         // t0 + 5min + 1s: 5-мин отрицательный TTL прошёл, но 404 авторитетный —
-        // кешируется на 1 час, пере-пробинга нет.
+        // кешируется на DISCOVERY_NOT_FOUND_TTL_MS (15 мин), пере-пробинга нет.
         currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
         await verifier.verifyAccessToken(tokenFor('kid-1'));
         assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 5-min window');
 
-        // t0 + 1ч: discovery-кеш (1ч) протух → 404 пере-резолвится.
-        currentTime += JWKS_CACHE_TTL_MS;
+        // t0 + ~10 мин: внутри 15-мин авторитетного окна всё ещё нет re-probe.
+        currentTime += 5 * 60 * 1000;
+        await verifier.verifyAccessToken(tokenFor('kid-1'));
+        assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 15-min window');
+
+        // t0 + ~1ч5мин: авторитетный TTL (15 мин) давно протух → 404 пере-резолвится.
+        currentTime += 5 * 60 * 1000 + JWKS_CACHE_TTL_MS;
         await verifier.verifyAccessToken(tokenFor('kid-2'));
-        assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the 1h cache expiry');
+        assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the notFound TTL expiry');
         assert.equal(jwksCount, 2);
     } finally {
         dateMock.mock.restore();

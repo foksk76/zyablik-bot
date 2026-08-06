@@ -120,7 +120,13 @@ test('authenticate logs error when verifierFactory throws during getVerifier (re
 
   await assert.rejects(
     () => auth.authenticate('Bearer token', { reqId: 'req-789', ip: '10.0.0.1' }),
-    /Invalid issuer URL/
+    // Round-10: getVerifier() перенесён внутрь общего try — конфиг-ошибка
+    // нормализуется в единый 'JWT verification failed' (как все auth-сбои),
+    // а не пробрасывается сырым сообщением.
+    (err) => {
+      assert.equal(err.message, 'JWT verification failed');
+      return true;
+    }
   );
 
   const errLog = logEntries.find((e) => typeof e === 'string' && e.includes('jwt verification failed'));

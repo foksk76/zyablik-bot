@@ -7,6 +7,12 @@ const MODULE_NAME = 'oidc-verifier';
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 const JWKS_FORCED_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
+// Авторитетный 404 discovery («эндпоинта нет», SSRF-отказ jwks_uri) кешируется
+// на 15 минут: 404 во время рестарта реального IdP неотличим от постоянного,
+// и часовой кеш оставил бы auth сломанным до часа после восстановления IdP
+// (fallback /.well-known/jwks.json тоже 404). Компромисс между отсутствием
+// 5-минутного re-probe-шторма и часовым аутом.
+const DISCOVERY_NOT_FOUND_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_FETCH_TIMEOUT_MS = 15 * 1000;
 const DEFAULT_FETCH_TOTAL_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_CLOCK_SKEW_TOLERANCE_SEC = 30;
@@ -157,9 +163,11 @@ function createOidcVerifierFactory(options = {}) {
       if (!response.ok) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery returned ${response.status} for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
         // 404 — авторитетный ответ «эндпоинта нет» (целевой NanoIDP его
-        // отдаёт всегда): кешируется как успех, чтобы не пере-пробовать
-        // заведомо отсутствующий discovery каждые 5 минут. 5xx и сетевые
-        // сбои — транзиентные, для них остаётся короткий отрицательный TTL.
+        // отдаёт всегда): кешируется на DISCOVERY_NOT_FOUND_TTL_MS (15 минут),
+        // чтобы не пере-пробовать заведомо отсутствующий discovery каждые
+        // 5 минут, но и не замораживать auth на час при транзиентном 404
+        // (рестарт IdP). 5xx и сетевые сбои — транзиентные, для них остаётся
+        // короткий отрицательный TTL.
         return { jwksUri: fallbackJwksUri(), discovered: false, notFound: response.status === 404 };
       }
 
@@ -204,17 +212,19 @@ function createOidcVerifierFactory(options = {}) {
       return { jwksUri: resolvedJwksUri, discovered: true };
     }
 
-    // Кешируется успешный discovery (1 час) и авторитетный 404 (эндпоинта нет);
-    // транзиентный сбой (5xx/сеть/таймаут) — на короткий отрицательный TTL,
-    // чтобы недоступный IdP не застревал на час. Параллельные вызовы на
-    // холодном старте (burst /ingest) дедуплицируются через общий in-flight
-    // promise — иначе каждый запускал бы свой discovery.
+    // Кешируется успешный discovery (1 час) и авторитетный 404 (эндпоинта нет,
+    // DISCOVERY_NOT_FOUND_TTL_MS); транзиентный сбой (5xx/сеть/таймаут) — на
+    // короткий отрицательный TTL, чтобы недоступный IdP не застревал надолго.
+    // Параллельные вызовы на холодном старте (burst /ingest) дедуплицируются
+    // через общий in-flight promise — иначе каждый запускал бы свой discovery.
     async function getJwksUri() {
       const now = Date.now();
       if (jwksUriInfo) {
-        const ttl = (jwksUriInfo.discovered || jwksUriInfo.notFound)
+        const ttl = jwksUriInfo.discovered
           ? JWKS_CACHE_TTL_MS
-          : JWKS_NEGATIVE_CACHE_TTL_MS;
+          : jwksUriInfo.notFound
+            ? DISCOVERY_NOT_FOUND_TTL_MS
+            : JWKS_NEGATIVE_CACHE_TTL_MS;
         if (now - jwksUriInfo.resolvedAt < ttl) {
           return jwksUriInfo;
         }
@@ -344,7 +354,7 @@ function createOidcVerifierFactory(options = {}) {
     // 1h-кеша один запрос делал бы двойной refresh (getJwks + принудительный).
     async function findKeyForKid(kid) {
       let keyJwk = findKey(kid);
-      if (keyJwk) {
+      if (keyJwk && isJwksFresh()) {
         return keyJwk;
       }
 
@@ -376,6 +386,16 @@ function createOidcVerifierFactory(options = {}) {
 
     function findKey(kid) {
       return jwks && jwks.keys && jwks.keys.find((k) => k.kid === kid);
+    }
+
+    // Кеш JWKS «свеж» внутри 1h TTL. Первый short-circuit в findKeyForKid
+    // обязан учитывать TTL: если IdP переиспользует kid при ротации ключей
+    // (RFC 7517 — kid это hint, а не гарантия уникальности), старый ключ под
+    // тем же kid матчился бы вечно и refresh не форсировался бы никогда —
+    // обход всей ротационной механики (grace/negative/kid-miss). После
+    // истечения TTL даже известный kid проходит через getJwks() → refresh.
+    function isJwksFresh() {
+      return jwksFetchedAt !== 0 && (Date.now() - jwksFetchedAt) < JWKS_CACHE_TTL_MS;
     }
 
     function importKey(jwk, kid) {
@@ -467,7 +487,9 @@ function createOidcVerifierFactory(options = {}) {
       const tokenIssuer = typeof payload.iss === 'string'
         ? payload.iss.replace(/\/+$/, '')
         : payload.iss;
-      if (normalizedIssuer && tokenIssuer !== normalizedIssuer) {
+      // createVerifier уже гарантирует непустой валидный issuer (new URL), —
+      // отдельная проверка normalizedIssuer здесь была бы мёртвым guard-ом.
+      if (tokenIssuer !== normalizedIssuer) {
         throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${safeValue(payload.iss)}`);
       }
 
