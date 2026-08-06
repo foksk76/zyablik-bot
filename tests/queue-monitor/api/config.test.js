@@ -1247,3 +1247,152 @@ test('getStatus does not surface stale pending marker (hash mismatch, L2)', () =
 
     fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// --- R11-L3 (review PR #23): warnings loadConfig в /api/config ---
+
+test('getConfig: отдаёт configWarnings из loadConfig (R11-L3)', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({
+        environment: {},
+        configPath,
+        configWarnings: [
+            'неизвестный ключ верхнего уровня extraKey (warn + ignore)',
+            'значение bot.maxPollLimit вне min/max'
+        ]
+    });
+
+    const result = api.getConfig({});
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.body.data.warnings, [
+        'неизвестный ключ верхнего уровня extraKey (warn + ignore)',
+        'значение bot.maxPollLimit вне min/max'
+    ]);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getConfig: без configWarnings — warnings = пустой массив', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+
+    const result = api.getConfig({});
+    assert.deepEqual(result.body.data.warnings, []);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- R5-L1 (review PR #23): export не отдаёт литеральные секреты ---
+
+test('buildExportConfig: литеральный секрет маскируется, $VAR-ссылка сохраняется (R5-L1)', () => {
+    const plugins = [{ name: 'identity', configSchema: { apiToken: { type: 'string', secret: true }, syncMode: { type: 'enum', enum: ['auto', 'manual'] } } }];
+    const fileConfig = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info', maxBotToken: 'literal-active-token' },
+        monitor: { metricsApiKey: '$METRICS_API_KEY' },
+        plugins: { identity: { apiToken: 'literal-plugin-token', syncMode: 'manual' } }
+    };
+
+    const dump = buildExportConfig(fileConfig, plugins);
+
+    assert.equal(dump.bot.maxBotToken, '', 'системный литеральный секрет замаскирован');
+    assert.equal(dump.monitor.metricsApiKey, '$METRICS_API_KEY', '$VAR-ссылка сохраняется (легитимна в файле)');
+    assert.equal(dump.plugins.identity.apiToken, '', 'литеральный секрет плагина замаскирован');
+    assert.equal(dump.plugins.identity.syncMode, 'manual', 'несекретное поле плагина не трогается');
+    const raw = JSON.stringify(dump);
+    assert.ok(!raw.includes('literal-active-token'), 'литерал не утекает в export-дамп');
+    assert.ok(!raw.includes('literal-plugin-token'), 'литерал плагина не утекает в export-дамп');
+});
+
+test('exportConfig: литеральный секрет в активном файле (ручная правка) маскируется (R5-L1)', () => {
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info', maxBotToken: 'literal-secret-token' },
+        monitor: { monitorEnabled: true, monitorPort: 9000, metricsApiKey: '$METRICS_API_KEY' }
+    });
+    const api = createConfigApi({ environment: {}, configPath });
+
+    const result = api.exportConfig({});
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.body.data.bot.maxBotToken, '');
+    assert.equal(result.body.data.monitor.metricsApiKey, '$METRICS_API_KEY');
+    assert.ok(!JSON.stringify(result.body.data).includes('literal-secret-token'));
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- L3 (review PR #23): Stage валидирует staged ПОСЛЕ слияния секретов ---
+
+test('putStage: литеральный секрет из активного файла отклоняется на Stage (400) (L3)', async () => {
+    // Литерал в активном файле — ручная правка вне apply-потока (инвариант
+    // «в файле только $VAR» нарушен). Раньше mergePreservedSecrets переносил
+    // его в staged при Stage (200 OK), а 400 всплывал только на Apply —
+    // оператор не мог увидеть/исправить проблему в UI.
+    const { dir, configPath } = tmpConfig({
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'info', maxBotToken: 'literal-active-secret' },
+        monitor: { monitorEnabled: true, monitorPort: 9000 }
+    });
+    const api = createConfigApi({ environment: {}, configPath });
+    const changed = {
+        version: CURRENT_VERSION,
+        bot: { logLevel: 'debug' },
+        monitor: { monitorEnabled: true, monitorPort: 9000 },
+        plugins: {}
+    };
+
+    const result = await api.putStage({ req: mockReq(changed) });
+    assert.equal(result.statusCode, 400);
+    assert.ok(
+        result.body.errors.some((e) => e.section === 'bot' && e.field === 'maxBotToken' && /секрет/.test(e.reason)),
+        'ошибка указывает поле с литеральным секретом из активного файла'
+    );
+    // Staged не записан на диск — редактирование не «сохранилось».
+    assert.equal(fs.existsSync(`${configPath}.staged.json`), false);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// --- L2 (review PR #23): pendingRemainingMs от той же базы, что и откат ---
+
+test('getStatus: pendingRemainingMs отсчитывается от lastBoot (база отката), не appliedAt (L2)', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    const { serviceFilePaths, computeConfigHash } = require('../../../src/bot-platform/core/config-store');
+    // Apply был давно (медленный рестарт-цикл), но последний boot — свежий:
+    // окно StartupWait живо (~25s осталось). Отсчёт от appliedAt дал бы ~0 —
+    // UI-таймер расходился бы с фактическим окном авто-отката детектора.
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash(minimalConfig),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - 5_000).toISOString(),
+        restartInitiated: true,
+        boots: 1
+    }, null, 2));
+
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.equal(status.body.data.restartInitiated, true);
+    assert.equal(typeof status.body.data.pendingRemainingMs, 'number');
+    assert.ok(
+        status.body.data.pendingRemainingMs > 20_000,
+        `pendingRemainingMs должен быть ~25s (от lastBoot), получено: ${status.body.data.pendingRemainingMs}`
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('getStatus: без lastBoot в маркере (первый boot после Apply) — база appliedAt (L2)', () => {
+    const { dir, configPath } = tmpConfig(minimalConfig);
+    const api = createConfigApi({ environment: {}, configPath });
+    const { serviceFilePaths, computeConfigHash } = require('../../../src/bot-platform/core/config-store');
+    // Маркер до первого boot детектора: lastBoot ещё не записан — база
+    // appliedAt (как в runStartupConfigDetector для restartInitiated).
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash(minimalConfig),
+        appliedAt: new Date(Date.now() - 3_000).toISOString(),
+        restartInitiated: true
+    }, null, 2));
+
+    const status = api.getStatus({});
+    assert.equal(status.body.data.state, 'pending');
+    assert.ok(
+        status.body.data.pendingRemainingMs > 20_000,
+        `база appliedAt (свежий), получено: ${status.body.data.pendingRemainingMs}`
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+});

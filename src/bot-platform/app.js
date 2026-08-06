@@ -84,7 +84,12 @@ function confirmConfig(configPath, shutdownHandle, logger) {
 }
 
 function startBotPlatformService(environment = process.env, options = {}) {
-  const app = createBotPlatformApp(environment);
+  // M2 (review PR #23): созданный app/конфиг можно передать через options.app.
+  // main() уже создал app (createBotPlatformApp) для config и детектора —
+  // повторный createBotPlatformApp здесь запускал runStartupConfigDetector
+  // второй раз за boot (двойной инкремент boots: crash-loop откат после 3
+  // boot вместо 5). С переданным app детектор выполняется ровно один раз.
+  const app = options.app || createBotPlatformApp(environment);
 
   if (app.core.config.maxTransportMode !== 'long_polling') {
     throw new Error('Safe test bot service requires MAX_TRANSPORT_MODE=long_polling');
@@ -169,7 +174,7 @@ function parseGenerateConfigArgs(argv) {
 
 // ADR-0045: --rollback-config — ручной откат конфигурации к последнему
 // успешному (lkg). Дополнительно снимает pending-маркер и очищает staged.
-// options: { environment, configPath, restart }.
+// options: { environment, configPath, plugins, restart }.
 function rollbackConfigFile(options = {}, io = { stdout: process.stdout, stderr: process.stderr }) {
   const environment = options.environment || process.env;
   const configPath = resolveConfigPath(environment, options);
@@ -177,7 +182,10 @@ function rollbackConfigFile(options = {}, io = { stdout: process.stdout, stderr:
   const { rollbackConfig } = require('./core/config-store');
   const result = rollbackConfig(configPath, {
     environment,
-    restart: options.restart
+    restart: options.restart,
+    // R5-L6 (review PR #23): валидация lkg по configSchema плагинов, как в
+    // dashboard rollback (api/config.js) — единая поверхность валидации.
+    plugins: options.plugins
   });
 
   if (typeof options.restart !== 'function') {
@@ -287,7 +295,11 @@ async function startIngressAndQueue(config, options, io) {
         configPath: options.configPath,
         plugins: options.plugins || [],
         configRestart: options.configRestart,
-        configRecovery: options.configRecovery
+        configRecovery: options.configRecovery,
+        // R11-L3 (review PR #23): предупреждения loadConfig (неопознанные
+        // ключи, устаревшие $VAR) накапливаются при createCore и здесь
+        // пробрасываются в queue-monitor, чтобы /api/config отдавал их в UI.
+        configWarnings: options.configWarnings || []
       });
       monitorService = monitor;
 
@@ -408,7 +420,19 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
   if (isRollbackConfigCommand(argv)) {
     const configPath = argv.length > 1 ? argv[1] : null;
     try {
-      rollbackConfigFile({ environment, configPath }, io);
+      // R5-L6 (review PR #23): CLI-rollback валидирует lkg с configSchema
+      // плагинов (как dashboard rollback) — иначе ветка плагина, нарушающая
+      // схему, прошла бы ручной откат, но упала бы в детекторе на следующем
+      // boot. Несмотря на это rollback — аварийная операция: сбой загрузки
+      // плагинов не должен блокировать восстановление (fallback без схем,
+      // предупреждение в stderr).
+      let rollbackPlugins = [];
+      try {
+        rollbackPlugins = createPluginLoader(path.join(__dirname, 'plugins')).plugins;
+      } catch (pluginError) {
+        io.stderr.write(`Предупреждение: не удалось загрузить плагины (lkg валидируется без configSchema): ${pluginError.message}\n`);
+      }
+      rollbackConfigFile({ environment, configPath, plugins: rollbackPlugins }, io);
       return 0;
     } catch (error) {
       io.stderr.write(`${error.message}\n`);
@@ -431,12 +455,19 @@ async function main(argv = process.argv.slice(2), io = { stdout: process.stdout,
       state: app.core.recoveryState,
       reason: app.core.recoveryReason,
       restoredFrom: app.core.restoredFrom
-    }
+    },
+    // R11-L3 (review PR #23): предупреждения loadConfig пробрасываются в
+    // /api/config → UI (баннер на странице настроек).
+    configWarnings: app.core.configWarnings || []
   };
 
   if (argv.length === 0) {
     if (config.maxTransportMode === 'long_polling') {
-      startBotPlatformService(environment);
+      // M2 (review PR #23): передаём уже созданный app — иначе
+      // startBotPlatformService создал бы второй app и детектор
+      // (runStartupConfigDetector) выполнился бы дважды за boot (двойной
+      // инкремент boots в синтетическом режиме).
+      startBotPlatformService(environment, { app });
 
       const shutdownHandle = await startIngressAndQueue(config, ingressOptions, io);
 

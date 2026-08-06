@@ -266,6 +266,20 @@ export default function SettingsPage() {
 
             <ConfigBanner status={status} />
 
+            {/* R11-L3 (review PR #23): предупреждения loadConfig (неопознанные
+                ключи, устаревшие $VAR) доезжают из createCore через
+                /api/config — баннер вместо поиска по логам процесса. */}
+            {config && Array.isArray(config.warnings) && config.warnings.length > 0 && (
+                <div className="bg-warning-light border border-warning/20 text-warning-dark text-sm rounded-lg p-3" data-testid="banner-config-warnings">
+                    <p className="font-semibold mb-1">Предупреждения при загрузке конфигурации</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                        {config.warnings.map((warning, index) => (
+                            <li key={index}>{warning}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
             {error && (
                 <div className="bg-error-light border border-error/20 text-error-dark text-sm rounded-lg p-3">
                     Ошибка: {error}

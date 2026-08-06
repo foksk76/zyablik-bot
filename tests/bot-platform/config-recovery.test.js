@@ -5,7 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { createCore } = require('../../src/bot-platform/core');
-const { writeLkg, writePending } = require('../../src/bot-platform/core/config-store');
+const { startBotPlatformService, createBotPlatformApp } = require('../../src/bot-platform/app');
+const { writeLkg, writePending, serviceFilePaths } = require('../../src/bot-platform/core/config-store');
 
 function makeTempConfigDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-core-'));
@@ -100,6 +101,33 @@ test('createCore: ручной рестарт — первый boot со ста�
 
     assert.equal(core.recoveryState, 'ok');
     assert.equal(core.config.logLevel, 'debug', 'применённый конфиг не откатывается');
+});
+
+// M2 (review PR #23): детектор выполняется ровно один раз за boot.
+// Регрессия: main() создаёт app один раз (createBotPlatformApp) и передаёт
+// его в startBotPlatformService через options.app. Раньше сервис создавал
+// ВТОРОЙ app — runStartupConfigDetector отрабатывал дважды за boot (двойной
+// инкремент boots: crash-loop откат после 3 boot вместо 5). Live-режим не
+// затронут (startLiveBotPlatformService создаёт свой сервис, не app.js).
+test('M2: startBotPlatformService с переданным app не запускает детектор повторно (boots = 1 за boot)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // Свежий pending (штатный restart после Apply): hash совпадает с активным
+    // файлом → детектор инкрементит boots на 1 и записывает lastBoot.
+    writePending(configPath, { version: 1, bot: { logLevel: 'debug' } }, undefined, { restartInitiated: true });
+
+    const environment = { ...envWithSecrets, ZYABLIK_CONFIG: configPath };
+    // Штатный поток main(): app создаётся ОДИН раз...
+    const app = createBotPlatformApp(environment);
+    // ...и передаётся в сервис. Старый код создал бы здесь второй app.
+    // autoStart:false — цикл long-polling не запускаем, нужен только сам
+    // факт создания сервиса (и отсутствие повторного createBotPlatformApp).
+    const service = startBotPlatformService(environment, { app, autoStart: false });
+
+    assert.ok(service, 'сервис создаётся');
+    const pending = JSON.parse(fs.readFileSync(serviceFilePaths(configPath).pendingPath, 'utf8'));
+    assert.equal(pending.boots, 1, 'один boot — ровно один инкремент boots');
 });
 
 test('createCore: невалидный файл с lkg → карантин + восстановление', () => {

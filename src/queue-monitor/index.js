@@ -137,6 +137,10 @@ function createQueueMonitor(options = {}) {
         // ADR-0046 (M6): стартовый детектор откатил/карантинировал конфиг —
         // статус передаётся из createCore, иначе баннер недостижим после рестарта.
         recovery: options.configRecovery || null,
+        // R11-L3 (review PR #23): предупреждения loadConfig (неопознанные
+        // ключи, устаревшие $VAR) — отдаются в GET /api/config и рисуются
+        // баннером на странице настроек.
+        configWarnings: options.configWarnings || [],
         logger
     });
     httpServer.registerRoute('GET', '/api/config', auth.protectRoute(configApi.getConfig));

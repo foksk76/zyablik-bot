@@ -23,7 +23,8 @@ trade-off R13-M2 и doc-задачу про связку systemd StartLimit ↔ 
 **Контекст:** ревьюер подтвердил фиксы раундов 1–5 и вынес новые
 замечания. Блокеров нет; M1–M2, R5-M3 и L1–L3 — задачи «до merge»/«до
 боевого запуска» (M1 — обязательно перед long-polling на стенде). L5 и
-R6-M1 поправлены в этом же PR.
+R6-M1 поправлены в этом же PR. Sprint закрыт: все задачи Done, `npm test`
+зелёный (994).
 
 **Границы:** без изменений поведения webhook (`src/zabbix-media-type/`).
 Только бот-платформа/UI/docs.
@@ -111,7 +112,7 @@ N неудач); при сбое — либо корректный exit != 0 (р
 - [x] При неверных MAX_BOT_TOKEN/MAX_API_URL процесс не висит бесконечно: таймаут/N-неудач → exit != 0 или работа без подтверждения
 - [x] Покрыто тестом (симуляция: N неудачных poll без резолва firstTick)
 - [x] Поведение зафиксировано в `docs/runbooks/config-file.md` (или профильном runbook)
-- [ ] `npm test` зелёный
+- [x] `npm test` зелёный
 
 **Files:** `src/bot-platform/runtime/live-service.js`,
 `src/bot-platform/app.js`, тесты `tests/bot-platform/*`,
@@ -125,7 +126,7 @@ N неудач); при сбое — либо корректный exit != 0 (р
 
 ### Task 2: M2 — двойной инкремент `boots` в синтетическом режиме
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `main()` создаёт app/core один раз (`app.js`), затем
 `startBotPlatformService` создаёт второй app → `runStartupConfigDetector`
@@ -137,9 +138,9 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 гард-флаг, чтобы детектор выполнялся ровно один раз за boot.
 
 **Acceptance criteria:**
-- [ ] Детектор выполняется ровно один раз за boot в синтетическом режиме (симуляция: откат по crash-loop после 5 boot)
-- [ ] Live-режим без изменений (регресс-тест)
-- [ ] `npm test` зелёный
+- [x] Детектор выполняется ровно один раз за boot в синтетическом режиме (симуляция: откат по crash-loop после 5 boot)
+- [x] Live-режим без изменений (регресс-тест)
+- [x] `npm test` зелёный
 
 **Files:** `src/bot-platform/app.js`,
 `src/bot-platform/core/index.js`,
@@ -153,7 +154,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ### Task 3: L1 — несекретные plugin-`$VAR` в UI (документация до первого плагина)
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Несекретные объявленные plugin-поля отдают `$VAR` в UI
 (`getConfig` маскирует только секреты). Runtime не резолвит plugin-`$VAR` —
@@ -162,9 +163,9 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 «значение не резолвится»/warning при необходимости.
 
 **Acceptance criteria:**
-- [ ] Поведение описано в документации плагинов/configSchema (ADR-0046 или профильный док)
+- [x] Поведение описано в документации плагинов/configSchema (ADR-0046 или профильный док)
 - [ ] (Опционально) UI предупреждает о нерезолвящемся `$VAR` в несекретном plugin-поле
-- [ ] `npm test` зелёный
+- [x] `npm test` зелёный
 
 **Files:** `docs/decisions/ADR-0046-schema-driven-config-webui.md`,
 `src/queue-monitor/api/config.js`, `src/queue-monitor/ui/src/lib/configSchemaModel.js`
@@ -177,7 +178,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ### Task 4: L2 — рассинхрон `pendingRemainingMs`
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `pendingRemainingMs` отсчитывается от `appliedAt`
 (`config.js`), а откат — от `lastBoot` + `boots`. После медленного
@@ -186,8 +187,8 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 число, когда базы расходятся.
 
 **Acceptance criteria:**
-- [ ] UI-таймер и фактический откат используют согласованную базу (или число скрывается)
-- [ ] `npm test` зелёный
+- [x] UI-таймер и фактический откат используют согласованную базу (или число скрывается)
+- [x] `npm test` зелёный
 
 **Files:** `src/queue-monitor/api/config.js`,
 `src/queue-monitor/ui/src/pages/SettingsPage.jsx` (или компонент таймера)
@@ -200,7 +201,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ### Task 5: L3 — Stage валидирует staged до слияния секретов
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Литеральный секрет в активном файле (ручная правка)
 переезжает в staged через `mergePreservedSecrets` при Stage (200 OK) и
@@ -209,9 +210,9 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 отклоняя литерал на этапе редактирования.
 
 **Acceptance criteria:**
-- [ ] Stage отклоняет литеральный секрет из активного файла (400 со списком полей)
-- [ ] Регресс-тест в `tests/queue-monitor/api/config.test.js`
-- [ ] `npm test` зелёный
+- [x] Stage отклоняет литеральный секрет из активного файла (400 со списком полей)
+- [x] Регресс-тест в `tests/queue-monitor/api/config.test.js`
+- [x] `npm test` зелёный
 
 **Files:** `src/queue-monitor/api/config.js`,
 `src/bot-platform/core/config-store.js`,
@@ -225,7 +226,7 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 
 ### Task 6: R5-M3 — required-поля целиком отсутствующих plugin-веток
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** `validateConfigFile` (сервер) и `validateSectionValues`
 (клиент) обходят только ветки, присутствующие в `rawConfig.plugins` / в
@@ -236,10 +237,10 @@ boot3→5 — откат по crash-loop после 3 boot вместо 5. Live-
 частью валидации), согласованно сервер/клиент.
 
 **Acceptance criteria:**
-- [ ] Сервер: `plugins: {}` при схеме плагина с `required`-полем → ошибка валидации (поле указано)
-- [ ] Клиент: `validateSectionValues` даёт ту же ошибку при отсутствующей ветке плагина
-- [ ] Плагин без required-полей не ломается при отсутствующей ветке (регресс)
-- [ ] Регресс-тесты в `config-schema`/UI-тестах; `npm test` зелёный
+- [x] Сервер: `plugins: {}` при схеме плагина с `required`-полем → ошибка валидации (поле указано)
+- [x] Клиент: `validateSectionValues` даёт ту же ошибку при отсутствующей ветке плагина
+- [x] Плагин без required-полей не ломается при отсутствующей ветке (регресс)
+- [x] Регресс-тесты в `config-schema`/UI-тестах; `npm test` зелёный
 
 **Files:** `src/bot-platform/core/config-schema.js`,
 `src/queue-monitor/ui/src/lib/configSchemaModel.js`,
@@ -414,7 +415,7 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 
 ### Task 11: R13-M2 — авто-откат на следующем boot после ручного Apply
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** trade-off из round 13, нигде не отслеживался (заведён
 round 17). `config-store.js:563-586`: после ручного Apply первый boot пишет
@@ -429,9 +430,9 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 откатывать при единичном краше). Минимум — документировать trade-off.
 
 **Acceptance criteria:**
-- [ ] Решение зафиксировано в `docs/runbooks/config-file.md` (или ADR-0046)
-- [ ] Текущее поведение покрыто тестом (регресс на `runStartupConfigDetector`: 2-й boot через >30s от lastBoot → откат)
-- [ ] `npm test` зелёный
+- [x] Решение зафиксировано в `docs/runbooks/config-file.md` (или ADR-0046)
+- [x] Текущее поведение покрыто тестом (регресс на `runStartupConfigDetector`: 2-й boot через >30s от lastBoot → откат)
+- [x] `npm test` зелёный
 
 **Files:** `src/bot-platform/core/config-store.js`,
 `docs/runbooks/config-file.md`,
@@ -445,7 +446,7 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 
 ### Task 12: R17-doc — связка systemd StartLimit и детектора maxStartupAttempts
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** systemd unit (`StartLimitIntervalSec=120` /
 `StartLimitBurst=5`) и стартовый детектор
@@ -459,8 +460,8 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 каждого лимита.
 
 **Acceptance criteria:**
-- [ ] Runbook описывает порядок срабатывания (детектор → systemd) и ответственность каждого лимита
-- [ ] `npm test` зелёный
+- [x] Runbook описывает порядок срабатывания (детектор → systemd) и ответственность каждого лимита
+- [x] `npm test` зелёный
 
 **Files:** `docs/runbooks/config-file.md`,
 `systemd/` (unit-файл, если в описании есть точные значения)
@@ -473,7 +474,7 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 
 ### Task 13: R16-Low — R11-L3, R5-L1, R5-L6 (не отслеживались, заведены round 16)
 
-**Status:** Pending
+**Status:** Done
 
 **Description:** Low-замечания, добавленные в checkpoint round 16 (коммит
 раунда упал с «Author identity unknown», пункты потерялись; переприменено
@@ -502,10 +503,10 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 вносится.
 
 **Acceptance criteria:**
-- [ ] R11-L3: warnings из loadConfig видны в dashboard (или решение «не показывать» зафиксировано в доке)
-- [ ] R5-L1: export не отдаёт литеральные секреты (маскирование) ИЛИ ограничение задокументировано
-- [ ] R5-L6: CLI `--rollback-config` валидирует lkg с configSchema плагинов (регресс)
-- [ ] `npm test` зелёный
+- [x] R11-L3: warnings из loadConfig видны в dashboard (или решение «не показывать» зафиксировано в доке)
+- [x] R5-L1: export не отдаёт литеральные секреты (маскирование) ИЛИ ограничение задокументировано
+- [x] R5-L6: CLI `--rollback-config` валидирует lkg с configSchema плагинов (регресс)
+- [x] `npm test` зелёный
 
 **Files:** `src/queue-monitor/api/config.js`, `src/bot-platform/core/index.js`,
 `src/bot-platform/app.js`, `src/queue-monitor/ui/src/pages/SettingsPage.jsx`,
@@ -522,21 +523,22 @@ round 17). `config-store.js:563-586`: после ручного Apply первы
 ## Checkpoint: Sprint 42
 
 - [x] M1: start не висит при сетевом сбое poll
-- [ ] M2: boots растёт 1 раз за boot (crash-loop откат после 5 boot)
-- [ ] R5-M3: required отсутствующих plugin-веток (сервер и клиент)
-- [ ] L1: plugin-`$VAR` документирован
-- [ ] L2: pendingRemainingMs согласован с откатом
-- [ ] L3: Stage валидирует после слияния секретов
+- [x] M2: boots растёт 1 раз за boot (crash-loop откат после 5 boot)
+- [x] R5-M3: required отсутствующих plugin-веток (сервер и клиент)
+- [x] L1: plugin-`$VAR` документирован
+- [x] L2: pendingRemainingMs согласован с откатом
+- [x] L3: Stage валидирует после слияния секретов
 - [x] R7 L1–L4: утечка system-ключей, карантин rollback, async-контракт рестарта, `version: null`
 - [x] R8-L1: нестроковые необъявленные значения в stage-ответах отброшены
 - [x] R9 N1/N2: утечка в `GET /api/config` закрыта, `default` валидируется
 - [x] R10 F10-L1: предупреждение о потерях необъявленных ключей при Import/Save
-- [ ] R11-L3: warnings `loadConfig` поднимаются в UI
-- [ ] R5-L1: `export` не отдаёт литеральные секреты (решение)
-- [ ] R5-L6: CLI `--rollback-config` валидирует lkg с plugins
-- [ ] R13-M2: trade-off авто-отката после ручного Apply зафиксирован
-- [ ] R17-doc: связка systemd StartLimit ↔ детектор `maxStartupAttempts` в runbook
-- [ ] `npm test` зелёный; PR #23 merged
+- [x] R11-L3: warnings `loadConfig` поднимаются в UI
+- [x] R5-L1: `export` не отдаёт литеральные секреты (решение)
+- [x] R5-L6: CLI `--rollback-config` валидирует lkg с plugins
+- [x] R13-M2: trade-off авто-отката после ручного Apply зафиксирован
+- [x] R17-doc: связка systemd StartLimit ↔ детектор `maxStartupAttempts` в runbook
+- [x] `npm test` зелёный (994)
+- [ ] PR #23 merged — внешнее действие (push/merge без креденшелов в этом окружении)
 
 ## Risks and Mitigations
 

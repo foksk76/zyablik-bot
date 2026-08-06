@@ -21,7 +21,7 @@
 // sliding-window rate limit (ADR-0046, отдельный пул от auth).
 
 const { resolveConfigPath, CONFIG_VALIDATION_ERROR_CODE, SECRET_VAR_UNRESOLVED_ERROR_CODE } = require('../../bot-platform/core/config');
-const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS } = require('../../bot-platform/core/config-schema');
+const { getMergedConfigSchema, SYSTEM_SCHEMA, SYSTEM_SECTION_KEYS, isVarReference } = require('../../bot-platform/core/config-schema');
 const { CURRENT_VERSION } = require('../../bot-platform/core/config-migrations');
 const {
     readStaged,
@@ -531,10 +531,53 @@ function buildEffectiveSections(fileConfig, fileExists, plugins = []) {
     };
 }
 
-// Экспорт-дамп: тот же fileConfig (в нём секреты уже $VAR-ссылки по ADR-0045).
-// Дополнительно гарантируется: литеральных секретов нет (инвариант файла).
-function buildExportConfig(fileConfig) {
-    return fileConfig || { version: CURRENT_VERSION, bot: {}, queue: {}, ingress: {}, monitor: {}, plugins: {} };
+// Экспорт-дамп — резервная копия активного конфига для бэкапа/переноса.
+// ADR-0045 требует, чтобы файл содержал только $VAR-ссылки (литеральные
+// секреты — только в env/docker-секретах). R5-L1 (review PR #23): инвариант
+// может быть нарушен вне apply-потока (ручная правка активного файла,
+// stage-merge с повреждённым активным файлом и т.п.), а export — это output,
+// уходящий наружу. Поэтому литерал в объявленном секретном поле заменяется
+// на '' — бэкап не становится каналом утечки. $VAR-ссылки сохраняются.
+function buildExportConfig(fileConfig, plugins = []) {
+    if (!fileConfig || typeof fileConfig !== 'object') {
+        return fileConfig || { version: CURRENT_VERSION, bot: {}, queue: {}, ingress: {}, monitor: {}, plugins: {} };
+    }
+    const result = { ...fileConfig };
+    for (const sectionName of SYSTEM_SECTION_KEYS) {
+        const section = result[sectionName];
+        if (!section || typeof section !== 'object') {
+            continue;
+        }
+        const masked = { ...section };
+        for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
+            if (field.secret && masked[key] !== undefined && !isVarReference(masked[key])) {
+                masked[key] = '';
+            }
+        }
+        result[sectionName] = masked;
+    }
+    const pluginSchemas = buildPluginSchemas(plugins);
+    if (result.plugins && typeof result.plugins === 'object') {
+        const maskedPlugins = Object.create(null);
+        for (const [pluginName, pluginValue] of Object.entries(result.plugins)) {
+            if (!pluginValue || typeof pluginValue !== 'object' || Array.isArray(pluginValue)) {
+                maskedPlugins[pluginName] = pluginValue;
+                continue;
+            }
+            const schema = pluginSchemas[pluginName];
+            const masked = { ...pluginValue };
+            if (schema) {
+                for (const [key, field] of Object.entries(schema)) {
+                    if (field.secret && masked[key] !== undefined && !isVarReference(masked[key])) {
+                        masked[key] = '';
+                    }
+                }
+            }
+            maskedPlugins[pluginName] = masked;
+        }
+        result.plugins = maskedPlugins;
+    }
+    return result;
 }
 
 // Толерантное чтение активного конфига для просмотра/экспорта: повреждённый
@@ -564,6 +607,11 @@ function createConfigApi(options = {}) {
     // confirm()»: если маркер pending написан предыдущим процессом, а этот
     // стартовал позже appliedAt — рестарт уже состоялся.
     const processStartedAtMs = Date.now();
+
+    // R11-L3 (review PR #23): предупреждения loadConfig (неопознанные ключи,
+    // устаревшие $VAR), накопленные в createCore. Пустой массив — когда
+    // конфиг загрузился чисто или API создан вне app.js (юнит-тесты).
+    const configWarnings = Array.isArray(options.configWarnings) ? options.configWarnings : [];
 
     // ADR-0046: отдельный sliding-window пул для мутирующих /api/config/*.
     const mutationLimiter = options.rateLimiter || createConfigMutationRateLimiter({
@@ -650,7 +698,14 @@ function createConfigApi(options = {}) {
             statusCode: 200,
             body: {
                 status: 'ok',
-                data: buildEffectiveSections(fileConfig, fileExists, plugins)
+                data: {
+                    ...buildEffectiveSections(fileConfig, fileExists, plugins),
+                    // R11-L3 (review PR #23): предупреждения loadConfig доступны
+                    // UI (баннер на странице настроек), а не только в логах —
+                    // иначе оператор не узнает о неопознанных ключах и
+                    // устаревших $VAR, пока не откроет логи процесса.
+                    warnings: configWarnings
+                }
             }
         };
     }
@@ -686,36 +741,52 @@ function createConfigApi(options = {}) {
         let restoredAt = state.restoredAt;
         let restoredFrom = state.restoredFrom;
 
-        if (effectiveState === 'idle' && pendingExists(configPath)) {
-            const pending = readPending(configPath);
-            if (pending && pending.hash) {
-                const { configPath: activePath } = serviceFilePaths(configPath);
-                const activeResult = readJsonFileSafe(activePath);
-                const activeHash = activeResult.ok && activeResult.data !== null
-                    ? computeConfigHash(activeResult.data)
+        // Pending-маркер читается один раз: нужен и для вывода pending после
+        // рестарта, и для согласованной базы pendingRemainingMs (L2 review).
+        const pending = pendingExists(configPath) ? readPending(configPath) : null;
+
+        if (effectiveState === 'idle' && pending && pending.hash) {
+            const { configPath: activePath } = serviceFilePaths(configPath);
+            const activeResult = readJsonFileSafe(activePath);
+            const activeHash = activeResult.ok && activeResult.data !== null
+                ? computeConfigHash(activeResult.data)
+                : null;
+            // Hash проверяется как в confirmConfigApplied: если активный
+            // файл изменён вне apply-потока — маркер устарел, не показываем
+            // ложный pending.
+            if (activeHash !== null && pending.hash === activeHash) {
+                effectiveState = 'pending';
+                reason = 'Apply initiated — waiting for restart confirmation';
+                restartInitiated = pending.restartInitiated;
+                appliedAt = pending.appliedAt;
+                appliedHash = pending.hash;
+                appliedAtMs = pending.appliedAt
+                    ? new Date(pending.appliedAt).getTime() || null
                     : null;
-                // Hash проверяется как в confirmConfigApplied: если активный
-                // файл изменён вне apply-потока — маркер устарел, не показываем
-                // ложный pending.
-                if (activeHash !== null && pending.hash === activeHash) {
-                    effectiveState = 'pending';
-                    reason = 'Apply initiated — waiting for restart confirmation';
-                    restartInitiated = pending.restartInitiated;
-                    appliedAt = pending.appliedAt;
-                    appliedHash = pending.hash;
-                    appliedAtMs = pending.appliedAt
-                        ? new Date(pending.appliedAt).getTime() || null
-                        : null;
-                }
             }
         }
 
         // pendingRemainingMs — только для state=pending c авто-рестартом
         // (restartInitiated): при ручном рестарте окна StartupWait нет —
         // первый boot после Apply не откатывается по возрасту appliedAt.
+        // L2 (review PR #23): UI-таймер считается от той же базы, что и откат
+        // в runStartupConfigDetector. Детектор отсчитывает окно от lastBoot
+        // (момент последнего реального старта), а не от appliedAt: appliedAt
+        // включает время остановки + рестарт, и медленный, но штатный boot не
+        // должен ложно откатываться. После первого boot детектор пишет
+        // lastBoot в маркер — берём его; до него (первый boot после Apply или
+        // apply ещё в этом процессе) — appliedAt.
         let pendingRemainingMs = null;
-        if (effectiveState === 'pending' && restartInitiated && appliedAtMs) {
-            pendingRemainingMs = Math.max(0, appliedAtMs + startupWaitMs - Date.now());
+        if (effectiveState === 'pending' && restartInitiated) {
+            let baseMs = null;
+            if (pending && pending.lastBoot) {
+                baseMs = new Date(pending.lastBoot).getTime() || null;
+            } else if (appliedAtMs) {
+                baseMs = appliedAtMs;
+            }
+            if (baseMs !== null) {
+                pendingRemainingMs = Math.max(0, baseMs + startupWaitMs - Date.now());
+            }
         }
 
         // R5-L3: рестарт уже состоялся, если текущий процесс стартовал ПОСЛЕ
@@ -787,33 +858,34 @@ function createConfigApi(options = {}) {
     // --- PUT /api/config/stage ---
 
     // Общий путь «сохранить в staged» для putStage и importConfig (M4 review):
-    // единый код вместо дублирования, один порядок preValidate → merge → write.
+    // единый код вместо дублирования, один порядок merge → preValidate → write.
+    // L3 (review PR #23): валидация выполняется ПОСЛЕ слияния секретов
+    // активного конфига (mergePreservedSecrets), как в applyConfig. Раньше
+    // preValidate шёл до merge: литеральный секрет из ручной правки активного
+    // файла переезжал в staged через merge (200 OK) и всплывал только на Apply
+    // (400) — оператор не мог увидеть/исправить его в UI. Теперь такой staged
+    // отклоняется на этапе редактирования (400 со списком полей).
     function stageConfig(rawConfig, auditAction) {
-        const { fileConfig } = preValidateConfigFile(rawConfig, { environment, plugins });
-        // UI/import не передают секреты — сохраняем $VAR-ссылки активного
-        // конфига, чтобы diff был корректным и Apply не затирал их.
-        // Толерантное чтение: повреждённый активный файл не роняет API
-        // (500) — обрабатывается как отсутствующий (карантин битого файла
-        // — задача стартового детектора), секреты не переносятся.
         let active = null;
         try {
             active = readJsonFile(configPath);
         } catch (error) {
             active = null;
         }
-        const merged = mergePreservedSecrets(active, fileConfig, plugins);
-        writeStaged(configPath, merged);
+        const merged = mergePreservedSecrets(active, rawConfig, plugins);
+        const { fileConfig } = preValidateConfigFile(merged, { environment, plugins });
+        writeStaged(configPath, fileConfig);
         logConfigAudit(auditAction, { configPath });
         return {
             statusCode: 200,
             body: {
                 status: 'ok',
                 data: {
-                    staged: maskStagedSecrets(merged, plugins),
-                    diff: computeConfigDiff(active, merged, plugins),
+                    staged: maskStagedSecrets(fileConfig, plugins),
+                    diff: computeConfigDiff(active, fileConfig, plugins),
                     // F10-L1 (review R10): необъявленные ключи, которые UI не
                     // отредактирует и round-trip «форма → Save» потеряет.
-                    warnings: findUndeclaredMaskedKeys(merged, active, plugins)
+                    warnings: findUndeclaredMaskedKeys(fileConfig, active, plugins)
                 }
             }
         };
@@ -971,7 +1043,7 @@ function createConfigApi(options = {}) {
         } catch (error) {
             active = null;
         }
-        const dump = buildExportConfig(active);
+        const dump = buildExportConfig(active, plugins);
         const now = new Date();
         const ts = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
         return {

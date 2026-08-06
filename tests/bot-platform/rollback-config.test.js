@@ -80,6 +80,43 @@ test('rollbackConfigFile: без lkg — ошибка', () => {
     );
 });
 
+// R5-L6 (review PR #23): CLI-rollback (rollbackConfigFile) валидирует lkg с
+// configSchema плагинов — dashboard-rollback плагины передаёт, а CLI раньше
+// нет. Иначе ветка плагина в lkg, нарушающая схему, прошла бы ручной откат,
+// но упала бы в детекторе на следующем boot.
+test('rollbackConfigFile: lkg, нарушающий configSchema плагина, отклоняется (R5-L6)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // Плагин требует обязательное поле apiKey; в lkg ветки plugins нет вовсе.
+    const plugin = { name: 'alerts', configSchema: { apiKey: { type: 'string', secret: true, required: true } } };
+
+    let thrown = null;
+    try {
+        rollbackConfigFile({
+            environment: envWithSecrets,
+            configPath,
+            plugins: [plugin]
+        }, {
+            stdout: { write: () => {} },
+            stderr: { write: () => {} }
+        });
+    } catch (error) {
+        thrown = error;
+    }
+
+    assert.ok(thrown, 'rollback обязан бросить на невалидном lkg');
+    const errorKeys = (thrown.details && thrown.details.errors || []).map((e) => `${e.section || ''}.${e.key || ''}`);
+    assert.ok(
+        errorKeys.some((key) => key.includes('alerts.apiKey')),
+        `ожидалась ошибка по alerts.apiKey, получено: ${errorKeys.join(', ')}`
+    );
+    // Активный файл не тронут — rollback не выполнен (иначе следующий boot
+    // упал бы в детекторе с невалидным активным файлом).
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'debug');
+});
+
 test('isRollbackConfigCommand', () => {
     assert.equal(isRollbackConfigCommand(['--rollback-config']), true);
     assert.equal(isRollbackConfigCommand(['--rollback-config', '/tmp/x.json']), true);

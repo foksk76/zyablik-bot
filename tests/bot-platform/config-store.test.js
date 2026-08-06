@@ -587,6 +587,35 @@ test('детектор: crash-loop — превышение maxStartupAttempts �
     assert.equal(active.bot.logLevel, 'info');
 });
 
+// R13-M2 (review PR #23): trade-off — ЛЮБОЙ следующий boot после истечения
+// окна StartupWait (> startupWaitMs от lastBoot) откатывает конфиг к lkg,
+// даже при одиночном краше до подтверждения (boots здесь 2 ≤ 5 — это НЕ
+// crash-loop). Окно — защита от crash-loop, подтверждение — забота
+// confirmConfig; поведение фиксируется тестом, чтобы будущие изменения не
+// «исправили» его случайно без ADR.
+test('детектор: 2-й boot через >30s от lastBoot → авто-откат даже без crash-loop (R13-M2)', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, { version: 1, bot: { logLevel: 'debug' } });
+    writeLkg(configPath, { version: 1, bot: { logLevel: 'info' } });
+    // Первый boot (boots=1) записал lastBoot, но не вышел на ready; с тех пор
+    // прошло больше окна StartupWait. Второй boot (boots=2 ≤ maxStartupAttempts)
+    // — одиночный краш — тем не менее откатывается (окно истекло).
+    fs.writeFileSync(serviceFilePaths(configPath).pendingPath, JSON.stringify({
+        hash: computeConfigHash({ version: 1, bot: { logLevel: 'debug' } }),
+        appliedAt: new Date(Date.now() - 120_000).toISOString(),
+        lastBoot: new Date(Date.now() - DEFAULT_STARTUP_WAIT_MS - 1000).toISOString(),
+        restartInitiated: true,
+        boots: 1
+    }, null, 2));
+
+    const result = runStartupConfigDetector(configPath, { environment: {} });
+
+    assert.equal(result.state, 'rolled_back');
+    assert.doesNotMatch(result.reason, /crash-loop/, 'одиночный краш — это не crash-loop');
+    const active = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(active.bot.logLevel, 'info');
+});
+
 test('детектор: активный файл изменён после Apply (hash ≠ pending.hash) — маркер снят, окно StartupWait отменено (L2 review)', () => {
     const dir = makeTempConfigDir();
     // Apply записал pending.hash для {logLevel: 'debug'}, затем оператор вручную
