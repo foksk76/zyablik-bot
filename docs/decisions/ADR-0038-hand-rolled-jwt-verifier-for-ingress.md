@@ -78,7 +78,12 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 - **JWKS fetching**: OIDC discovery (`/.well-known/openid-configuration` → `jwks_uri`)
   с fallback на `/.well-known/jwks.json`; успешный discovery кеш 1 час, отрицательный
   кеш сбойного discovery 5 минут; JWKS-кеш TTL 1 час; retry на дефолтный путь при сбое
-  fetch по discovered `jwks_uri`
+  fetch по discovered `jwks_uri`; отрицательный кеш сбойного JWKS-fetch 5 минут (без
+  retry-шторма на каждый `/ingest`)
+- **Key rotation**: kid-miss принудительно форсит refresh JWKS (минуя TTL-кеш,
+  дедуплицирован через in-flight promise), с fallback на последний успешный кеш
+- **Issuer validation**: `issuer` проверяется через `new URL()` (схема http/https),
+  не-URL значение отклоняется с понятной ошибкой
 - **Algorithm allowlist**: только RSA-family (`RS256`, `RS384`, `RS512`)
 - **Claim validation**: `exp`, `iat`, `iss`, `aud`
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
@@ -93,8 +98,8 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 | SSRF (jwks_uri) | `jwks_uri` из discovery резолвится через `new URL(jwks_uri, issuer)` и принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback |
 | Expiry | `exp` и `iat` проверяются |
 | Issuer | `iss` проверяется against configured `issuer` |
-| Audience | `aud` проверяется если `expectedAudience` задан |
-| JWKS rotation | Кеш 1 час, ре-фетч при `kid` не найден |
+| Audience | `aud` проверяется если `expectedAudience` задан; `createVerifier({ audience })` используется как default при вызове `verifyAccessToken(token)` без второго аргумента |
+| JWKS rotation | Кеш 1 час; kid-miss принудительно форсит refresh (минуя TTL), fallback на последний успешный кеш при сбое; отрицательный кеш сбойного fetch 5 минут |
 | Insecure HTTP | `logger.warn` при HTTP issuer, но верификация работает |
 
 ### Почему не унифицировать через `@okta/jwt-verifier`

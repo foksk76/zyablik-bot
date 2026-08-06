@@ -1072,3 +1072,125 @@ test('failed OIDC discovery is negative-cached — re-resolved on next refresh (
         dateMock.mock.restore();
     }
 });
+
+// ---------------------------------------------------------------------------
+// Review round 2 (PR#25): key rotation, negative JWKS cache, audience default, issuer URL
+// ---------------------------------------------------------------------------
+
+test('key rotation inside JWKS cache window — kid-miss forces refresh (review fix 1)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+
+    const jwksBodyV1 = { keys: [{ kid: 'old-kid', kty: publicKeyJwk.kty, n: publicKeyJwk.n, e: publicKeyJwk.e, alg: 'RS256', use: 'sig' }] };
+    const jwksBodyV2 = createJwksResponse('new-kid');
+
+    const { fetch: mockFetch, getJwksCallCount } = createRotatingJwksFetch([jwksBodyV1, jwksBodyV2]);
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const tokenV1 = createJwt(keyPair.privateKey, makeHeader('RS256', 'old-kid'), makePayload());
+    const result1 = await verifier.verifyAccessToken(tokenV1);
+    assert.ok(result1.claims);
+    assert.equal(getJwksCallCount(), 1, 'should fetch JWKS on first call');
+
+    // Ротация ключей ВНУТРИ 1h кеш-окна: kid-miss должен принудительно
+    // обновить JWKS, а не отдавать кеш и резать токены на час.
+    const tokenV2 = createJwt(keyPair.privateKey, makeHeader('RS256', 'new-kid'), makePayload());
+    const result2 = await verifier.verifyAccessToken(tokenV2);
+    assert.ok(result2.claims, 'rotated kid should verify via forced refresh inside cache window');
+    assert.equal(getJwksCallCount(), 2, 'kid-miss should force a refresh bypassing the TTL guard');
+});
+
+test('failed JWKS fetch is negative-cached — no retry storm within 5 minutes (review fix 2)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let jwksFetchCount = 0;
+    let failJwks = true;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return { ok: true, status: 200, json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' }) };
+        }
+        jwksFetchCount++;
+        if (failJwks) {
+            return { ok: false, status: 500, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => createJwksResponse('kid-live') };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: IdP недоступен — первый запрос делает 2 fetch (jwks_uri + fallback),
+        // оба падают → jwks остаётся null, фиксируется сбойный fetch.
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('kid-live')));
+        assert.equal(jwksFetchCount, 2, 'first attempt: discovered jwks_uri + fallback retry');
+
+        // Внутри negative TTL: повторные /ingest НЕ делают сетевых вызовов.
+        currentTime += 1000;
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('kid-live')));
+        assert.equal(jwksFetchCount, 2, 'negative cache — no retry storm within 5 minutes');
+
+        // t0+5мин+1с: negative TTL прошёл → refresh повторяется (снова 2 fetch).
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('kid-live')));
+        assert.equal(jwksFetchCount, 4, 'after negative TTL the refresh is retried');
+
+        // IdP ожил → следующий refresh успешен.
+        failJwks = false;
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        const result = await verifier.verifyAccessToken(tokenFor('kid-live'));
+        assert.ok(result.claims);
+        assert.equal(jwksFetchCount, 5);
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('createVerifier audience is used as default when verifyAccessToken has no expectedAudience (review fix 3)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com', audience: 'created-aud' });
+
+    // Токен с другим aud — должен быть отклонён даже без 2-го аргумента.
+    const wrongAudToken = createJwt(keyPair.privateKey, makeHeader(), makePayload({ aud: 'other-aud' }));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(wrongAudToken),
+        (err) => {
+            assert.ok(err.message.includes('Invalid audience'));
+            assert.ok(err.message.includes('created-aud'));
+            return true;
+        }
+    );
+
+    // Токен с aud из createVerifier — проходит.
+    const correctAudToken = createJwt(keyPair.privateKey, makeHeader(), makePayload({ aud: 'created-aud' }));
+    const result = await verifier.verifyAccessToken(correctAudToken);
+    assert.ok(result.claims);
+});
+
+test('createVerifier rejects non-URL issuer with a clear error (review nit)', () => {
+    const logger = createMockLogger();
+    const factory = createOidcVerifierFactory({ logger });
+
+    assert.throws(
+        () => factory({ issuer: 'idp.example.com' }),
+        (err) => {
+            assert.ok(err.message.includes('Invalid issuer URL'));
+            assert.ok(err.message.includes('idp.example.com'));
+            return true;
+        }
+    );
+});

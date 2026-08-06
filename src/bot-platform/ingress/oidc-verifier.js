@@ -14,6 +14,15 @@ function createOidcVerifierFactory(options = {}) {
   const fetchFn = options.fetchFn || globalThis.fetch;
 
   return function createVerifier({ issuer, audience }) {
+    try {
+      const parsedIssuer = new URL(issuer);
+      if (parsedIssuer.protocol !== 'https:' && parsedIssuer.protocol !== 'http:') {
+        throw new Error('unsupported scheme');
+      }
+    } catch {
+      throw new Error(`Invalid issuer URL: ${issuer}`);
+    }
+
     if (issuer.startsWith('http://')) {
       logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
     }
@@ -23,6 +32,8 @@ function createOidcVerifierFactory(options = {}) {
     let jwks = null;
     let jwksFetchedAt = 0;
     let jwksUriInfo = null;
+    let jwksInFlight = null;
+    let jwksFailedAt = 0;
 
     // Резолвит jwks_uri против issuer-origin (в т.ч. относительные URL),
     // возвращает абсолютный URL только если protocol+host совпадают с issuer.
@@ -113,28 +124,104 @@ function createOidcVerifierFactory(options = {}) {
       return response.json();
     }
 
+    // Безусловная загрузка JWKS (минует TTL-кеш); дедупликация через общий
+    // in-flight promise. При сбое протухшего/неверного jwks_uri из discovery —
+    // один retry на дефолтный путь. Сбой фиксируется в jwksFailedAt.
+    async function refreshJwks() {
+      if (jwksInFlight) {
+        return jwksInFlight;
+      }
+      jwksInFlight = (async () => {
+        const { jwksUri, discovered } = await getJwksUri();
+
+        try {
+          const fresh = await fetchJwks(jwksUri);
+          jwks = fresh;
+          jwksFetchedAt = Date.now();
+          jwksFailedAt = 0;
+          return fresh;
+        } catch (err) {
+          if (!discovered) {
+            jwksFailedAt = Date.now();
+            throw err;
+          }
+          // Протухший/неверный jwks_uri из discovery — один retry на дефолтный путь.
+          const fallbackUrl = fallbackJwksUri();
+          logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
+          try {
+            const fresh = await fetchJwks(fallbackUrl);
+            jwks = fresh;
+            jwksFetchedAt = Date.now();
+            jwksFailedAt = 0;
+            jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
+            return fresh;
+          } catch (fallbackErr) {
+            jwksFailedAt = Date.now();
+            throw fallbackErr;
+          }
+        }
+      })();
+      try {
+        return await jwksInFlight;
+      } finally {
+        jwksInFlight = null;
+      }
+    }
+
+    // Кешированный доступ: успешный fetch — 1 час; сбойный — короткий
+    // отрицательный TTL (5 минут), в течение которого отдаётся последний
+    // успешный кеш (или быстрая ошибка без сети), чтобы недоступный IdP
+    // не умножал исходящие запросы на каждый /ingest.
     async function getJwks() {
-      if (jwks && (Date.now() - jwksFetchedAt) < JWKS_CACHE_TTL_MS) {
+      const now = Date.now();
+      const recentlyFailed = jwksFailedAt !== 0 && (now - jwksFailedAt) < JWKS_NEGATIVE_CACHE_TTL_MS;
+
+      if (recentlyFailed) {
+        if (jwks) {
+          return jwks;
+        }
+        throw new Error('JWKS unavailable (negative cache)');
+      }
+
+      if (jwks && (now - jwksFetchedAt) < JWKS_CACHE_TTL_MS) {
         return jwks;
       }
 
-      const { jwksUri, discovered } = await getJwksUri();
-
       try {
-        jwks = await fetchJwks(jwksUri);
+        return await refreshJwks();
       } catch (err) {
-        if (!discovered) {
-          throw err;
+        if (jwks) {
+          return jwks;
         }
-        // Протухший/неверный jwks_uri из discovery — один retry на дефолтный путь.
-        const fallbackUrl = fallbackJwksUri();
-        logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
-        jwks = await fetchJwks(fallbackUrl);
-        jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
+        throw err;
+      }
+    }
+
+    // Поиск ключа с поддержкой ротации: при kid-miss — cache-aware getJwks(),
+    // затем принудительный refresh (ротация ключей внутри 1h кеш-окна),
+    // с fallback на последний успешный кеш при сбое refresh.
+    async function findKeyForKid(kid) {
+      let keyJwk = findKey(kid);
+      if (keyJwk) {
+        return keyJwk;
       }
 
-      jwksFetchedAt = Date.now();
-      return jwks;
+      await getJwks();
+      keyJwk = findKey(kid);
+      if (keyJwk) {
+        return keyJwk;
+      }
+
+      try {
+        await refreshJwks();
+      } catch {
+        // refresh упал — откатываемся к кешу: если kid там, верификация продолжится.
+      }
+      keyJwk = findKey(kid);
+      if (!keyJwk) {
+        throw new Error(`Key not found in JWKS: ${kid}`);
+      }
+      return keyJwk;
     }
 
     function findKey(kid) {
@@ -167,21 +254,14 @@ function createOidcVerifierFactory(options = {}) {
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
     }
 
-    async function verifyAccessToken(token, expectedAudience) {
+    async function verifyAccessToken(token, expectedAudience = audience) {
       const { header, payload, signature, signingInput } = parseJwt(token);
 
       if (!header.kid) {
         throw new Error('JWT header missing kid');
       }
 
-      let keyJwk = findKey(header.kid);
-      if (!keyJwk) {
-        await getJwks();
-        keyJwk = findKey(header.kid);
-        if (!keyJwk) {
-          throw new Error(`Key not found in JWKS: ${header.kid}`);
-        }
-      }
+      const keyJwk = await findKeyForKid(header.kid);
 
       const key = importKey(keyJwk);
 
