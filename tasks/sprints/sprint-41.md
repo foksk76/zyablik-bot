@@ -69,8 +69,8 @@ CHANGELOG — запись о переходе, `docs/project-context.md` — с
 **Acceptance criteria:**
 - [x] INSTALL описывает конфиг-файл без противоречий ADR-0045/0046 (раздел 10, `--generate-config`, структура, UI-управление)
 - [x] README/CHANGELOG обновлены (README — runbook + Dockerfile/compose в списке, CHANGELOG — записи)
-- [ ] `docs/project-context.md` — статус этапа
-- [ ] docs-leak-guard зелёный (без реальных адресов/секретов)
+- [x] `docs/project-context.md` — статус этапа (§ «Статус этапа „Конфигурация файлом“»)
+- [x] docs-leak-guard зелёный (без реальных адресов/секретов)
 
 **Files:** `INSTALL.md`, `README.md`, `CHANGELOG.md`,
 `docs/project-context.md`, `AGENTS.md` (при необходимости)
@@ -139,7 +139,7 @@ confirmed; сломанный конфиг → авто-откат; rollback; ex
 - [x] Apply → restart → confirmed (штатный цикл) — `docs/test-runs/config-apply-rollback-run.md`
 - [x] Авто-откат из lkg при неподтверждённом Apply — `docs/test-runs/config-apply-rollback-run.md`
 - [x] Rollback, export/import, UI-флоу — оставшиеся сценарии прогона (`config-apply-rollback-run.md`)
-- [ ] Чек-лист acceptance обновлён (статус этапа)
+- [x] Чек-лист acceptance обновлён (статус этапа) — `docs/project-acceptance.md` § «Приёмка этапа „Конфигурация файлом“ (ADR-0045/0046)»
 - [x] Документация непротиворечива; `npm test` зелёный (861 pass / 0 fail)
 
 **Files:** `docs/project-acceptance.md`, `docs/test-runs/*`

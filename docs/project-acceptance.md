@@ -68,6 +68,38 @@
 | GitHub Actions завершился успешно | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md) |
 | Проект не вышел за согласованные границы | [`docs/test-runs/final-acceptance-run.md`](test-runs/final-acceptance-run.md), [`docs/project-context.md`](project-context.md) |
 
+## Приёмка этапа «Конфигурация файлом» (ADR-0045/0046)
+
+Этап закрыт спринтами 37–41 (`tasks/sprints/sprint-37.md` …
+`sprint-41.md`). Критерии дополняют project-level критерии 1.0.0 и
+подтверждают, что файл конфигурации стал источником правды для
+управляемых настроек без регресса доставки уведомлений.
+
+- [x] `zyablik.config.json` — источник правды для управляемых настроек
+      (`bot.*`, `queue.*`, `ingress.*`, `monitor.*`, `plugins.<name>.*`);
+      в `.env` остаются bootstrap (`ZYABLIK_CONFIG`), секреты и неизменяемая
+      база (ADR-0045).
+- [x] Секреты в файле — только `$VAR`-ссылки; литеральные секреты
+      отклоняются валидацией (Stage/Apply/import/детектор).
+- [x] Полный цикл Stage → Apply → рестарт → confirmed; свежий pending-маркер
+      в окне `StartupWait` конфиг не откатывает.
+- [x] Авто-откат к `lkg` при неподтверждённом Apply (краш до ready); ручной
+      rollback восстанавливает `lkg`; битый файл карантинится
+      (`zyablik.config.<ts>.bad.json`).
+- [x] Schema-driven управление в web UI «Настройки» (ADR-0046): формы из
+      merged-схемы, diff, export/import, `/api/config/*` с auth (ADR-0035);
+      секреты в UI/API — только статус «задан/не задан».
+- [x] Секреты не протекают в API-ответы/export/UI (policy-тесты
+      `tests/policy/config-secrets.test.js`, docs-leak-guard).
+- [x] Webhook (`src/zabbix-media-type/`) и существующий Telegram-канал
+      не затронуты.
+- [x] `npm test` зелёный (984 pass / 0 fail на HEAD ветки).
+- [x] Прогон на стенде зафиксирован:
+      [`docs/test-runs/config-apply-rollback-run.md`](test-runs/config-apply-rollback-run.md).
+
+Follow-up из ревью PR #23 (Low, не блокеры, трекаются) — в
+`tasks/sprints/sprint-42.md`.
+
 ## Не входит в приемку проекта
 
 - отдельный bot-service;

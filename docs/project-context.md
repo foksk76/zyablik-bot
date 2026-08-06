@@ -219,6 +219,12 @@ UI dashboard использует session auth после OAuth2 логина (A
 - Прогон: docs/test-runs/config-apply-rollback-run.md
 ```
 
+Статус этапа «Конфигурация файлом» (ADR-0045/0046): **завершён**.
+Критерии приёмки этапа — `docs/project-acceptance.md` (§ «Приёмка этапа
+„Конфигурация файлом"»), прогон на стенде —
+`docs/test-runs/config-apply-rollback-run.md`, follow-up ревью PR #23
+(Low, не блокеры) — `tasks/sprints/sprint-42.md`.
+
 Реализовано и подтверждено:
 
 ```text

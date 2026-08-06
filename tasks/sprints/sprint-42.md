@@ -1,4 +1,4 @@
-# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–9)
+# Sprint 42: Конфигурация (ADR-0045/0046) — follow-up ревью PR #23 (раунды 5–17)
 
 **Цель:** закрыть замечания auto-review PR #23 (раунды 5–9, Approve with
 comments) перед боевым запуском long-polling режима: M1 (зависание start при
@@ -11,11 +11,14 @@ R5-M3 (required отсутствующих plugin-веток), L1–L3 (plugin-`
 (нестроковые необъявленные значения в stage-ответах) и R9 N1/N2
 (утечка нестроковых необъявленных значений веток плагинов в `GET /api/config`,
 валидация `default` в `validateConfigSchema`). R5–R9 уже исправлены в PR.
+Раунды 16–17 добавили не отслеживавшиеся Low (R11-L3, R5-L1, R5-L6),
+trade-off R13-M2 и doc-задачу про связку systemd StartLimit ↔ детектор
+(Tasks 11–13).
 
 **ADR:** [ADR-0045](../../docs/decisions/ADR-0045-config-file-source-of-truth.md)
 [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
 **Источник:** ревью PR #23, комментарии `5186794443` (round 5),
-`5186875105` (round 6)
+`5186875105` (round 6), `5190202811` (round 16), `5190332751` (round 17)
 
 **Контекст:** ревьюер подтвердил фиксы раундов 1–5 и вынес новые
 замечания. Блокеров нет; M1–M2, R5-M3 и L1–L3 — задачи «до merge»/«до
@@ -409,6 +412,113 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 
 ---
 
+### Task 11: R13-M2 — авто-откат на следующем boot после ручного Apply
+
+**Status:** Pending
+
+**Description:** trade-off из round 13, нигде не отслеживался (заведён
+round 17). `config-store.js:563-586`: после ручного Apply первый boot пишет
+`lastBoot` без окна StartupWait (`pendingAgeMs = 0`, `boots = 1`) и
+продолжает с нового конфига. Но любой следующий boot с интервалом
+≥ `startupWaitMs` (30s) от `lastBoot` устаревает окно → авто-откат к lkg
+даже при **одиночном** краше до подтверждения конфига.
+
+Требуется зафиксировать решение: либо оставить как есть (окно — защита
+только от crash-loop, не от одиночного краша; подтверждение конфига — забота
+оператора/`confirmConfig`), либо расширить (учитывать confirm-статус / не
+откатывать при единичном краше). Минимум — документировать trade-off.
+
+**Acceptance criteria:**
+- [ ] Решение зафиксировано в `docs/runbooks/config-file.md` (или ADR-0046)
+- [ ] Текущее поведение покрыто тестом (регресс на `runStartupConfigDetector`: 2-й boot через >30s от lastBoot → откат)
+- [ ] `npm test` зелёный
+
+**Files:** `src/bot-platform/core/config-store.js`,
+`docs/runbooks/config-file.md`,
+тесты `tests/bot-platform/config-store.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** S
+
+---
+
+### Task 12: R17-doc — связка systemd StartLimit и детектора maxStartupAttempts
+
+**Status:** Pending
+
+**Description:** systemd unit (`StartLimitIntervalSec=120` /
+`StartLimitBurst=5`) и стартовый детектор
+(`maxStartupAttempts=5` / окно 30s) — это **два разных лимита**, порядок
+срабатывания согласован: детектор откатывает конфиг к lkg на 6-м boot
+(~t+25s) раньше, чем systemd сдаётся и оставляет сервис dead (~t+120s).
+Без описания связка читается как дублирование независимых механизмов.
+
+Требуется явно описать в `docs/runbooks/config-file.md`: кто за что
+отвечает, в каком порядке срабатывает, что произойдёт при исчерпании
+каждого лимита.
+
+**Acceptance criteria:**
+- [ ] Runbook описывает порядок срабатывания (детектор → systemd) и ответственность каждого лимита
+- [ ] `npm test` зелёный
+
+**Files:** `docs/runbooks/config-file.md`,
+`systemd/` (unit-файл, если в описании есть точные значения)
+
+**Dependencies:** —
+
+**Estimated scope:** XS
+
+---
+
+### Task 13: R16-Low — R11-L3, R5-L1, R5-L6 (не отслеживались, заведены round 16)
+
+**Status:** Pending
+
+**Description:** Low-замечания, добавленные в checkpoint round 16 (коммит
+раунда упал с «Author identity unknown», пункты потерялись; переприменено
+вручную round 17):
+
+- **R11-L3 (warnings `loadConfig` в UI):** `loadConfig` возвращает
+  `warnings` (валидация файла: `src/bot-platform/core/config.js:286,313`),
+  `core/index.js:54` сохраняет их как `configWarnings`, но dashboard
+  `/api/config/*` и UI их не показывают. Решить: прокинуть warnings в
+  `/api/config` (и/или в `/api/config/status`) и отрисовать баннером.
+- **R5-L1 (`export` отдаёт литеральные секреты):** `GET /api/config/export` —
+  сырой дамп активного файла (`buildExportConfig`, `api/config.js:536`).
+  Инвариант «в файле нет литеральных секретов» держится только на валидации
+  (Stage/Apply/детектор): при ручной правке файла с литералом export (и
+  просмотр) его отдадут. Решить: маскировать в export или документировать
+  как известное ограничение.
+- **R5-L6 (CLI `--rollback-config` без plugins):** CLI-rollback
+  (`src/bot-platform/app.js:173`, `rollbackConfigFile`) вызывает
+  `rollbackConfig` без `plugins` — валидация lkg по configSchema плагинов
+  не выполняется (dashboard-rollback плагины передаёт: `api/config.js:939`).
+  Прокинуть `app.plugins` в `rollbackConfigFile`.
+
+Пункт round 16 про мёртвый `createQueueMonitorConfigFromConfig` **устарел** —
+символ удалён ещё в R13-M3 (`src/queue-monitor/config.js` экспортирует только
+`createQueueMonitorConfig`, env-fallback в `index.js:27`), в checkpoint не
+вносится.
+
+**Acceptance criteria:**
+- [ ] R11-L3: warnings из loadConfig видны в dashboard (или решение «не показывать» зафиксировано в доке)
+- [ ] R5-L1: export не отдаёт литеральные секреты (маскирование) ИЛИ ограничение задокументировано
+- [ ] R5-L6: CLI `--rollback-config` валидирует lkg с configSchema плагинов (регресс)
+- [ ] `npm test` зелёный
+
+**Files:** `src/queue-monitor/api/config.js`, `src/bot-platform/core/index.js`,
+`src/bot-platform/app.js`, `src/queue-monitor/ui/src/pages/SettingsPage.jsx`,
+`docs/runbooks/config-file.md`,
+тесты `tests/queue-monitor/api/config.test.js`,
+`tests/bot-platform/config-store.test.js`
+
+**Dependencies:** —
+
+**Estimated scope:** S
+
+---
+
 ## Checkpoint: Sprint 42
 
 - [x] M1: start не висит при сетевом сбое poll
@@ -421,6 +531,11 @@ R8/R9 «маскировать/удалять»: `mergePreservedSecrets` воз�
 - [x] R8-L1: нестроковые необъявленные значения в stage-ответах отброшены
 - [x] R9 N1/N2: утечка в `GET /api/config` закрыта, `default` валидируется
 - [x] R10 F10-L1: предупреждение о потерях необъявленных ключей при Import/Save
+- [ ] R11-L3: warnings `loadConfig` поднимаются в UI
+- [ ] R5-L1: `export` не отдаёт литеральные секреты (решение)
+- [ ] R5-L6: CLI `--rollback-config` валидирует lkg с plugins
+- [ ] R13-M2: trade-off авто-отката после ручного Apply зафиксирован
+- [ ] R17-doc: связка systemd StartLimit ↔ детектор `maxStartupAttempts` в runbook
 - [ ] `npm test` зелёный; PR #23 merged
 
 ## Risks and Mitigations
@@ -441,6 +556,8 @@ src/bot-platform/core/index.js            (M2)
 src/bot-platform/core/config-schema.js    (R5-M3)
 src/queue-monitor/api/config.js           (L1/L2/L3)
 src/queue-monitor/ui/...                  (L1/L2, R5-M3 клиент)
-docs/runbooks/*, docs/decisions/ADR-0046  (L1, M1-поведение)
-tests/                                    (M1/M2/R5-M3/L3 регрессы)
+src/bot-platform/core/index.js            (R11-L3: configWarnings)
+src/bot-platform/app.js                   (R5-L6: CLI rollback с plugins)
+docs/runbooks/*, docs/decisions/ADR-0046  (L1, M1-поведение, R13-M2, R17-doc)
+tests/                                    (M1/M2/R5-M3/L3/R13-M2/R5-L6 регрессы)
 ```
