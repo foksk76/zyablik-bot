@@ -1667,3 +1667,128 @@ test('unsupported algorithm is reported before key import (review fix 4)', async
         }
     );
 });
+
+// ---------------------------------------------------------------------------
+// Review round 6 (PR#25): alg before network, total fetch deadline, sanitize
+// ---------------------------------------------------------------------------
+
+test('unsupported algorithm is rejected before any network fetch (review fix 1)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch, getCallCount } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    // Неизвестный kid + неподдерживаемый alg: раньше проверка alg шла после
+    // findKeyForKid, и такой токен на холодном старте дёргал discovery + JWKS.
+    const token = createJwt(keyPair.privateKey, makeHeader('HS256', 'unknown-kid'), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Unsupported algorithm: HS256');
+            return true;
+        }
+    );
+    assert.equal(getCallCount(), 0, 'alg allowlist must be checked before any network fetch');
+});
+
+test('attacker-controlled alg is sanitized in error message (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const evilAlg = 'HS256\nINJECT';
+    const token = createJwt(keyPair.privateKey, makeHeader(evilAlg, 'test-kid-1'), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.ok(err.message.startsWith('Unsupported algorithm: '));
+            assert.ok(!err.message.includes('\n'), 'control chars must be stripped from alg');
+            return true;
+        }
+    );
+});
+
+test('attacker-controlled iss is sanitized in error message (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const evilIss = 'https://other.example.com\nINJECT';
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iss: evilIss }));
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.ok(err.message.startsWith('Invalid issuer: expected'));
+            assert.ok(!err.message.includes('\n'), 'control chars must be stripped from iss');
+            return true;
+        }
+    );
+});
+
+test('total fetch deadline bounds the whole redirect chain (review fix 6)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+    let fetchCount = 0;
+
+    const mockFetch = async (url) => {
+        fetchCount++;
+        const u = String(url);
+        // Discovery падает сразу (404, без редиректов) → дефолтный путь.
+        // Редирект-петля живёт только на JWKS-эндпоинте — это одна цепочка.
+        if (u.includes('/.well-known/openid-configuration')) {
+            return { ok: false, status: 404, json: async () => ({}) };
+        }
+        // Каждый fetch «съедает» 40 мс из общего бюджета (100 мс): петля
+        // должна оборваться на 3-м JWKS-hop'е, а не дойти до лимита 5.
+        currentTime += 40;
+        return {
+            ok: false,
+            status: 302,
+            headers: { get: (name) => (name === 'location' ? `https://idp.example.com/.well-known/jwks.json?hop=${fetchCount}` : null) },
+            json: async () => ({})
+        };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({
+            fetchFn: mockFetch,
+            logger,
+            fetchTimeoutMs: 5000,
+            fetchTotalTimeoutMs: 100
+        });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+
+        const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+
+        await assert.rejects(
+            () => verifier.verifyAccessToken(token),
+            (err) => {
+                assert.ok(err.message.includes('fetch timed out'), `expected total-deadline error, got: ${err.message}`);
+                return true;
+            }
+        );
+        // 1 discovery (404) + 3 JWKS-хопа: общий дедлайн обрывает цепочку
+        // раньше, чем исчерпаются MAX_REDIRECT_HOPS (было бы 1 + 6).
+        assert.equal(fetchCount, 4, 'total deadline must abort the redirect chain when the budget is exhausted');
+        assert.ok(fetchCount < 6, 'redirect chain must never reach the 5-hop limit when the total budget is smaller');
+    } finally {
+        dateMock.mock.restore();
+    }
+});

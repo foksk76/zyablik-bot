@@ -8,24 +8,27 @@ const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 const JWKS_FORCED_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_FETCH_TIMEOUT_MS = 15 * 1000;
+const DEFAULT_FETCH_TOTAL_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_CLOCK_SKEW_TOLERANCE_SEC = 30;
 const MAX_REDIRECT_HOPS = 5;
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
 const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
 
-// kid приходит из заголовка токена (атакующий-контролируемый): в ошибки и логи
-// попадает только санитизированная версия — без control chars и усечённая.
-const SAFE_KID_MAX_LENGTH = 64;
-function safeKid(value) {
+// Значения из заголовка/полезной нагрузки токена (атакующий-контролируемые:
+// kid, alg, iss) попадают в ошибки/логи только в санитизированном виде —
+// без control chars и усечённые, иначе можно вшить перевод строки в лог.
+const SAFE_VALUE_MAX_LENGTH = 64;
+function safeValue(value) {
     return String(value ?? '')
         .replace(/[\u0000-\u001f\u007f]/g, '')
-        .slice(0, SAFE_KID_MAX_LENGTH);
+        .slice(0, SAFE_VALUE_MAX_LENGTH);
 }
 
 function createOidcVerifierFactory(options = {}) {
   const logger = options.logger || console;
   const fetchFn = options.fetchFn || globalThis.fetch;
   const fetchTimeoutMs = options.fetchTimeoutMs || DEFAULT_FETCH_TIMEOUT_MS;
+  const fetchTotalTimeoutMs = options.fetchTotalTimeoutMs || DEFAULT_FETCH_TOTAL_TIMEOUT_MS;
 
   return function createVerifier({ issuer, audience, clockSkewToleranceSec }) {
     try {
@@ -54,12 +57,21 @@ function createOidcVerifierFactory(options = {}) {
     // origin-а issuer'а (protocol + host), с проверкой каждого hop'а: SSRF-
     // редирект на внутренний/чужой адрес обрывается, а легитимная нормализация
     // URL реальных IdP (www→bare, http→https, трейлинг-слэш, issuer-path)
-    // продолжает работать.
+    // продолжает работать. Кроме per-hop timeout есть общий дедлайн на всю
+    // цепочку (fetchTotalTimeoutMs, дефолт 30 с): иначе редирект-петля давала
+    // бы до (MAX_REDIRECT_HOPS + 1) × fetchTimeoutMs ≈ 90 с, разделённых между
+    // всеми /ingest через in-flight dedup. Каждый hop получает
+    // min(fetchTimeoutMs, остаток общего бюджета).
     async function fetchWithTimeout(url) {
+      const deadline = Date.now() + fetchTotalTimeoutMs;
       let currentUrl = url;
       for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          throw new Error(`[${MODULE_NAME}] fetch timed out (total ${fetchTotalTimeoutMs}ms) for ${url}`);
+        }
         const response = await fetchFn(currentUrl, {
-          signal: AbortSignal.timeout(fetchTimeoutMs),
+          signal: AbortSignal.timeout(Math.min(fetchTimeoutMs, remainingMs)),
           redirect: 'manual'
         });
         if (response.status < 300 || response.status >= 400) {
@@ -316,7 +328,7 @@ function createOidcVerifierFactory(options = {}) {
 
       keyJwk = findKey(kid);
       if (!keyJwk) {
-        throw new Error(`Key not found in JWKS: ${safeKid(kid)}`);
+        throw new Error(`Key not found in JWKS: ${safeValue(kid)}`);
       }
       return keyJwk;
     }
@@ -380,7 +392,7 @@ function createOidcVerifierFactory(options = {}) {
         ? payload.iss.replace(/\/+$/, '')
         : payload.iss;
       if (normalizedIssuer && tokenIssuer !== normalizedIssuer) {
-        throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${payload.iss}`);
+        throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${safeValue(payload.iss)}`);
       }
 
       if (expectedAudience) {
@@ -398,22 +410,26 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error('JWT header missing kid');
       }
 
+      // Allowlist алгоритмов проверяется по заголовку токена ДО сетевых fetch
+      // (findKeyForKid): это детерминированная проверка, не требующая JWKS —
+      // мусорный alg не должен на холодном старте дёргать discovery + JWKS
+      // (анти-амплификация), а заодно даёт чистый Unsupported algorithm вместо
+      // невнятной Key not found / ошибки от crypto.createPublicKey.
+      const algMap = { RS256: 'sha256', RS384: 'sha384', RS512: 'sha512' };
+      const algorithm = algMap[header.alg];
+      if (!algorithm) {
+        throw new Error(`Unsupported algorithm: ${safeValue(header.alg)}`);
+      }
+
       validateClaims(payload, expectedAudience, Math.floor(Date.now() / 1000));
 
       const keyJwk = await findKeyForKid(header.kid);
 
-      // Allowlist алгоритмов проверяется ДО importKey, чтобы EC-ключ или
-      // мусорный header давали чистый Unsupported algorithm, а не невнятную
-      // ошибку от crypto.createPublicKey.
-      const algMap = { RS256: 'sha256', RS384: 'sha384', RS512: 'sha512' };
-      const algorithm = algMap[header.alg];
-
-      if (!algorithm) {
-        throw new Error(`Unsupported algorithm: ${header.alg}`);
-      }
-
+      // kty проверяется после поиска ключа в JWKS (зависит от найденного
+      // ключа), но до importKey, чтобы EC/HMAC-ключ давал чистый
+      // Unsupported key type, а не невнятную ошибку от crypto.createPublicKey.
       if (keyJwk.kty !== 'RSA') {
-        throw new Error(`Unsupported key type: ${keyJwk.kty}`);
+        throw new Error(`Unsupported key type: ${safeValue(keyJwk.kty)}`);
       }
 
       const key = importKey(keyJwk, header.kid);
