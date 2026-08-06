@@ -75,7 +75,13 @@ function createOidcVerifierFactory(options = {}) {
           signal: AbortSignal.timeout(Math.min(fetchTimeoutMs, remainingMs)),
           redirect: 'manual'
         });
-        if (response.status < 300 || response.status >= 400) {
+        if (response.status < 300) {
+          return response;
+        }
+        if (response.status >= 400) {
+          // Не-ok финальный ответ (404/500) никто не читает — caller бросает
+          // по response.ok. Отменить тело сразу, иначе сокет не вернётся в пул.
+          await response.body?.cancel();
           return response;
         }
         // 3xx-тело не читается (нужен только location): отменить поток, чтобы
@@ -410,6 +416,16 @@ function createOidcVerifierFactory(options = {}) {
       try {
         payload = JSON.parse(base64UrlDecode(parts[1]).toString('utf8'));
       } catch {
+        throw new Error('Invalid JWT payload');
+      }
+
+      // JSON-литерал null (или примитив) парсится успешно, но не является
+      // объектом: header.kid / payload.exp кидали бы сырой TypeError в обход
+      // stable-error контракта (сообщение уходит в reason консьюмеров).
+      if (typeof header !== 'object' || header === null) {
+        throw new Error('Invalid JWT header');
+      }
+      if (typeof payload !== 'object' || payload === null) {
         throw new Error('Invalid JWT payload');
       }
 

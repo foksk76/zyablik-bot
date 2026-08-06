@@ -49,6 +49,15 @@ function createJwt(privateKeyJwk, header, payload) {
     return `${headerB64}.${payloadB64}.${sigB64}`;
 }
 
+function createJwtFromParts(headerB64, payloadB64) {
+    const signingInput = `${headerB64}.${payloadB64}`;
+    const privateKey = crypto.createPrivateKey({ key: keyPair.privateKey, format: 'jwk' });
+    const sig = crypto.sign('sha256', Buffer.from(signingInput), privateKey);
+    const sigB64 = sig.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    return `${signingInput}.${sigB64}`;
+}
+
 function makeHeader(alg = 'RS256', kid = 'test-kid-1') {
     return { alg, kid, typ: 'JWT' };
 }
@@ -2084,6 +2093,37 @@ test('malformed payload JSON throws sanitized error (review fix 4)', async () =>
         (err) => {
             assert.equal(err.message, 'Invalid JWT payload');
             assert.ok(!err.message.includes('\0'), 'no raw input preview in error message');
+            return true;
+        }
+    );
+});
+
+test('non-object header/payload yield stable errors, not raw TypeError (review round 9)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    // Header = JSON null: раньше header.kid кидал сырой TypeError в обход
+    // stable-error контракта. Ожидаем 'Invalid JWT header'.
+    const nullHeaderToken = createJwtFromParts(base64UrlEncode(null), base64UrlEncode(makePayload()));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(nullHeaderToken),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT header');
+            return true;
+        }
+    );
+
+    // Payload = JSON null: раньше payload.exp кидал сырой TypeError.
+    // Ожидаем 'Invalid JWT payload'.
+    const nullPayloadToken = createJwtFromParts(base64UrlEncode(makeHeader()), base64UrlEncode(null));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(nullPayloadToken),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT payload');
             return true;
         }
     );
