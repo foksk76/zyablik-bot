@@ -384,6 +384,12 @@ function validateFieldValue(field, value) {
         if (!Number.isInteger(value)) {
             return 'ожидается целое число';
         }
+        if (typeof field.min === 'number' && value < field.min) {
+            return `меньше минимального значения ${field.min}`;
+        }
+        if (typeof field.max === 'number' && value > field.max) {
+            return `больше максимального значения ${field.max}`;
+        }
         break;
     case 'boolean':
         if (typeof value !== 'boolean') {
@@ -400,15 +406,6 @@ function validateFieldValue(field, value) {
         break;
     default:
         return `неизвестный тип поля: ${field.type}`;
-    }
-
-    if (field.type === 'number') {
-        if (typeof field.min === 'number' && value < field.min) {
-            return `меньше минимального значения ${field.min}`;
-        }
-        if (typeof field.max === 'number' && value > field.max) {
-            return `больше максимального значения ${field.max}`;
-        }
     }
 
     if (Array.isArray(field.enum) && !field.enum.includes(value)) {
