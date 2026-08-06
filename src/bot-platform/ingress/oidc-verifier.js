@@ -6,12 +6,25 @@ const crypto = require('node:crypto');
 const MODULE_NAME = 'oidc-verifier';
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_FETCH_TIMEOUT_MS = 15 * 1000;
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
 const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
 
 function createOidcVerifierFactory(options = {}) {
   const logger = options.logger || console;
   const fetchFn = options.fetchFn || globalThis.fetch;
+  const fetchTimeoutMs = options.fetchTimeoutMs || DEFAULT_FETCH_TIMEOUT_MS;
+
+  // Discovery и JWKS-fetch идут под AbortSignal.timeout — зависший IdP
+  // (чёрная дыра без RST) не должен вешать весь ingress через in-flight dedup.
+  // redirect: 'manual' — SSRF defense-in-depth: jwks_uri same-origin не должен
+  // 307-редиректить на внутренний адрес (redirect вернёт response.ok = false).
+  function fetchWithTimeout(url) {
+    return fetchFn(url, {
+      signal: AbortSignal.timeout(fetchTimeoutMs),
+      redirect: 'manual'
+    });
+  }
 
   return function createVerifier({ issuer, audience }) {
     try {
@@ -23,11 +36,13 @@ function createOidcVerifierFactory(options = {}) {
       throw new Error(`Invalid issuer URL: ${issuer}`);
     }
 
-    if (issuer.startsWith('http://')) {
-      logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
+    const normalizedIssuer = issuer.replace(/\/+$/, '');
+
+    if (normalizedIssuer.startsWith('http://')) {
+      logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${normalizedIssuer}`);
     }
 
-    const issuerBaseUrl = issuer.replace(/\/+$/, '');
+    const issuerBaseUrl = normalizedIssuer;
 
     let jwks = null;
     let jwksFetchedAt = 0;
@@ -63,7 +78,7 @@ function createOidcVerifierFactory(options = {}) {
 
       let response;
       try {
-        response = await fetchFn(discoveryUrl);
+        response = await fetchWithTimeout(discoveryUrl);
       } catch (err) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery failed for ${discoveryUrl}: ${err.message}; using ${DEFAULT_JWKS_PATH}`);
         return { jwksUri: fallbackJwksUri(), discovered: false };
@@ -117,7 +132,7 @@ function createOidcVerifierFactory(options = {}) {
     }
 
     async function fetchJwks(url) {
-      const response = await fetchFn(url);
+      const response = await fetchWithTimeout(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch JWKS from ${url}: ${response.status}`);
       }
@@ -199,7 +214,10 @@ function createOidcVerifierFactory(options = {}) {
 
     // Поиск ключа с поддержкой ротации: при kid-miss — cache-aware getJwks(),
     // затем принудительный refresh (ротация ключей внутри 1h кеш-окна),
-    // с fallback на последний успешный кеш при сбое refresh.
+    // с fallback на последний успешный кеш при сбое refresh. Refresh делается
+    // только вне отрицательного JWKS-окна — иначе каждый kid-miss во время
+    // аутсaja IdP = 2 лишних исходящих запроса (и амплификация через
+    // случайные kid от атакующего).
     async function findKeyForKid(kid) {
       let keyJwk = findKey(kid);
       if (keyJwk) {
@@ -212,11 +230,16 @@ function createOidcVerifierFactory(options = {}) {
         return keyJwk;
       }
 
-      try {
-        await refreshJwks();
-      } catch {
-        // refresh упал — откатываемся к кешу: если kid там, верификация продолжится.
+      const inNegativeWindow = jwksFailedAt !== 0
+        && (Date.now() - jwksFailedAt) < JWKS_NEGATIVE_CACHE_TTL_MS;
+      if (!inNegativeWindow) {
+        try {
+          await refreshJwks();
+        } catch {
+          // refresh упал — откатываемся к кешу: если kid там, верификация продолжится.
+        }
       }
+
       keyJwk = findKey(kid);
       if (!keyJwk) {
         throw new Error(`Key not found in JWKS: ${kid}`);
@@ -263,14 +286,17 @@ function createOidcVerifierFactory(options = {}) {
 
       const keyJwk = await findKeyForKid(header.kid);
 
-      const key = importKey(keyJwk);
-
+      // Allowlist алгоритмов проверяется ДО importKey, чтобы EC-ключ или
+      // мусорный header давали чистый Unsupported algorithm, а не невнятную
+      // ошибку от crypto.createPublicKey.
       const algMap = { RS256: 'sha256', RS384: 'sha384', RS512: 'sha512' };
       const algorithm = algMap[header.alg];
 
       if (!algorithm) {
         throw new Error(`Unsupported algorithm: ${header.alg}`);
       }
+
+      const key = importKey(keyJwk);
 
       const valid = crypto.verify(
         algorithm,
@@ -293,8 +319,8 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error('Token issued in the future');
       }
 
-      if (issuer && payload.iss !== issuer) {
-        throw new Error(`Invalid issuer: expected ${issuer}, got ${payload.iss}`);
+      if (normalizedIssuer && payload.iss !== normalizedIssuer) {
+        throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${payload.iss}`);
       }
 
       if (expectedAudience) {

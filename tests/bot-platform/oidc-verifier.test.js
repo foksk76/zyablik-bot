@@ -660,7 +660,7 @@ test('token without iat does not throw', async () => {
     assert.ok(result.claims);
 });
 
-test('issuer trailing slash — code does NOT normalize (compares as-is)', async () => {
+test('issuer trailing slash is normalized — iss comparison succeeds (review fix 3)', async () => {
     ensureKeyPair();
     const jwksBody = createJwksResponse();
     const { fetch: mockFetch } = createMockFetch(jwksBody);
@@ -671,14 +671,9 @@ test('issuer trailing slash — code does NOT normalize (compares as-is)', async
 
     const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iss: 'https://idp.example.com' }));
 
-    // issuer with trailing slash does NOT match issuer without slash (no normalization)
-    await assert.rejects(
-        () => verifier.verifyAccessToken(token),
-        (err) => {
-            assert.ok(err.message.includes('Invalid issuer'));
-            return true;
-        }
-    );
+    // issuer с трейлинг-слэшем нормализуется — токен с iss без слэша проходит.
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims);
 });
 
 test('issuer without trailing slash matches token issuer exactly', async () => {
@@ -1190,6 +1185,112 @@ test('createVerifier rejects non-URL issuer with a clear error (review nit)', ()
         (err) => {
             assert.ok(err.message.includes('Invalid issuer URL'));
             assert.ok(err.message.includes('idp.example.com'));
+            return true;
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// Review round 3 (PR#25): fetch timeout, kid-miss negative window, alg-before-import
+// ---------------------------------------------------------------------------
+
+test('fetch is called with AbortSignal.timeout and redirect: manual (review fixes 1, 5)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    let capturedOptions = null;
+    const mockFetch = async (url, options) => {
+        capturedOptions = options;
+        return { ok: true, status: 200, json: async () => jwksBody };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    await verifier.verifyAccessToken(token);
+
+    assert.ok(capturedOptions, 'fetch should receive an options argument');
+    assert.equal(capturedOptions.redirect, 'manual', 'redirects must not be followed (SSRF guard)');
+    assert.ok(capturedOptions.signal instanceof AbortSignal, 'fetch should receive an AbortSignal');
+    assert.equal(capturedOptions.signal.aborted, false);
+});
+
+test('kid-miss inside negative JWKS window does not hit the network (review fix 2)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let totalFetchCount = 0;
+    let failJwks = false;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        totalFetchCount++;
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        if (failJwks) {
+            return { ok: false, status: 500, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => createJwksResponse('kid-old') };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: успешный fetch (kid-old в кеше).
+        await verifier.verifyAccessToken(tokenFor('kid-old'));
+        assert.equal(totalFetchCount, 2, 'first call: discovery + jwks');
+
+        // t0+1ч: кеш протух, IdP упал → refresh падает (jwks_uri + fallback),
+        // jwksFailedAt фиксируется, getJwks() отдаёт устаревший кеш.
+        currentTime += JWKS_CACHE_TTL_MS + 1;
+        failJwks = true;
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('kid-new')));
+        assert.equal(totalFetchCount, 5, 'expired cache: re-discovery + 2 failed jwks fetches');
+
+        // Внутри отрицательного окна: kid-miss НЕ дёргает сеть.
+        currentTime += 1000;
+        await assert.rejects(
+            () => verifier.verifyAccessToken(tokenFor('kid-new')),
+            (err) => {
+                assert.ok(err.message.includes('Key not found in JWKS'));
+                return true;
+            }
+        );
+        assert.equal(totalFetchCount, 5, 'no network on kid-miss inside negative window');
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('unsupported algorithm is reported before key import (review fix 4)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    // kty: 'oct' (symmetric) — crypto.createPublicKey с таким JWK бросил бы
+    // невнятную ошибку, если бы importKey выполнялся до allowlist-проверки.
+    const jwksBody = {
+        keys: [{ kid: 'hs-key', kty: 'oct', k: 'Zm9v', alg: 'HS256', use: 'sig' }]
+    };
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const header = { alg: 'HS256', kid: 'hs-key', typ: 'JWT' };
+    const token = createJwt(keyPair.privateKey, header, makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Unsupported algorithm: HS256');
             return true;
         }
     );

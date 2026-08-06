@@ -62,6 +62,23 @@ hand-rolled verifier для **любого** непустого issuer (ране
 на `@okta/jwt-verifier` с жёстко зашитым `issuer + '/v1/keys'`, что ломало
 NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
 
+### Сетевая надёжность и ротация ключей (изменение 2026-08-06)
+
+- Все исходящие fetch (discovery и JWKS) идут под `AbortSignal.timeout`
+  (дефолт 15 с, опция `fetchTimeoutMs`) и `redirect: 'manual'`: зависший IdP
+  не вешает весь ingress через in-flight dedup, а same-origin `jwks_uri`,
+  307-редиректнувший на внутренний адрес, не фетчится (SSRF defense-in-depth).
+- kid-miss форсит refresh JWKS только вне отрицательного окна (5 минут
+  после сбойного fetch) — иначе каждый kid-miss во время аутсaja IdP
+  давал бы 2 лишних исходящих запроса (в т.ч. амплификация через случайные
+  `kid` от атакующего).
+- `issuer` нормализуется один раз (срез трейлинг-слэша) и используется
+  и для базового URL, и для сравнения `iss` — иначе `https://idp.../`
+  в конфиге давал рабочий JWKS, но тихий 401 на все токены.
+- Allowlist алгоритмов проверяется **до** `importKey`, чтобы EC-ключ или
+  мусорный header давали чистый `Unsupported algorithm`, а не невнятную
+  ошибку от `crypto.createPublicKey`.
+
 ## Решение
 
 Зафиксировать `oidc-verifier.js` как deliberately hand-rolled
@@ -79,12 +96,16 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
   с fallback на `/.well-known/jwks.json`; успешный discovery кеш 1 час, отрицательный
   кеш сбойного discovery 5 минут; JWKS-кеш TTL 1 час; retry на дефолтный путь при сбое
   fetch по discovered `jwks_uri`; отрицательный кеш сбойного JWKS-fetch 5 минут (без
-  retry-шторма на каждый `/ingest`)
+  retry-шторма на каждый `/ingest`); все fetch под `AbortSignal.timeout` (дефолт 15 с)
+  и `redirect: 'manual'`
 - **Key rotation**: kid-miss принудительно форсит refresh JWKS (минуя TTL-кеш,
-  дедуплицирован через in-flight promise), с fallback на последний успешный кеш
+  дедуплицирован через in-flight promise), с fallback на последний успешный кеш;
+  refresh пропускается внутри отрицательного окна сбойного fetch (5 минут)
 - **Issuer validation**: `issuer` проверяется через `new URL()` (схема http/https),
-  не-URL значение отклоняется с понятной ошибкой
-- **Algorithm allowlist**: только RSA-family (`RS256`, `RS384`, `RS512`)
+  не-URL значение отклоняется с понятной ошибкой; трейлинг-слэш нормализуется один раз
+  (и для base URL, и для сравнения `iss`)
+- **Algorithm allowlist**: только RSA-family (`RS256`, `RS384`, `RS512`), проверяется
+  до `importKey`
 - **Claim validation**: `exp`, `iat`, `iss`, `aud`
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
 - **Signature verification**: `crypto.verify(algorithm, data, key, signature)`
@@ -95,11 +116,12 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 |---|---|
 | Algorithm confusion | Allowlist: только RS256/RS384/RS512. HS*, ES*, PS* отклоняются |
 | Key confusion | JWKS endpoint резолвится из OIDC discovery (jwks_uri) или привязан к `issuer` /.well-known/jwks.json. RSA-only, HMAC не поддерживается |
-| SSRF (jwks_uri) | `jwks_uri` из discovery резолвится через `new URL(jwks_uri, issuer)` и принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback |
+| SSRF (jwks_uri) | `jwks_uri` из discovery резолвится через `new URL(jwks_uri, issuer)` и принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback; fetch идёт с `redirect: 'manual'` (same-origin `jwks_uri`, редиректнувший на внутренний адрес, не фетчится) |
+| Fetch timeout | Все исходящие fetch под `AbortSignal.timeout` (дефолт 15 с, опция `fetchTimeoutMs`) — зависший IdP не вешает ingress через in-flight dedup |
 | Expiry | `exp` и `iat` проверяются |
-| Issuer | `iss` проверяется against configured `issuer` |
+| Issuer | `iss` проверяется against configured `issuer` (нормализованный: трейлинг-слэш срезан) |
 | Audience | `aud` проверяется если `expectedAudience` задан; `createVerifier({ audience })` используется как default при вызове `verifyAccessToken(token)` без второго аргумента |
-| JWKS rotation | Кеш 1 час; kid-miss принудительно форсит refresh (минуя TTL), fallback на последний успешный кеш при сбое; отрицательный кеш сбойного fetch 5 минут |
+| JWKS rotation | Кеш 1 час; kid-miss принудительно форсит refresh (минуя TTL, вне отрицательного окна сбойного fetch), fallback на последний успешный кеш при сбое; отрицательный кеш сбойного fetch 5 минут |
 | Insecure HTTP | `logger.warn` при HTTP issuer, но верификация работает |
 
 ### Почему не унифицировать через `@okta/jwt-verifier`
