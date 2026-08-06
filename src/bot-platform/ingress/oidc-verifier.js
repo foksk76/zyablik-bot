@@ -312,8 +312,10 @@ function createOidcVerifierFactory(options = {}) {
           // состояния, чтобы discovery пере-резолвился через короткий TTL.
           const fallbackUrl = fallbackJwksUri();
           if (jwksUri === fallbackUrl) {
-            jwksFailedAt = Date.now();
-            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: Date.now() };
+            const failedAt = Date.now();
+            logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; jwks_uri is already the default path — downgrading jwksUriInfo, discovery re-resolves in ${JWKS_NEGATIVE_CACHE_TTL_MS / 60000}min`);
+            jwksFailedAt = failedAt;
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: failedAt };
             throw err;
           }
           logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
@@ -332,11 +334,13 @@ function createOidcVerifierFactory(options = {}) {
             jwksUriInfo = { jwksUri: fallbackUrl, discovered: true, resolvedAt: Date.now() };
             return fresh;
           } catch (fallbackErr) {
-            jwksFailedAt = Date.now();
+            const failedAt = Date.now();
+            logger.warn(`[${MODULE_NAME}] JWKS fallback fetch failed for ${fallbackUrl}: ${fallbackErr.message}; downgrading jwksUriInfo, discovery re-resolves in ${JWKS_NEGATIVE_CACHE_TTL_MS / 60000}min`);
+            jwksFailedAt = failedAt;
             // Fallback тоже сдох: понижаем jwksUriInfo до отрицательного состояния
             // с новым resolvedAt — иначе мёртвый URL держался бы до конца 1h-окна,
             // и восстановившийся discovered jwks_uri не был бы испробован.
-            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: Date.now() };
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: failedAt };
             throw fallbackErr;
           }
         }

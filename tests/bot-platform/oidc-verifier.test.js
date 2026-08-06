@@ -292,10 +292,6 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
     assert.equal(getJwksCallCount(), 1, 'should fetch JWKS on first call');
 
     // Force cache expiry so next call re-fetches
-    // TODO: import JWKS_CACHE_TTL_MS from oidc-verifier.js if module exports it
-    // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
-    // If the source constant changes, update this value to keep tests deterministic.
-    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
     let currentTime = Date.now();
     const dateMock = mock.method(Date, 'now', () => currentTime);
 
@@ -759,9 +755,6 @@ test('JWKS cache expired — re-fetch happens', async () => {
     const jwksBodyV2 = createJwksResponse('kid-v2');
     const logger = createMockLogger();
 
-    // TODO: import JWKS_CACHE_TTL_MS from oidc-verifier.js if module exports it
-    // NOTE: JWKS_CACHE_TTL_MS must match the value in oidc-verifier.js (60 * 60 * 1000).
-    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
     let currentTime = Date.now();
     const dateMock = mock.method(Date, 'now', () => currentTime);
 
@@ -2097,13 +2090,14 @@ test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix
         await verifier.verifyAccessToken(tokenFor('kid-1'));
         assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 5-min window');
 
-        // t0 + ~10 мин: внутри 15-мин авторитетного окна всё ещё нет re-probe.
-        currentTime += 5 * 60 * 1000;
+        // t0 + 15 мин − 1с: внутри авторитетного окна (DISCOVERY_NOT_FOUND_TTL_MS)
+        // всё ещё нет re-probe.
+        currentTime += DISCOVERY_NOT_FOUND_TTL_MS - JWKS_NEGATIVE_CACHE_TTL_MS - 2000;
         await verifier.verifyAccessToken(tokenFor('kid-1'));
         assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 15-min window');
 
-        // t0 + ~1ч5мин: авторитетный TTL (15 мин) давно протух → 404 пере-резолвится.
-        currentTime += 5 * 60 * 1000 + JWKS_CACHE_TTL_MS;
+        // t0 + 20 мин: авторитетный TTL (15 мин) протух → 404 пере-резолвится.
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1000;
         await verifier.verifyAccessToken(tokenFor('kid-2'));
         assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the notFound TTL expiry');
         assert.equal(jwksCount, 2);
@@ -2221,6 +2215,11 @@ test('createVerifier rejects issuer with query or fragment (review round 11)', (
 
     // Трейлинг-слэш по-прежнему допустим (нормализуется).
     assert.doesNotThrow(() => factory({ issuer: 'https://idp.example.com/' }));
+
+    // Percent-encoded `?`/`#` в пути — легитимные issuer (href сохраняет %3F/%23,
+    // литеральных разделителей нет): ложных срабатываний href-проверки быть не должно.
+    assert.doesNotThrow(() => factory({ issuer: 'https://idp.example.com/a%3Fb' }));
+    assert.doesNotThrow(() => factory({ issuer: 'https://idp.example.com/a%23b' }));
 
     // Вырожденные холостые `?`/`#`: WHATWG-URL даёт пустые search/hash, но
     // сохраняет разделитель в href — иначе `issuerBaseUrl + DISCOVERY_PATH`
