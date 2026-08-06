@@ -38,7 +38,7 @@ ADR-0024 принимает `@okta/jwt-verifier` как исключение и�
 - ingress layer не зависит от IdP-провайдера (ADR-0022: multi-source);
 - JWT от внешних источников могут использовать разные JWKS-endpoints;
 - `@okta/jwt-verifier` привязан к Okta-специфичным API;
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~600 строк с
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~620 строк с
   OIDC discovery, кешами и ограничениями сети), легко audit-уется.
 
 ### OIDC discovery (изменение 2026-08)
@@ -100,6 +100,12 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   re-probing-а без причины. Fallback-URL остаётся активным до истечения
   1h-кеша, после чего discovery пере-резолвится и восстановленный
   discovered `jwks_uri` снова будет использован.
+  Если же падает сам fallback-URL (объект уже в fallback-success состоянии),
+  повторный retry тем же URL не делается (это был бы дублирующий запрос),
+  а `jwksUriInfo` понижается до отрицательного состояния с новым
+  `resolvedAt`: через короткий отрицательный TTL discovery пере-резолвится,
+  и восстановившийся discovered `jwks_uri` будет испробован, а не pinned-ится
+  мёртвый fallback до конца 1h-окна.
 - kid-miss форсит refresh JWKS только вне отрицательного окна (5 минут
   после сбойного fetch) и вне grace-периода после успешного fetch
   (5 минут) — иначе kid-miss после протухания 1h-кеша давал бы 2 лишних
@@ -123,14 +129,16 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   нормализуется так же — иначе `https://idp.../` в конфиге или в токене
   давал рабочий JWKS, но тихий 401 на все токены.
 - `issuer` с query/fragment отклоняется при создании verifier-а
-  (`Invalid issuer URL`, как и не-URL значение): WHATWG-`new URL()`
-  нормализует холостой `?`/`#` в пустую строку, но `#frag` срезал бы путь
+  (`Invalid issuer URL`, как и не-URL значение): `#frag` срезал бы путь
   при сборке discovery-URL (`issuerBaseUrl + DISCOVERY_PATH`), а `?x=1`
   делал бы невозможным совпадение с `payload.iss` токена — оба случая
   давали бы тихий 401 на все токены (тот же класс, что трейлинг-слэш).
-  OIDC issuer — это origin с опциональным путём (RFC 8414); query/fragment
-  в нём не допускаются, поэтому конфиг-ошибка ловится fail-fast, а не
-  в проде на каждом токене.
+  Проверяется `parsedIssuer.href`, а не `.search`/`.hash`: WHATWG-URL
+  нормализует холостой `?`/`#` в пустые свойства, но сохраняет разделитель
+  в href — иначе `issuer: '…?'` проходил бы проверку, а `issuerBaseUrl +
+  DISCOVERY_PATH` превращал путь в query. OIDC issuer — это origin с
+  опциональным путём (RFC 8414); query/fragment в нём не допускаются,
+  поэтому конфиг-ошибка ловится fail-fast, а не в проде на каждом токене.
 - `iat`/`nbf`/`exp` допускают рассинхрон часов (опция
   `clockSkewToleranceSec`, дефолт 30 с): строгая проверка «из будущего»
   резала бы легитимные токены при расхождении часов IdP и ingress на 1–2 с,
@@ -250,7 +258,7 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
 
 - `@okta/jwt-verifier` привязан к Okta SDK API;
 - ingress layer работает с произвольными OIDC-провайдерами (не только Okta);
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~600 строк);
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~620 строк);
 - оба модуля решают разные задачи в разных слоях.
 
 ### Связь с queue-monitor/auth/oidc.js
@@ -275,7 +283,7 @@ queue-monitor auth — отдельный слой (ADR-0034), отдельны�
 
 ### Вынести в отдельный пакет
 
-Минус: один модуль (сейчас ~600 строк), один потребитель (`app.js`;
+Минус: один модуль (сейчас ~620 строк), один потребитель (`app.js`;
 `queue-monitor/auth/oidc.js` — отдельный модуль, зеркалирующий паттерн,
 а не импортирующий `oidc-verifier.js`).
 Вынос в пакет = overengineering. Отклонено.

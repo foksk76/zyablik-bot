@@ -4,7 +4,14 @@ const { mock } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 
-const { MODULE_NAME, createOidcVerifierFactory } = require('../../src/bot-platform/ingress/oidc-verifier');
+const {
+    MODULE_NAME,
+    JWKS_CACHE_TTL_MS,
+    JWKS_NEGATIVE_CACHE_TTL_MS,
+    JWKS_FORCED_REFRESH_MIN_INTERVAL_MS,
+    DISCOVERY_NOT_FOUND_TTL_MS,
+    createOidcVerifierFactory
+} = require('../../src/bot-platform/ingress/oidc-verifier');
 
 // ---------------------------------------------------------------------------
 // Helpers: RSA key generation + JWK export
@@ -2058,8 +2065,6 @@ test('concurrent cold-start verifications share a single discovery (review fix 4
 test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix 3)', async () => {
     ensureKeyPair();
     const logger = createMockLogger();
-    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
-    const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
     let currentTime = Date.now();
     const dateMock = mock.method(Date, 'now', () => currentTime);
 
@@ -2216,6 +2221,26 @@ test('createVerifier rejects issuer with query or fragment (review round 11)', (
 
     // Трейлинг-слэш по-прежнему допустим (нормализуется).
     assert.doesNotThrow(() => factory({ issuer: 'https://idp.example.com/' }));
+
+    // Вырожденные холостые `?`/`#`: WHATWG-URL даёт пустые search/hash, но
+    // сохраняет разделитель в href — иначе `issuerBaseUrl + DISCOVERY_PATH`
+    // превращал путь в query/fragment и auth тихо ломался бы.
+    assert.throws(
+        () => factory({ issuer: 'https://idp.example.com?' }),
+        (err) => {
+            assert.ok(err.message.includes('Invalid issuer URL'));
+            assert.ok(err.message.includes('idp.example.com?'));
+            return true;
+        }
+    );
+    assert.throws(
+        () => factory({ issuer: 'https://idp.example.com#' }),
+        (err) => {
+            assert.ok(err.message.includes('Invalid issuer URL'));
+            assert.ok(err.message.includes('idp.example.com#'));
+            return true;
+        }
+    );
 });
 
 test('non-numeric temporal claims are rejected deterministically (review round 11)', async () => {
@@ -2279,7 +2304,6 @@ test('non-numeric temporal claims are rejected deterministically (review round 1
 test('fallback success keeps discovery authoritative — no 5-min re-probe (review round 11)', async () => {
     ensureKeyPair();
     const logger = createMockLogger();
-    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
     let currentTime = Date.now();
     const dateMock = mock.method(Date, 'now', () => currentTime);
 
@@ -2336,6 +2360,81 @@ test('fallback success keeps discovery authoritative — no 5-min re-probe (revi
         assert.equal(discoveryCount, 2, 'discovery is re-resolved after the 1h jwksUriInfo TTL');
         assert.equal(customJwksFetched, 2, 'discovered jwks_uri is tried again after re-discovery');
         assert.equal(fallbackJwksCount, 3);
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('dead fallback is not self-retried and downgrades to short negative cache (review round 11 follow-up)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let discoveryCount = 0;
+    let customJwksFetched = 0;
+    let fallbackJwksFetched = 0;
+    let fallbackBroken = false;
+    let discoveredBroken = true;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            discoveryCount++;
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        if (u.includes('/oauth2/default/v1/keys')) {
+            customJwksFetched++;
+            if (discoveredBroken) {
+                return { ok: false, status: 500, json: async () => ({}) };
+            }
+            return { ok: true, status: 200, json: async () => createJwksResponse('dk-1') };
+        }
+        fallbackJwksFetched++;
+        if (fallbackBroken) {
+            return { ok: false, status: 500, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => createJwksResponse('fb-kid-1') };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: discovered jwks_uri 500-ит, fallback спасает → jwksUriInfo
+        // {fallbackUrl, discovered:true, resolvedAt:t0} (1h-кеш).
+        const result1 = await verifier.verifyAccessToken(tokenFor('fb-kid-1'));
+        assert.ok(result1.claims);
+        assert.equal(discoveryCount, 1);
+        assert.equal(customJwksFetched, 1);
+        assert.equal(fallbackJwksFetched, 1);
+
+        // t0 + 5мин + 1с: fallback тоже сломался. kid-miss форсит refresh →
+        // fetchJwks(fallbackUrl) падает РОВНО ОДИН раз: self-retry тем же URL
+        // отключён (иначе было бы два запроса), jwksUriInfo понижается до
+        // discovered:false с новым resolvedAt.
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        fallbackBroken = true;
+        await assert.rejects(
+            () => verifier.verifyAccessToken(tokenFor('fb-kid-2')),
+            /Key not found/
+        );
+        assert.equal(fallbackJwksFetched, 2, 'dead fallback is fetched once, not self-retried');
+
+        // t0 + 5мин + 1с + 5мин + 1с: отрицательный TTL jwksUriInfo (5 мин) прошёл →
+        // discovery пере-резолвится. Восстановившийся discovered jwks_uri теперь
+        // отвечает — мёртвый fallback не должен пинниться до конца 1h-окна.
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        discoveredBroken = false;
+        const result2 = await verifier.verifyAccessToken(tokenFor('dk-1'));
+        assert.ok(result2.claims);
+        assert.equal(discoveryCount, 2, 'discovery is re-resolved after the 5-min negative jwksUriInfo TTL');
+        assert.equal(customJwksFetched, 2, 'recovered discovered jwks_uri is used instead of the dead fallback');
     } finally {
         dateMock.mock.restore();
     }

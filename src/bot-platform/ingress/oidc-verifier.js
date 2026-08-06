@@ -46,9 +46,12 @@ function createOidcVerifierFactory(options = {}) {
       // сборке discovery-URL (`issuerBaseUrl + DISCOVERY_PATH`), а `?x=1`
       // делает невозможным совпадение с `payload.iss` токена. Отклоняем как
       // ошибку конфигурации (OIDC issuer — это origin с опциональным путём,
-      // RFC 8414 не допускает query/fragment). Холостые `?`/`#` WHATWG-URL
-      // нормализует в пустую строку и не считает их частью issuer.
-      if (parsedIssuer.search || parsedIssuer.hash) {
+      // RFC 8414 не допускает query/fragment). Проверяем именно `href`, а не
+      // `.search`/`.hash`: WHATWG-URL нормализует холостой `?`/`#` в пустые
+      // свойства, но сохраняет разделитель в href — иначе `issuer: '…?'`
+      // проходил бы проверку, а `issuerBaseUrl + DISCOVERY_PATH` превращал
+      // путь в query (silent-поломка того же класса, что трейлинг-слэш).
+      if (parsedIssuer.href.includes('?') || parsedIssuer.href.includes('#')) {
         throw new Error('query or fragment not allowed');
       }
     } catch {
@@ -302,7 +305,17 @@ function createOidcVerifierFactory(options = {}) {
             throw err;
           }
           // Протухший/неверный jwks_uri из discovery — один retry на дефолтный путь.
+          // Но если jwksUri уже сам является дефолтным (после прошлого
+          // fallback-успеха), retry тем же URL — это дублирующий запрос
+          // и путающий лог («retrying X», где X только что упал): вместо
+          // этого фиксируем сбой и понижаем jwksUriInfo до отрицательного
+          // состояния, чтобы discovery пере-резолвился через короткий TTL.
           const fallbackUrl = fallbackJwksUri();
+          if (jwksUri === fallbackUrl) {
+            jwksFailedAt = Date.now();
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: Date.now() };
+            throw err;
+          }
           logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
           try {
             const fresh = await fetchJwks(fallbackUrl);
@@ -320,6 +333,10 @@ function createOidcVerifierFactory(options = {}) {
             return fresh;
           } catch (fallbackErr) {
             jwksFailedAt = Date.now();
+            // Fallback тоже сдох: понижаем jwksUriInfo до отрицательного состояния
+            // с новым resolvedAt — иначе мёртвый URL держался бы до конца 1h-окна,
+            // и восстановившийся discovered jwks_uri не был бы испробован.
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: Date.now() };
             throw fallbackErr;
           }
         }
@@ -591,5 +608,9 @@ function createOidcVerifierFactory(options = {}) {
 
 module.exports = {
   MODULE_NAME,
+  JWKS_CACHE_TTL_MS,
+  JWKS_NEGATIVE_CACHE_TTL_MS,
+  JWKS_FORCED_REFRESH_MIN_INTERVAL_MS,
+  DISCOVERY_NOT_FOUND_TTL_MS,
   createOidcVerifierFactory
 };
