@@ -8,26 +8,26 @@ const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 const JWKS_FORCED_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_FETCH_TIMEOUT_MS = 15 * 1000;
+const DEFAULT_CLOCK_SKEW_TOLERANCE_SEC = 30;
+const MAX_REDIRECT_HOPS = 5;
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
 const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
+
+// kid приходит из заголовка токена (атакующий-контролируемый): в ошибки и логи
+// попадает только санитизированная версия — без control chars и усечённая.
+const SAFE_KID_MAX_LENGTH = 64;
+function safeKid(value) {
+    return String(value ?? '')
+        .replace(/[\u0000-\u001f\u007f]/g, '')
+        .slice(0, SAFE_KID_MAX_LENGTH);
+}
 
 function createOidcVerifierFactory(options = {}) {
   const logger = options.logger || console;
   const fetchFn = options.fetchFn || globalThis.fetch;
   const fetchTimeoutMs = options.fetchTimeoutMs || DEFAULT_FETCH_TIMEOUT_MS;
 
-  // Discovery и JWKS-fetch идут под AbortSignal.timeout — зависший IdP
-  // (чёрная дыра без RST) не должен вешать весь ingress через in-flight dedup.
-  // redirect: 'manual' — SSRF defense-in-depth: jwks_uri same-origin не должен
-  // 307-редиректить на внутренний адрес (redirect вернёт response.ok = false).
-  function fetchWithTimeout(url) {
-    return fetchFn(url, {
-      signal: AbortSignal.timeout(fetchTimeoutMs),
-      redirect: 'manual'
-    });
-  }
-
-  return function createVerifier({ issuer, audience }) {
+  return function createVerifier({ issuer, audience, clockSkewToleranceSec }) {
     try {
       const parsedIssuer = new URL(issuer);
       if (parsedIssuer.protocol !== 'https:' && parsedIssuer.protocol !== 'http:') {
@@ -44,12 +44,58 @@ function createOidcVerifierFactory(options = {}) {
     }
 
     const issuerBaseUrl = normalizedIssuer;
+    const skewToleranceSec = typeof clockSkewToleranceSec === 'number'
+      ? clockSkewToleranceSec
+      : DEFAULT_CLOCK_SKEW_TOLERANCE_SEC;
+
+    // Все исходящие fetch (discovery и JWKS) идут под AbortSignal.timeout —
+    // зависший IdP (чёрная дыра без RST) не должен вешать весь ingress через
+    // in-flight dedup. Редиректы (301/302/307/308) следуются, но только внутри
+    // origin-а issuer'а (protocol + host), с проверкой каждого hop'а: SSRF-
+    // редирект на внутренний/чужой адрес обрывается, а легитимная нормализация
+    // URL реальных IdP (www→bare, http→https, трейлинг-слэш, issuer-path)
+    // продолжает работать.
+    async function fetchWithTimeout(url) {
+      let currentUrl = url;
+      for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        const response = await fetchFn(currentUrl, {
+          signal: AbortSignal.timeout(fetchTimeoutMs),
+          redirect: 'manual'
+        });
+        if (response.status < 300 || response.status >= 400) {
+          return response;
+        }
+        const location = response.headers && typeof response.headers.get === 'function'
+          ? response.headers.get('location')
+          : null;
+        if (!location) {
+          return response;
+        }
+        let target;
+        try {
+          target = new URL(location, currentUrl);
+        } catch {
+          return response;
+        }
+        if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+          return response;
+        }
+        const base = new URL(issuerBaseUrl);
+        if (target.protocol !== base.protocol || target.host !== base.host) {
+          logger.warn(`[${MODULE_NAME}] Refusing redirect to foreign origin: ${target.href}`);
+          return response;
+        }
+        currentUrl = target.href;
+      }
+      throw new Error(`[${MODULE_NAME}] Too many redirects (max ${MAX_REDIRECT_HOPS}) for ${url}`);
+    }
 
     let jwks = null;
     let jwksFetchedAt = 0;
     let jwksUriInfo = null;
     let jwksInFlight = null;
     let jwksFailedAt = 0;
+    const keyObjectCache = new Map();
 
     // Резолвит jwks_uri против issuer-origin (в т.ч. относительные URL),
     // возвращает абсолютный URL только если protocol+host совпадают с issuer.
@@ -174,6 +220,7 @@ function createOidcVerifierFactory(options = {}) {
         try {
           const fresh = await fetchJwks(jwksUri);
           jwks = fresh;
+          keyObjectCache.clear();
           jwksFetchedAt = Date.now();
           jwksFailedAt = 0;
           return fresh;
@@ -188,6 +235,7 @@ function createOidcVerifierFactory(options = {}) {
           try {
             const fresh = await fetchJwks(fallbackUrl);
             jwks = fresh;
+            keyObjectCache.clear();
             jwksFetchedAt = Date.now();
             jwksFailedAt = 0;
             jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
@@ -268,7 +316,7 @@ function createOidcVerifierFactory(options = {}) {
 
       keyJwk = findKey(kid);
       if (!keyJwk) {
-        throw new Error(`Key not found in JWKS: ${kid}`);
+        throw new Error(`Key not found in JWKS: ${safeKid(kid)}`);
       }
       return keyJwk;
     }
@@ -277,11 +325,16 @@ function createOidcVerifierFactory(options = {}) {
       return jwks && jwks.keys && jwks.keys.find((k) => k.kid === kid);
     }
 
-    function importKey(jwk) {
-      return crypto.createPublicKey({
-        key: jwk,
-        format: 'jwk'
-      });
+    function importKey(jwk, kid) {
+      let key = keyObjectCache.get(kid);
+      if (!key) {
+        key = crypto.createPublicKey({
+          key: jwk,
+          format: 'jwk'
+        });
+        keyObjectCache.set(kid, key);
+      }
+      return key;
     }
 
     function base64UrlDecode(str) {
@@ -303,12 +356,49 @@ function createOidcVerifierFactory(options = {}) {
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
     }
 
+    // Claim-валидация выполняется ДО сетевых fetch и RSA-verify: claims лежат в
+    // подписанной части токена, поэтому проверять их безопасно, а expired/
+    // garbage-токен не должен на холодном старте дёргать discovery + JWKS
+    // (амплификация через невалидные токены).
+    function validateClaims(payload, expectedAudience, now) {
+      if (payload.exp && payload.exp < now) {
+        throw new Error('Token expired');
+      }
+
+      if (payload.iat && payload.iat > now + skewToleranceSec) {
+        throw new Error('Token issued in the future');
+      }
+
+      if (payload.nbf && payload.nbf > now + skewToleranceSec) {
+        throw new Error('Token not yet valid');
+      }
+
+      // payload.iss нормализуется так же, как конфигурированный issuer (срез
+      // трейлинг-слэша), иначе токен с iss "https://idp/" при конфиге
+      // "https://idp" давал бы тихий 401 на все токены.
+      const tokenIssuer = typeof payload.iss === 'string'
+        ? payload.iss.replace(/\/+$/, '')
+        : payload.iss;
+      if (normalizedIssuer && tokenIssuer !== normalizedIssuer) {
+        throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${payload.iss}`);
+      }
+
+      if (expectedAudience) {
+        const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+        if (!aud.includes(expectedAudience)) {
+          throw new Error(`Invalid audience: expected ${expectedAudience}`);
+        }
+      }
+    }
+
     async function verifyAccessToken(token, expectedAudience = audience) {
       const { header, payload, signature, signingInput } = parseJwt(token);
 
       if (!header.kid) {
         throw new Error('JWT header missing kid');
       }
+
+      validateClaims(payload, expectedAudience, Math.floor(Date.now() / 1000));
 
       const keyJwk = await findKeyForKid(header.kid);
 
@@ -326,7 +416,7 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error(`Unsupported key type: ${keyJwk.kty}`);
       }
 
-      const key = importKey(keyJwk);
+      const key = importKey(keyJwk, header.kid);
 
       const valid = crypto.verify(
         algorithm,
@@ -337,31 +427,6 @@ function createOidcVerifierFactory(options = {}) {
 
       if (!valid) {
         throw new Error('Invalid JWT signature');
-      }
-
-      const now = Math.floor(Date.now() / 1000);
-
-      if (payload.exp && payload.exp < now) {
-        throw new Error('Token expired');
-      }
-
-      if (payload.iat && payload.iat > now) {
-        throw new Error('Token issued in the future');
-      }
-
-      if (payload.nbf && payload.nbf > now) {
-        throw new Error('Token not yet valid');
-      }
-
-      if (normalizedIssuer && payload.iss !== normalizedIssuer) {
-        throw new Error(`Invalid issuer: expected ${normalizedIssuer}, got ${payload.iss}`);
-      }
-
-      if (expectedAudience) {
-        const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-        if (!aud.includes(expectedAudience)) {
-          throw new Error(`Invalid audience: expected ${expectedAudience}`);
-        }
       }
 
       return { claims: payload };

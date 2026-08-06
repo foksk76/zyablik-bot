@@ -318,6 +318,212 @@ test('invalid JWT format (not 3 parts) throws', async () => {
     );
 });
 
+// ---------------------------------------------------------------------------
+// Review round 5 (PR#25): iss normalization, clock skew, redirects, kid sanitize
+// ---------------------------------------------------------------------------
+
+test('token iss with trailing slash verifies against issuer without slash (review fix 1)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iss: 'https://idp.example.com/' }));
+
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims, 'token iss with trailing slash should verify');
+});
+
+test('iat within clock skew tolerance verifies (review fix 2)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 5, exp: now + 3600 }));
+
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims, 'iat a few seconds in the future (clock skew) should verify');
+});
+
+test('nbf within clock skew tolerance verifies (review fix 2)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ nbf: now + 5, exp: now + 3600 }));
+
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims, 'nbf a few seconds in the future (clock skew) should verify');
+});
+
+test('clockSkewToleranceSec: 0 restores strict iat validation (review fix 2)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com', clockSkewToleranceSec: 0 });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 5, exp: now + 3600 }));
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Token issued in the future');
+            return true;
+        }
+    );
+});
+
+test('same-origin redirect on discovery is followed (review fix 3)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: false,
+                status: 302,
+                headers: { get: (name) => (name === 'location' ? 'https://idp.example.com/.well-known/openid-configuration-real' : null) },
+                json: async () => ({})
+            };
+        }
+        if (u.includes('openid-configuration-real')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        return { ok: true, status: 200, json: async () => jwksBody };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims, 'same-origin redirect should be followed and verification should succeed');
+});
+
+test('redirect to foreign origin is refused and fallback is used (review fix 3)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: false,
+                status: 302,
+                headers: { get: (name) => (name === 'location' ? 'http://192.168.10.5/internal/keys' : null) },
+                json: async () => ({})
+            };
+        }
+        return { ok: true, status: 200, json: async () => jwksBody };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should fall back to /.well-known/jwks.json after refusing foreign redirect');
+    assert.ok(logger.warns.some((m) => m.includes('Refusing redirect to foreign origin')));
+    assert.ok(logger.warns.some((m) => m.includes('OIDC discovery returned 302')));
+});
+
+test('attacker-controlled kid is sanitized in error message (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const evilKid = 'kid\nSECRET';
+    const token = createJwt(keyPair.privateKey, makeHeader('RS256', evilKid), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Key not found in JWKS: kidSECRET');
+            assert.ok(!err.message.includes('\n'), 'control chars must be stripped from kid');
+            return true;
+        }
+    );
+});
+
+test('expired token is rejected before any network call (review nit)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch, getCallCount, getDiscoveryCallCount, getJwksCallCount } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ exp: now - 100 }));
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Token expired');
+            return true;
+        }
+    );
+    assert.equal(getCallCount(), 0, 'no discovery or JWKS fetch for an expired token');
+    assert.equal(getDiscoveryCallCount(), 0);
+    assert.equal(getJwksCallCount(), 0);
+});
+
+test('KeyObject is cached per kid across verifications (review nit)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+
+    const originalCreatePublicKey = crypto.createPublicKey;
+    let imports = 0;
+    const importMock = mock.method(crypto, 'createPublicKey', (opts) => {
+        imports++;
+        return originalCreatePublicKey(opts);
+    });
+
+    try {
+        await verifier.verifyAccessToken(token);
+        await verifier.verifyAccessToken(token);
+        assert.equal(imports, 1, 'public key should be imported once and cached per kid');
+    } finally {
+        importMock.mock.restore();
+    }
+});
+
 test('missing kid in header throws', async () => {
     ensureKeyPair();
     const jwksBody = createJwksResponse();
@@ -435,7 +641,7 @@ test('token issued in future throws', async () => {
     const verifier = factory({ issuer: 'https://idp.example.com' });
 
     const now = Math.floor(Date.now() / 1000);
-    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 10000, exp: now + 20000 }));
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: now + 3600, exp: now + 3700 }));
 
     await assert.rejects(
         () => verifier.verifyAccessToken(token),
@@ -1189,7 +1395,7 @@ test('token with nbf in the future is rejected (review fix 3)', async () => {
     const verifier = factory({ issuer: 'https://idp.example.com' });
 
     const now = Math.floor(Date.now() / 1000);
-    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ nbf: now + 10000, exp: now + 20000 }));
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ nbf: now + 3600, exp: now + 3700 }));
 
     await assert.rejects(
         () => verifier.verifyAccessToken(token),
