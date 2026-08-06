@@ -671,10 +671,20 @@ function runStartupConfigDetector(configPath, options = {}) {
 // Подтверждение конфига по готовности (ready): снятие pending-маркера.
 // Возвращает true, если маркер был снят.
 function confirmConfigApplied(configPath, options = {}) {
-    if (!pendingExists(configPath)) {
+    const pending = readPending(configPath);
+    // Маркер отсутствует ИЛИ повреждён (readPending возвращает null в обоих
+    // случаях). Битый маркер — производные данные, а не конфиг: снимаем его,
+    // чтобы не висеть в restart-цикле на готовности, и не подтверждаем.
+    if (!pending) {
+        if (pendingExists(configPath)) {
+            clearPending(configPath);
+            logConfigAudit(options.logger, 'config.pending_stale', {
+                configPath,
+                reason: 'confirm: pending-маркер повреждён — конфиг не подтверждён'
+            });
+        }
         return false;
     }
-    const pending = readPending(configPath);
     // L2 (review): подтверждаем только конфиг, соответствующий pending.hash
     // (файл, который записал Apply). Если активный файл изменён после Apply —
     // маркер устарел: снимаем его и не фиксируем config.confirmed.

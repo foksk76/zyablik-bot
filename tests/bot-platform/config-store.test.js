@@ -739,6 +739,18 @@ test('confirmConfigApplied: без маркера — false', () => {
     assert.equal(confirmConfigApplied(configPath), false);
 });
 
+test('confirmConfigApplied: повреждённый pending-маркер — false без краха, битый маркер снят', () => {
+    const dir = makeTempConfigDir();
+    const configPath = writeConfig(dir, validConfig);
+    const { pendingPath } = serviceFilePaths(configPath);
+    fs.writeFileSync(pendingPath, '{"hash": "truncated', 'utf8');
+
+    assert.equal(pendingExists(configPath), true);
+    assert.doesNotThrow(() => confirmConfigApplied(configPath));
+    assert.equal(confirmConfigApplied(configPath), false, 'повреждённый маркер не подтверждается');
+    assert.equal(pendingExists(configPath), false, 'повреждённый маркер снят, restart-цикл исключён');
+});
+
 test('confirmConfigApplied: активный файл изменён после Apply — маркер снят, конфиг НЕ подтверждается (L2 review)', () => {
     const dir = makeTempConfigDir();
     const configPath = writeConfig(dir, validConfig);
