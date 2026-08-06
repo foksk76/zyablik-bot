@@ -1906,3 +1906,99 @@ test('concurrent cold-start verifications share a single discovery (review fix 4
     assert.equal(getDiscoveryCallCount(), 1, 'concurrent cold-start verifications must share one discovery fetch');
     assert.equal(getJwksCallCount(), 1, 'concurrent cold-start verifications must share one JWKS fetch');
 });
+
+// ---------------------------------------------------------------------------
+// Review round 8 (PR#25): discovery 404 authoritative cache, sanitized JSON errors
+// ---------------------------------------------------------------------------
+
+test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix 3)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let discoveryCount = 0;
+    let jwksCount = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            discoveryCount++;
+            return { ok: false, status: 404, json: async () => ({}) };
+        }
+        jwksCount++;
+        return { ok: true, status: 200, json: async () => createJwksResponse('kid-' + jwksCount) };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: discovery 404 → fallback jwks.json (NanoIDP-сценарий).
+        await verifier.verifyAccessToken(tokenFor('kid-1'));
+        assert.equal(discoveryCount, 1);
+        assert.equal(jwksCount, 1);
+
+        // t0 + 5min + 1s: 5-мин отрицательный TTL прошёл, но 404 авторитетный —
+        // кешируется на 1 час, пере-пробинга нет.
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        await verifier.verifyAccessToken(tokenFor('kid-1'));
+        assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 5-min window');
+
+        // t0 + 1ч: discovery-кеш (1ч) протух → 404 пере-резолвится.
+        currentTime += JWKS_CACHE_TTL_MS;
+        await verifier.verifyAccessToken(tokenFor('kid-2'));
+        assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the 1h cache expiry');
+        assert.equal(jwksCount, 2);
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('malformed header JSON throws sanitized error without input preview (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    // Header с control char: raw SyntaxError от JSON.parse вшивал бы превью
+    // ввода (включая \0) в сообщение. Ожидаем стабильное 'Invalid JWT header'.
+    const badHeader = '{"alg":"RS256\0evil"';
+    const token = `${base64UrlEncode(badHeader)}.${base64UrlEncode(makePayload())}.${base64UrlEncode('signature')}`;
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT header');
+            assert.ok(!err.message.includes('\0'), 'no raw input preview in error message');
+            return true;
+        }
+    );
+});
+
+test('malformed payload JSON throws sanitized error (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = `${base64UrlEncode(makeHeader())}.${base64UrlEncode('{"sub":"x\0evil"')}.${base64UrlEncode('signature')}`;
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT payload');
+            assert.ok(!err.message.includes('\0'), 'no raw input preview in error message');
+            return true;
+        }
+    );
+});

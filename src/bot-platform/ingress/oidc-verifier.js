@@ -54,10 +54,11 @@ function createOidcVerifierFactory(options = {}) {
     // Все исходящие fetch (discovery и JWKS) идут под AbortSignal.timeout —
     // зависший IdP (чёрная дыра без RST) не должен вешать весь ingress через
     // in-flight dedup. Редиректы (301/302/307/308) следуются, но только внутри
-    // origin-а issuer'а (protocol + host), с проверкой каждого hop'а: SSRF-
-    // редирект на внутренний/чужой адрес обрывается, а легитимная нормализация
-    // URL реальных IdP (www→bare, http→https, трейлинг-слэш, issuer-path)
-    // продолжает работать. Кроме per-hop timeout есть общий дедлайн на всю
+    // origin-а issuer'а (точное равенство protocol + host) с проверкой каждого
+    // hop'а: редирект на внутренний/чужой адрес, смену host (www→bare) или
+    // смену протокола (http→https) обрываем (SSRF defense-in-depth; issuer
+    // конфигурируется с финальным scheme/host — трейлинг-слэш и issuer-path
+    // продолжают работать). Кроме per-hop timeout есть общий дедлайн на всю
     // цепочку (fetchTotalTimeoutMs, дефолт 30 с): иначе редирект-петля давала
     // бы до (MAX_REDIRECT_HOPS + 1) × fetchTimeoutMs ≈ 90 с, разделённых между
     // всеми /ingest через in-flight dedup. Каждый hop получает
@@ -146,7 +147,11 @@ function createOidcVerifierFactory(options = {}) {
 
       if (!response.ok) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery returned ${response.status} for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
-        return { jwksUri: fallbackJwksUri(), discovered: false };
+        // 404 — авторитетный ответ «эндпоинта нет» (целевой NanoIDP его
+        // отдаёт всегда): кешируется как успех, чтобы не пере-пробовать
+        // заведомо отсутствующий discovery каждые 5 минут. 5xx и сетевые
+        // сбои — транзиентные, для них остаётся короткий отрицательный TTL.
+        return { jwksUri: fallbackJwksUri(), discovered: false, notFound: response.status === 404 };
       }
 
       let discovery;
@@ -187,14 +192,17 @@ function createOidcVerifierFactory(options = {}) {
       return { jwksUri: resolvedJwksUri, discovered: true };
     }
 
-    // Кешируется только успешный discovery (1 час); сбойный — на короткий
-    // отрицательный TTL, чтобы транзиентно недоступный IdP не застревал на час.
-    // Параллельные вызовы на холодном старте (burst /ingest) дедуплицируются
-    // через общий in-flight promise — иначе каждый запускал бы свой discovery.
+    // Кешируется успешный discovery (1 час) и авторитетный 404 (эндпоинта нет);
+    // транзиентный сбой (5xx/сеть/таймаут) — на короткий отрицательный TTL,
+    // чтобы недоступный IdP не застревал на час. Параллельные вызовы на
+    // холодном старте (burst /ingest) дедуплицируются через общий in-flight
+    // promise — иначе каждый запускал бы свой discovery.
     async function getJwksUri() {
       const now = Date.now();
       if (jwksUriInfo) {
-        const ttl = jwksUriInfo.discovered ? JWKS_CACHE_TTL_MS : JWKS_NEGATIVE_CACHE_TTL_MS;
+        const ttl = (jwksUriInfo.discovered || jwksUriInfo.notFound)
+          ? JWKS_CACHE_TTL_MS
+          : JWKS_NEGATIVE_CACHE_TTL_MS;
         if (now - jwksUriInfo.resolvedAt < ttl) {
           return jwksUriInfo;
         }
@@ -374,8 +382,23 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error('Invalid JWT format');
       }
 
-      const header = JSON.parse(base64UrlDecode(parts[0]).toString('utf8'));
-      const payload = JSON.parse(base64UrlDecode(parts[1]).toString('utf8'));
+      // JSON.parse на атакующий-контролируемом вводе кидает SyntaxError с
+      // превью входных данных (включая control chars). Обернуть в стабильное
+      // сообщение без встроенного ввода — иначе сырое превью текло бы в
+      // ошибки/логи напрямую у консьюмеров модуля (см. safeValue).
+      let header;
+      let payload;
+      try {
+        header = JSON.parse(base64UrlDecode(parts[0]).toString('utf8'));
+      } catch {
+        throw new Error('Invalid JWT header');
+      }
+      try {
+        payload = JSON.parse(base64UrlDecode(parts[1]).toString('utf8'));
+      } catch {
+        throw new Error('Invalid JWT payload');
+      }
+
       const signature = base64UrlDecode(parts[2]);
 
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
