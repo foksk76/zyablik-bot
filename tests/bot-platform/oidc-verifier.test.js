@@ -2090,13 +2090,16 @@ test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix
         await verifier.verifyAccessToken(tokenFor('kid-1'));
         assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 5-min window');
 
-        // t0 + 15 мин − 1с: внутри авторитетного окна (DISCOVERY_NOT_FOUND_TTL_MS)
+        // t0 + 15 мин − 2с: внутри авторитетного окна (DISCOVERY_NOT_FOUND_TTL_MS)
         // всё ещё нет re-probe.
         currentTime += DISCOVERY_NOT_FOUND_TTL_MS - JWKS_NEGATIVE_CACHE_TTL_MS - 2000;
         await verifier.verifyAccessToken(tokenFor('kid-1'));
         assert.equal(discoveryCount, 1, 'authoritative 404 must not be re-probed within the 15-min window');
 
         // t0 + 20 мин: авторитетный TTL (15 мин) протух → 404 пере-резолвится.
+        // Инвариант: re-probe срабатывает через kid-miss ('kid-2' нет в 1h-свежем
+        // закешированном JWKS) + forced refresh — если здесь поставить 'kid-1',
+        // тест молча пройдёт без пере-резолва discovery, поэтому kid обязателен.
         currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1000;
         await verifier.verifyAccessToken(tokenFor('kid-2'));
         assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the notFound TTL expiry');
@@ -2345,7 +2348,7 @@ test('fallback success keeps discovery authoritative — no 5-min re-probe (revi
         // t0 + 5мин + 1с: kid-miss форсит refresh (grace прошёл) → getJwksUri
         // возвращает кешированный fallback с discovered:true — discovery НЕ
         // пере-пробуется на 5-мин отметке (с discovered:false был бы re-probe).
-        currentTime += 5 * 60 * 1000 + 1000;
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1000;
         const result2 = await verifier.verifyAccessToken(tokenFor('fb-kid-2'));
         assert.ok(result2.claims);
         assert.equal(discoveryCount, 1, 'healthy discovery must not be re-probed at the 5-minute mark');
