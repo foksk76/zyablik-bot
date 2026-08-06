@@ -311,6 +311,39 @@ function isDeclaredPluginField(pluginSchemas, pluginName, key) {
     return Boolean(field && !field.secret);
 }
 
+// Маскирует секреты одной секции (системной или ветки плагина) по схеме:
+//  - объявленные секретные поля → статус { secret: true, set };
+//  - необъявленные строковые ключи ($VAR-ссылка или литерал) → статус
+//    (без схемы нельзя отличить настройку от секрета — defense-in-depth, m4);
+//  - необъявленные нестроковые значения (объект/массив/число/булево)
+//    отбрасываются целиком — структура/значение не утекают.
+// Единая политика для системных секций (L1 R7/R8) и веток плагинов (H3, R8):
+// GET /api/config не затронут — buildEffectiveSections отдаёт только ключи
+// схемы, здесь маскируется сам stage/diff-снапшот.
+function maskSectionSecrets(section, schema) {
+    const masked = { ...section };
+    if (schema) {
+        for (const [key, field] of Object.entries(schema)) {
+            if (field.secret && masked[key] !== undefined) {
+                masked[key] = maskSecret(masked[key]);
+            }
+        }
+    }
+    for (const [key, value] of Object.entries(masked)) {
+        if (schema && schema[key]) {
+            continue;
+        }
+        if (typeof value === 'string') {
+            if (value !== '') {
+                masked[key] = maskSecret(value);
+            }
+            continue;
+        }
+        delete masked[key];
+    }
+    return masked;
+}
+
 // Маскирование staged-снапшота для ответов API: секретные поля системы и
 // плагинов не уходят наружу даже как $VAR-имя — только статус
 // { secret: true, set }. Файл на диске не трогается; export остаётся
@@ -326,33 +359,7 @@ function maskStagedSecrets(fileConfig, plugins = []) {
         if (!section || typeof section !== 'object') {
             continue;
         }
-        const masked = { ...section };
-        for (const [key, field] of Object.entries(SYSTEM_SCHEMA[sectionName])) {
-            if (field.secret && masked[key] !== undefined) {
-                masked[key] = maskSecret(masked[key]);
-            }
-        }
-        // L1 (review R7) + R8: необъявленные ключи системных секций — те же
-        // потенциальные секреты, что и в ветках плагинов (m4). Без схемы
-        // нельзя отличить настройку от литерального секрета, поэтому:
-        // непустая строка ($VAR-ссылка или литерал) маскируется до
-        // { secret: true, set }; нестроковое значение (объект/массив/число/
-        // булево) отбрасывается целиком — структура/значение не утекают.
-        // (GET /api/config не затронут — buildEffectiveSections отдаёт только
-        // ключи схемы; здесь маскируется сам stage/diff-снапшот.)
-        for (const [key, value] of Object.entries(masked)) {
-            if (SYSTEM_SCHEMA[sectionName][key]) {
-                continue;
-            }
-            if (typeof value === 'string') {
-                if (value !== '') {
-                    masked[key] = maskSecret(value);
-                }
-                continue;
-            }
-            delete masked[key];
-        }
-        result[sectionName] = masked;
+        result[sectionName] = maskSectionSecrets(section, SYSTEM_SCHEMA[sectionName]);
     }
 
     const pluginSchemas = buildPluginSchemas(plugins);
@@ -366,35 +373,7 @@ function maskStagedSecrets(fileConfig, plugins = []) {
                 maskedPlugins[pluginName] = pluginValue;
                 continue;
             }
-            const schema = pluginSchemas[pluginName];
-            const masked = { ...pluginValue };
-            if (schema) {
-                for (const [key, field] of Object.entries(schema)) {
-                    if (field.secret && masked[key] !== undefined) {
-                        masked[key] = maskSecret(masked[key]);
-                    }
-                }
-            }
-            // Defense-in-depth (m4): защита веток без configSchema и
-            // необъявленных ключей. H3 (review): объявленные поля configSchema
-            // (в т.ч. НЕсекретные — обычные значения, секреты уже замаскированы
-            // в цикле выше) пропускаются. Необъявленный ключ: непустая строка
-            // ($VAR-ссылка или литерал) маскируется до { secret, set };
-            // нестроковое значение (объект/массив/число/булево) отбрасывается
-            // целиком (R8: та же политика, что и для системных секций).
-            for (const [key, value] of Object.entries(masked)) {
-                if (schema && schema[key]) {
-                    continue;
-                }
-                if (typeof value === 'string') {
-                    if (value !== '') {
-                        masked[key] = maskSecret(value);
-                    }
-                    continue;
-                }
-                delete masked[key];
-            }
-            maskedPlugins[pluginName] = masked;
+            maskedPlugins[pluginName] = maskSectionSecrets(pluginValue, pluginSchemas[pluginName]);
         }
         result.plugins = maskedPlugins;
     }

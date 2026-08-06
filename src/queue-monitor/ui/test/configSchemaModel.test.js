@@ -90,6 +90,7 @@ test('coerceValue: очищенное поле → дефолт схемы (чи
     assert.deepEqual(coerceValue('', schema.bot.maxTransportMode), { ok: true, value: 'long_polling' });
     // Явный null (nullable «—») сохраняется как есть.
     assert.deepEqual(coerceValue(null, schema.bot.maxPollLimit), { ok: true, value: null });
+    assert.deepEqual(coerceValue(null, schema.bot.maxTransportMode), { ok: true, value: null });
     assert.deepEqual(coerceValue(null, schema.bot.nullableFlag), { ok: true, value: null });
     assert.deepEqual(coerceValue('', schema.bot.nullableFlag), { ok: true, value: null });
 });

@@ -72,10 +72,10 @@ export function coerceValue(raw, field) {
 
     switch (type) {
     case 'number': {
-        if (raw === '' || raw === null) {
-            if (raw === null) {
-                return { ok: true, value: null };
-            }
+        if (raw === null) {
+            return { ok: true, value: null };
+        }
+        if (raw === '') {
             const defaultValue = fieldDefault(field);
             // M3 (review): очистка поля без числового дефолта → undefined
             // (ключ пропускается в staged), а не null — иначе validateValue
@@ -108,10 +108,10 @@ export function coerceValue(raw, field) {
         return { ok: false, value: null };
     }
     case 'enum': {
-        if (raw === '' || raw === null) {
-            if (raw === null) {
-                return { ok: true, value: null };
-            }
+        if (raw === null) {
+            return { ok: true, value: null };
+        }
+        if (raw === '') {
             const defaultValue = fieldDefault(field);
             return { ok: true, value: defaultValue !== '' ? defaultValue : null };
         }
@@ -125,10 +125,10 @@ export function coerceValue(raw, field) {
         // boolean/enum), а не [] — иначе в staged уезжал "maxPollTypes": []
         // (файл расходился с документированными дефолтами, diff вводил в
         // заблуждение). Явный null (nullable) сохраняется как null.
-        if (raw === '' || raw === null) {
-            if (raw === null) {
-                return { ok: true, value: null };
-            }
+        if (raw === null) {
+            return { ok: true, value: null };
+        }
+        if (raw === '') {
             const defaultValue = fieldDefault(field);
             return { ok: true, value: Array.isArray(defaultValue) ? [...defaultValue] : [] };
         }
@@ -142,10 +142,10 @@ export function coerceValue(raw, field) {
     default: {
         // string (и type='string' с enum-ограничением, как в системной схеме)
         if (Array.isArray(field.enum)) {
-            if (raw === '' || raw === null) {
-                if (raw === null) {
-                    return { ok: true, value: null };
-                }
+            if (raw === null) {
+                return { ok: true, value: null };
+            }
+            if (raw === '') {
                 // Пустая строка для enum-поля → дефолт (сервер не примет '').
                 const defaultValue = fieldDefault(field);
                 return { ok: true, value: defaultValue !== '' ? defaultValue : null };
