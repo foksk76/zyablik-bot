@@ -1225,6 +1225,92 @@ test('JWKS fetch failure on discovered jwks_uri with dead fallback still throws 
     );
 });
 
+test('JWKS body that is not JSON yields a stable error, not a raw JSON.parse preview (review round 8)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    let jwksFetched = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return { ok: true, status: 200, json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' }) };
+        }
+        jwksFetched++;
+        return {
+            ok: true,
+            status: 200,
+            json: async () => { throw new SyntaxError('Unexpected token \u0000 in JSON at position 0'); }
+        };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'JWKS body is not JSON');
+            assert.ok(!err.message.includes('\u0000'), 'error must not embed raw input preview with control chars');
+            return true;
+        }
+    );
+    assert.equal(jwksFetched, 2, 'discovered jwks_uri + well-known fallback both attempted');
+    assert.ok(logger.warns.some((m) => m.includes('JWKS body is not JSON')), 'retry-warning should carry the stable message');
+});
+
+test('SSRF-rejected jwks_uri is cached authoritatively — no 5-minute re-probe (review round 8)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let discoveryCount = 0;
+    // Ротация ключей: kid появляется в well-known только к моменту своего
+    // использования, поэтому каждый шаг форсирует kid-miss → refresh.
+    const jwksBody = { keys: [createJwksResponse('kid-a').keys[0]] };
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            discoveryCount++;
+            return { ok: true, status: 200, json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://evil.example.com/keys' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ keys: jwksBody.keys.slice() }) };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: discovery выдал чужой jwks_uri → авторитетный fallback на well-known.
+        const result = await verifier.verifyAccessToken(tokenFor('kid-a'));
+        assert.ok(result.claims);
+        assert.equal(discoveryCount, 1);
+
+        // kid-miss (kid-b) форсирует refresh; внутри 1h авторитетного кеша discovery
+        // НЕ пере-пробуется, хотя для неавторитетного отказа прошёл бы 5-мин TTL.
+        jwksBody.keys.push(createJwksResponse('kid-b').keys[0]);
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        const result2 = await verifier.verifyAccessToken(tokenFor('kid-b'));
+        assert.ok(result2.claims);
+        assert.equal(discoveryCount, 1, 'foreign-origin jwks_uri must not re-probe discovery at the 5-minute mark');
+
+        // kid-miss (kid-c) форсирует refresh; прошёл 1h TTL авторитетного отказа
+        // → discovery разрешается заново.
+        jwksBody.keys.push(createJwksResponse('kid-c').keys[0]);
+        currentTime += JWKS_CACHE_TTL_MS + 1;
+        const result3 = await verifier.verifyAccessToken(tokenFor('kid-c'));
+        assert.ok(result3.claims);
+        assert.equal(discoveryCount, 2, 'after 1h authoritative TTL the discovery is re-resolved');
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
 test('failed OIDC discovery is negative-cached — re-resolved on next refresh (review fix 2)', async () => {
     ensureKeyPair();
     const logger = createMockLogger();

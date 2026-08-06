@@ -93,7 +93,22 @@ function createJwtSourceAuth(options = {}) {
       throw new Error('Missing Bearer token');
     }
 
-    const tokenVerifier = getVerifier();
+    let tokenVerifier;
+    try {
+      tokenVerifier = getVerifier();
+    } catch (error) {
+      // getVerifier() создаёт verifier лениво и бросает при невалидном
+      // конфиге (например, Invalid issuer URL). Логировать как остальные
+      // auth-сбои, иначе кривая конфигурация падала бы тихо без reason.
+      logger.error(formatLogLine({
+        level: 'error',
+        module: MODULE_NAME,
+        reqId,
+        action: 'jwt verification failed',
+        context: { reason: error.message, ip }
+      }));
+      throw error;
+    }
 
     if (!tokenVerifier) {
       if (reqId) {

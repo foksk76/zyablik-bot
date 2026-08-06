@@ -103,9 +103,30 @@ test('authenticate throws when verifier is not configured', async () => {
   const auth = createJwtSourceAuth({ issuer: '' });
 
   await assert.rejects(
-    () => auth.authenticate('Bearer some-token'),
+    () => auth.authenticate('Bearer token'),
     /JWT verifier not configured/
   );
+});
+
+test('authenticate logs error when verifierFactory throws during getVerifier (review round 8)', async () => {
+  const logEntries = [];
+  const auth = createJwtSourceAuth({
+    issuer: 'https://idp.example.com',
+    verifierFactory: () => {
+      throw new Error('Invalid issuer URL: https://idp.example.com');
+    },
+    logger: { info: (msg) => logEntries.push(msg), error: (msg) => logEntries.push(msg) }
+  });
+
+  await assert.rejects(
+    () => auth.authenticate('Bearer token', { reqId: 'req-789', ip: '10.0.0.1' }),
+    /Invalid issuer URL/
+  );
+
+  const errLog = logEntries.find((e) => typeof e === 'string' && e.includes('jwt verification failed'));
+  assert.ok(errLog, 'should log jwt verification failed on getVerifier failure');
+  assert.ok(errLog.includes('Invalid issuer URL'), 'error log should carry the reason');
+  assert.ok(errLog.includes('req-789'), 'error log should include reqId');
 });
 
 test('authenticate returns custom source from bot_source claim', async () => {

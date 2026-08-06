@@ -188,9 +188,10 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
   проверяется после поиска ключа в JWKS, до `importKey`
 - **Ограничение (kid-less IdP)**: токен без `kid` отклоняется; ключ JWKS без
   `kid` не находится — IdP обязан публиковать `kid` (RFC 7515).
-- **Claim validation**: `exp`, `iat`, `nbf`, `iss`, `aud` — до сетевых fetch
-  и RSA-verify; `iat`/`nbf` с допуском на рассинхрон часов (`clockSkewToleranceSec`,
-  дефолт 30 с)
+- **Claim validation**: temporal-claims (`exp`, `iat`, `nbf`) — до сетевых fetch
+  и RSA-verify (анти-амплификация, допуск на рассинхрон часов
+  `clockSkewToleranceSec`, дефолт 30 с, включая `exp` в безопасную сторону);
+  `iss`/`aud` — после проверки подписи (нет «оракула» конфигурации до verify)
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`; JWKS-тело
   валидируется (обязательный массив `keys`) до кеширования; `KeyObject` кешируется
   по `kid` (инвалидируется при refresh JWKS)

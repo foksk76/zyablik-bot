@@ -78,6 +78,9 @@ function createOidcVerifierFactory(options = {}) {
         if (response.status < 300 || response.status >= 400) {
           return response;
         }
+        // 3xx-тело не читается (нужен только location): отменить поток, чтобы
+        // не держать сокет unconsumed-ответом (гигиена undici).
+        await response.body?.cancel();
         const location = response.headers && typeof response.headers.get === 'function'
           ? response.headers.get('location')
           : null;
@@ -186,7 +189,10 @@ function createOidcVerifierFactory(options = {}) {
       const resolvedJwksUri = resolveJwksUriAgainstIssuer(discoveredJwksUri);
       if (!resolvedJwksUri) {
         logger.warn(`[${MODULE_NAME}] Ignoring jwks_uri on foreign origin: ${discoveredJwksUri}; using ${DEFAULT_JWKS_PATH}`);
-        return { jwksUri: fallbackJwksUri(), discovered: false };
+        // Авторитетный отказ: discovery-документ непригоден (чужой origin).
+        // Кешировать как 404 — иначе кривой jwks_uri пере-пробовался бы
+        // каждые 5 минут вечно.
+        return { jwksUri: fallbackJwksUri(), discovered: false, notFound: true };
       }
 
       return { jwksUri: resolvedJwksUri, discovered: true };
@@ -228,7 +234,15 @@ function createOidcVerifierFactory(options = {}) {
       if (!response.ok) {
         throw new Error(`Failed to fetch JWKS from ${url}: ${response.status}`);
       }
-      return assertJwksShape(await response.json());
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        // Как и в parseJwt/discovery: raw SyntaxError от JSON.parse кидает
+        // превью ввода с control chars — обернуть в стабильное сообщение.
+        throw new Error('JWKS body is not JSON');
+      }
+      return assertJwksShape(body);
     }
 
     // 200-без-keys не должен кешироваться как успех на час (иначе findKey всегда
