@@ -106,6 +106,7 @@ function createOidcVerifierFactory(options = {}) {
     let jwksFetchedAt = 0;
     let jwksUriInfo = null;
     let jwksInFlight = null;
+    let jwksUriInFlight = null;
     let jwksFailedAt = 0;
     const keyObjectCache = new Map();
 
@@ -188,6 +189,8 @@ function createOidcVerifierFactory(options = {}) {
 
     // Кешируется только успешный discovery (1 час); сбойный — на короткий
     // отрицательный TTL, чтобы транзиентно недоступный IdP не застревал на час.
+    // Параллельные вызовы на холодном старте (burst /ingest) дедуплицируются
+    // через общий in-flight promise — иначе каждый запускал бы свой discovery.
     async function getJwksUri() {
       const now = Date.now();
       if (jwksUriInfo) {
@@ -197,9 +200,19 @@ function createOidcVerifierFactory(options = {}) {
         }
       }
 
-      const info = await resolveJwksUri();
-      jwksUriInfo = { ...info, resolvedAt: Date.now() };
-      return jwksUriInfo;
+      if (jwksUriInFlight) {
+        return jwksUriInFlight;
+      }
+      jwksUriInFlight = (async () => {
+        const info = await resolveJwksUri();
+        jwksUriInfo = { ...info, resolvedAt: Date.now() };
+        return jwksUriInfo;
+      })();
+      try {
+        return await jwksUriInFlight;
+      } finally {
+        jwksUriInFlight = null;
+      }
     }
 
     async function fetchJwks(url) {
@@ -368,12 +381,15 @@ function createOidcVerifierFactory(options = {}) {
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
     }
 
-    // Claim-валидация выполняется ДО сетевых fetch и RSA-verify: claims лежат в
-    // подписанной части токена, поэтому проверять их безопасно, а expired/
-    // garbage-токен не должен на холодном старте дёргать discovery + JWKS
-    // (амплификация через невалидные токены).
-    function validateClaims(payload, expectedAudience, now) {
-      if (payload.exp && payload.exp < now) {
+    // Temporal-claim-валидация (exp/iat/nbf) выполняется ДО сетевых fetch и
+    // RSA-verify: значения приходят из самого токена и не раскрывают конфиг,
+    // поэтому expired/garbage-токен не должен на холодном старте дёргать
+    // discovery + JWKS (анти-амплификация). exp допускает skew в безопасную
+    // сторону (токен, протухший в пределах clockSkewToleranceSec, ещё
+    // принимается) — при расхождении часов IdP и ingress строгий exp резал бы
+    // легитимные токены раньше времени.
+    function validateTemporalClaims(payload, now) {
+      if (payload.exp && payload.exp < now - skewToleranceSec) {
         throw new Error('Token expired');
       }
 
@@ -384,7 +400,14 @@ function createOidcVerifierFactory(options = {}) {
       if (payload.nbf && payload.nbf > now + skewToleranceSec) {
         throw new Error('Token not yet valid');
       }
+    }
 
+    // iss/aud проверяются ПОСЛЕ проверки подписи: до crypto.verify эти claims
+    // атакующий-контролируемые, и их проверка в логах (reason) позволяла бы
+    // отличить Invalid audience от Invalid JWT signature — «оракул» конфигурации
+    // (точный expected aud/iss). После успешной верификации claims авторизованы
+    // подписью IdP и больше не являются атакующим-контролируемыми.
+    function validateIssuerAudience(payload, expectedAudience) {
       // payload.iss нормализуется так же, как конфигурированный issuer (срез
       // трейлинг-слэша), иначе токен с iss "https://idp/" при конфиге
       // "https://idp" давал бы тихий 401 на все токены.
@@ -421,7 +444,7 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error(`Unsupported algorithm: ${safeValue(header.alg)}`);
       }
 
-      validateClaims(payload, expectedAudience, Math.floor(Date.now() / 1000));
+      validateTemporalClaims(payload, Math.floor(Date.now() / 1000));
 
       const keyJwk = await findKeyForKid(header.kid);
 
@@ -444,6 +467,8 @@ function createOidcVerifierFactory(options = {}) {
       if (!valid) {
         throw new Error('Invalid JWT signature');
       }
+
+      validateIssuerAudience(payload, expectedAudience);
 
       return { claims: payload };
     }

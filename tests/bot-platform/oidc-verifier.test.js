@@ -1792,3 +1792,117 @@ test('total fetch deadline bounds the whole redirect chain (review fix 6)', asyn
         dateMock.mock.restore();
     }
 });
+
+// ---------------------------------------------------------------------------
+// Round 7 review: iss/aud after signature check, exp skew, discovery dedup
+// ---------------------------------------------------------------------------
+
+test('invalid signature wins over mismatched aud — no config oracle (review fix 1)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ aud: 'wrong-aud' }));
+    const parts = token.split('.');
+    const tampered = `${parts[0]}.${parts[1]}.${parts[2]}A`;
+
+    // Если бы aud проверялся до crypto.verify, атакующий с мусорной подписью
+    // и подменённым aud получал бы 'Invalid audience' и по логу (reason)
+    // угадывал expected aud. Сейчас победителем всегда является проверка
+    // подписи.
+    await assert.rejects(
+        () => verifier.verifyAccessToken(tampered, 'expected-aud'),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT signature');
+            return true;
+        }
+    );
+});
+
+test('invalid signature wins over mismatched iss — no config oracle (review fix 1)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iss: 'https://wrong-issuer.com' }));
+    const parts = token.split('.');
+    const tampered = `${parts[0]}.${parts[1]}.${parts[2]}A`;
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(tampered),
+        (err) => {
+            assert.equal(err.message, 'Invalid JWT signature');
+            return true;
+        }
+    );
+});
+
+test('exp within clock skew tolerance still verifies (review fix 2)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    // Часы IdP чуть впереди ingress: exp на 5 секунд в прошлом, допуск 30 с.
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ exp: now - 5 }));
+
+    const result = await verifier.verifyAccessToken(token);
+    assert.ok(result.claims, 'exp a few seconds in the past (clock skew) should verify');
+});
+
+test('exp beyond clock skew tolerance still rejects (review fix 2)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ exp: now - 60 }));
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Token expired');
+            return true;
+        }
+    );
+});
+
+test('concurrent cold-start verifications share a single discovery (review fix 4)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch, getDiscoveryCallCount, getJwksCallCount } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+
+    // На холодном старте три параллельных запроса на один и тот же verifier:
+    // discovery должен выполниться один раз, а не трижды.
+    const results = await Promise.all([
+        verifier.verifyAccessToken(token),
+        verifier.verifyAccessToken(token),
+        verifier.verifyAccessToken(token)
+    ]);
+
+    assert.equal(results.length, 3);
+    assert.equal(getDiscoveryCallCount(), 1, 'concurrent cold-start verifications must share one discovery fetch');
+    assert.equal(getJwksCallCount(), 1, 'concurrent cold-start verifications must share one JWKS fetch');
+});
