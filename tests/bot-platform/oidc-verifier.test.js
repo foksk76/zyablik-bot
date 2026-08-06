@@ -2098,8 +2098,8 @@ test('discovery 404 is cached as authoritative — no 5-min re-probe (review fix
 
         // t0 + 20 мин: авторитетный TTL (15 мин) протух → 404 пере-резолвится.
         // Инвариант: re-probe срабатывает через kid-miss ('kid-2' нет в 1h-свежем
-        // закешированном JWKS) + forced refresh — если здесь поставить 'kid-1',
-        // тест молча пройдёт без пере-резолва discovery, поэтому kid обязателен.
+        // закешированном JWKS) + forced refresh — без 'kid-2' re-probe не
+        // сработал бы вовсе, и discoveryCount-ассерт упал бы, не проверив путь.
         currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1000;
         await verifier.verifyAccessToken(tokenFor('kid-2'));
         assert.equal(discoveryCount, 2, 'authoritative 404 is re-probed after the notFound TTL expiry');
