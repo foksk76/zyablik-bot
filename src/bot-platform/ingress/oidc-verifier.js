@@ -42,6 +42,18 @@ function createOidcVerifierFactory(options = {}) {
       if (parsedIssuer.protocol !== 'https:' && parsedIssuer.protocol !== 'http:') {
         throw new Error('unsupported scheme');
       }
+      // Query/fragment в issuer — тихий слом auth: `#frag` срезает путь при
+      // сборке discovery-URL (`issuerBaseUrl + DISCOVERY_PATH`), а `?x=1`
+      // делает невозможным совпадение с `payload.iss` токена. Отклоняем как
+      // ошибку конфигурации (OIDC issuer — это origin с опциональным путём,
+      // RFC 8414 не допускает query/fragment). Проверяем именно `href`, а не
+      // `.search`/`.hash`: WHATWG-URL нормализует холостой `?`/`#` в пустые
+      // свойства, но сохраняет разделитель в href — иначе `issuer: '…?'`
+      // проходил бы проверку, а `issuerBaseUrl + DISCOVERY_PATH` превращал
+      // путь в query (silent-поломка того же класса, что трейлинг-слэш).
+      if (parsedIssuer.href.includes('?') || parsedIssuer.href.includes('#')) {
+        throw new Error('query or fragment not allowed');
+      }
     } catch {
       throw new Error(`Invalid issuer URL: ${issuer}`);
     }
@@ -293,7 +305,19 @@ function createOidcVerifierFactory(options = {}) {
             throw err;
           }
           // Протухший/неверный jwks_uri из discovery — один retry на дефолтный путь.
+          // Но если jwksUri уже сам является дефолтным (после прошлого
+          // fallback-успеха), retry тем же URL — это дублирующий запрос
+          // и путающий лог («retrying X», где X только что упал): вместо
+          // этого фиксируем сбой и понижаем jwksUriInfo до отрицательного
+          // состояния, чтобы discovery пере-резолвился через короткий TTL.
           const fallbackUrl = fallbackJwksUri();
+          if (jwksUri === fallbackUrl) {
+            const failedAt = Date.now();
+            logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; jwks_uri is already the default path — downgrading jwksUriInfo, discovery re-resolves in ${JWKS_NEGATIVE_CACHE_TTL_MS / 60000}min`);
+            jwksFailedAt = failedAt;
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: failedAt };
+            throw err;
+          }
           logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
           try {
             const fresh = await fetchJwks(fallbackUrl);
@@ -301,10 +325,22 @@ function createOidcVerifierFactory(options = {}) {
             keyObjectCache.clear();
             jwksFetchedAt = Date.now();
             jwksFailedAt = 0;
-            jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
+            // Discovery сам был валиден (сломался только jwks_uri): сохраняем
+            // discovered:true, чтобы jwksUriInfo держал 1h-кеш (JWKS_CACHE_TTL_MS),
+            // а не короткий 5-мин отрицательный — иначе рабочий discovery
+            // пере-пробовался бы каждые 5 минут без причины. Fallback-URL
+            // остаётся активным до истечения TTL, после чего discovery
+            // пере-резолвится и восстановленный jwks_uri снова будет использован.
+            jwksUriInfo = { jwksUri: fallbackUrl, discovered: true, resolvedAt: Date.now() };
             return fresh;
           } catch (fallbackErr) {
-            jwksFailedAt = Date.now();
+            const failedAt = Date.now();
+            logger.warn(`[${MODULE_NAME}] JWKS fallback fetch failed for ${fallbackUrl}: ${fallbackErr.message}; downgrading jwksUriInfo, discovery re-resolves in ${JWKS_NEGATIVE_CACHE_TTL_MS / 60000}min`);
+            jwksFailedAt = failedAt;
+            // Fallback тоже сдох: понижаем jwksUriInfo до отрицательного состояния
+            // с новым resolvedAt — иначе мёртвый URL держался бы до конца 1h-окна,
+            // и восстановившийся discovered jwks_uri не был бы испробован.
+            jwksUriInfo = { ...jwksUriInfo, discovered: false, resolvedAt: failedAt };
             throw fallbackErr;
           }
         }
@@ -454,24 +490,46 @@ function createOidcVerifierFactory(options = {}) {
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
     }
 
+    // RFC 7519: NumericDate — это JSON-число (секунды с Unix epoch). Не-числовой
+    // claim (например `exp: "abc"` или `iat: null`) в сравнении с `now` дал бы
+    // NaN → сравнение всегда false → проверка молча пропускалась бы. Валидируем
+    // тип детерминированно: любой non-number (строка, null, объект, NaN) —
+    // стабильная ошибка `Invalid token {claim} claim`.
+    function assertNumericDate(value, claim) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new Error(`Invalid token ${claim} claim`);
+      }
+      return value;
+    }
+
     // Temporal-claim-валидация (exp/iat/nbf) выполняется ДО сетевых fetch и
     // RSA-verify: значения приходят из самого токена и не раскрывают конфиг,
     // поэтому expired/garbage-токен не должен на холодном старте дёргать
     // discovery + JWKS (анти-амплификация). exp допускает skew в безопасную
     // сторону (токен, протухший в пределах clockSkewToleranceSec, ещё
     // принимается) — при расхождении часов IdP и ingress строгий exp резал бы
-    // легитимные токены раньше времени.
+    // легитимные токены раньше времени. Claims опциональны (RFC 7519): токен
+    // без exp/iat/nbf проходит, но присутствующий claim обязан быть числом.
     function validateTemporalClaims(payload, now) {
-      if (payload.exp && payload.exp < now - skewToleranceSec) {
-        throw new Error('Token expired');
+      if (payload.exp !== undefined) {
+        const exp = assertNumericDate(payload.exp, 'exp');
+        if (exp < now - skewToleranceSec) {
+          throw new Error('Token expired');
+        }
       }
 
-      if (payload.iat && payload.iat > now + skewToleranceSec) {
-        throw new Error('Token issued in the future');
+      if (payload.iat !== undefined) {
+        const iat = assertNumericDate(payload.iat, 'iat');
+        if (iat > now + skewToleranceSec) {
+          throw new Error('Token issued in the future');
+        }
       }
 
-      if (payload.nbf && payload.nbf > now + skewToleranceSec) {
-        throw new Error('Token not yet valid');
+      if (payload.nbf !== undefined) {
+        const nbf = assertNumericDate(payload.nbf, 'nbf');
+        if (nbf > now + skewToleranceSec) {
+          throw new Error('Token not yet valid');
+        }
       }
     }
 
@@ -554,5 +612,9 @@ function createOidcVerifierFactory(options = {}) {
 
 module.exports = {
   MODULE_NAME,
+  JWKS_CACHE_TTL_MS,
+  JWKS_NEGATIVE_CACHE_TTL_MS,
+  JWKS_FORCED_REFRESH_MIN_INTERVAL_MS,
+  DISCOVERY_NOT_FOUND_TTL_MS,
   createOidcVerifierFactory
 };
