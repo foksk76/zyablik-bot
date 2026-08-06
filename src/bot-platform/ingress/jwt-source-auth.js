@@ -93,22 +93,22 @@ function createJwtSourceAuth(options = {}) {
       throw new Error('Missing Bearer token');
     }
 
-    const tokenVerifier = getVerifier();
-
-    if (!tokenVerifier) {
-      if (reqId) {
-        logger.info(formatLogLine({
-          level: 'info',
-          module: MODULE_NAME,
-          reqId,
-          action: 'auth failed',
-          context: { reason: 'JWT verifier not configured', ip }
-        }));
-      }
-      throw new Error('JWT verifier not configured');
-    }
-
     try {
+      const tokenVerifier = getVerifier();
+
+      if (!tokenVerifier) {
+        if (reqId) {
+          logger.info(formatLogLine({
+            level: 'info',
+            module: MODULE_NAME,
+            reqId,
+            action: 'auth failed',
+            context: { reason: 'JWT verifier not configured', ip }
+          }));
+        }
+        throw new Error('JWT verifier not configured');
+      }
+
       const jwt = await tokenVerifier.verifyAccessToken(token, audience);
 
       const source = resolveSource(jwt.claims);
@@ -138,7 +138,14 @@ function createJwtSourceAuth(options = {}) {
 
       return { source };
     } catch (error) {
-      if (error.message === `Missing ${claimName} claim`) {
+      // getVerifier() (ленивое создание verifier; бросает при невалидном
+      // конфиге, например Invalid issuer URL) и «verifier not configured» —
+      // не провал верификации токена: пробрасываем как есть, без
+      // нормализации в 'JWT verification failed'. Все остальные auth-сбои
+      // нормализуются, чтобы у прямых консьюмеров createJwtSourceAuth был
+      // один shape ошибки.
+      if (error.message === `Missing ${claimName} claim`
+          || error.message === 'JWT verifier not configured') {
         throw error;
       }
       logger.error(formatLogLine({

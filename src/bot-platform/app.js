@@ -27,11 +27,17 @@ const {
   createLiveServiceShutdownHandlers
 } = require('./runtime');
 
-function createIssuerVerifierFactory(issuer) {
-  if (issuer && issuer.startsWith('http://')) {
-    return createOidcVerifierFactory();
+// ADR-0038: ingress layer IdP-agnostic — всегда hand-rolled oidc-verifier,
+// который использует OIDC discovery (/.well-known/openid-configuration →
+// jwks_uri) с fallback на /.well-known/jwks.json. @okta/jwt-verifier
+// (ADR-0024) хардкодит issuer + '/v1/keys' (Okta-specific) и не подходит
+// для произвольных OIDC-провайдеров (NanoIDP отдаёт keys на /.well-known/jwks.json,
+// Okta — на /oauth2/default/v1/keys, который отдаёт discovery).
+function createIssuerVerifierFactory(issuer, logger) {
+  if (!issuer) {
+    return null;
   }
-  return null;
+  return createOidcVerifierFactory({ logger });
 }
 
 function createBotPlatformApp(environment = process.env, options = {}) {
@@ -264,7 +270,7 @@ async function startIngressAndQueue(config, options, io) {
         audience: config.idpAudience,
         claimName: config.jwtClaimName,
         claimValue: config.jwtClaimValue,
-        verifierFactory: createIssuerVerifierFactory(config.idpIssuer),
+        verifierFactory: createIssuerVerifierFactory(config.idpIssuer, options.logger || options.coreLogger || console),
         outboundClient,
         queueStore,
         logAudit: config.logAudit,
@@ -565,6 +571,7 @@ function isGenerateConfigCommand(argv) {
 
 module.exports = {
   createBotPlatformApp,
+  createIssuerVerifierFactory,
   runBotPlatformLongPollingOnce,
   startBotPlatformService,
   startLiveBotPlatformService,
