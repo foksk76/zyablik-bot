@@ -1072,29 +1072,195 @@ test('failed OIDC discovery is negative-cached — re-resolved on next refresh (
 // Review round 2 (PR#25): key rotation, negative JWKS cache, audience default, issuer URL
 // ---------------------------------------------------------------------------
 
-test('key rotation inside JWKS cache window — kid-miss forces refresh (review fix 1)', async () => {
+test('key rotation inside JWKS cache window — kid-miss forces refresh after grace period (review fix 1)', async () => {
     ensureKeyPair();
     const logger = createMockLogger();
+    const JWKS_FORCED_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
 
     const jwksBodyV1 = { keys: [{ kid: 'old-kid', kty: publicKeyJwk.kty, n: publicKeyJwk.n, e: publicKeyJwk.e, alg: 'RS256', use: 'sig' }] };
     const jwksBodyV2 = createJwksResponse('new-kid');
 
     const { fetch: mockFetch, getJwksCallCount } = createRotatingJwksFetch([jwksBodyV1, jwksBodyV2]);
 
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: ключ old-kid загружен.
+        const result1 = await verifier.verifyAccessToken(tokenFor('old-kid'));
+        assert.ok(result1.claims);
+        assert.equal(getJwksCallCount(), 1, 'should fetch JWKS on first call');
+
+        // Сразу после fetch refresh не форсится (grace-период) — нет сети,
+        // ротация не видна до истечения grace.
+        currentTime += 1000;
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('new-kid')));
+        assert.equal(getJwksCallCount(), 1, 'no forced refresh within grace period');
+
+        // Ротация после grace-периода: kid-miss форсит refresh внутри 1h кеш-окна.
+        currentTime += JWKS_FORCED_REFRESH_MIN_INTERVAL_MS;
+        const result2 = await verifier.verifyAccessToken(tokenFor('new-kid'));
+        assert.ok(result2.claims, 'rotated kid should verify via forced refresh');
+        assert.equal(getJwksCallCount(), 2, 'kid-miss should force a refresh after the grace period');
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('unknown kid after cache expiry triggers a single refresh, not two (review fix 1)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    // Оба ответа содержат только old-kid — new-kid не найдётся даже после refresh.
+    const jwksBody = { keys: [{ kid: 'old-kid', kty: publicKeyJwk.kty, n: publicKeyJwk.n, e: publicKeyJwk.e, alg: 'RS256', use: 'sig' }] };
+    const { fetch: mockFetch, getJwksCallCount } = createRotatingJwksFetch([jwksBody, jwksBody]);
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        await verifier.verifyAccessToken(tokenFor('old-kid'));
+        assert.equal(getJwksCallCount(), 1);
+
+        // 1h-кеш протух: getJwks() обновляет JWKS, но kid не найден —
+        // grace-период не даёт findKeyForKid сделать ВТОРОЙ refresh.
+        currentTime += JWKS_CACHE_TTL_MS + 1;
+        await assert.rejects(() => verifier.verifyAccessToken(tokenFor('new-kid')));
+        assert.equal(getJwksCallCount(), 2, 'single refresh on cache expiry — no double refresh');
+    } finally {
+        dateMock.mock.restore();
+    }
+});
+
+test('200-without-keys JWKS is treated as failure and negative-cached (review fix 2)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+
+    let jwksFetchCount = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        jwksFetchCount++;
+        return { ok: true, status: 200, json: async () => ({}) }; // keysless
+    };
+
     const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
     const verifier = factory({ issuer: 'https://idp.example.com' });
 
-    const tokenV1 = createJwt(keyPair.privateKey, makeHeader('RS256', 'old-kid'), makePayload());
-    const result1 = await verifier.verifyAccessToken(tokenV1);
-    assert.ok(result1.claims);
-    assert.equal(getJwksCallCount(), 1, 'should fetch JWKS on first call');
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
 
-    // Ротация ключей ВНУТРИ 1h кеш-окна: kid-miss должен принудительно
-    // обновить JWKS, а не отдавать кеш и резать токены на час.
-    const tokenV2 = createJwt(keyPair.privateKey, makeHeader('RS256', 'new-kid'), makePayload());
-    const result2 = await verifier.verifyAccessToken(tokenV2);
-    assert.ok(result2.claims, 'rotated kid should verify via forced refresh inside cache window');
-    assert.equal(getJwksCallCount(), 2, 'kid-miss should force a refresh bypassing the TTL guard');
+    // Первый вызов: fetch по discovered jwks_uri + retry fallback, оба keysless → fail.
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.ok(err.message.includes('JWKS has no keys array') || err.message.includes('JWKS unavailable'));
+            return true;
+        }
+    );
+    assert.equal(jwksFetchCount, 2, 'discovered jwks_uri + fallback retry');
+
+    // Внутри отрицательного окна: повторные /ingest без сети.
+    await assert.rejects(() => verifier.verifyAccessToken(token));
+    assert.equal(jwksFetchCount, 2, 'keysless response is negative-cached — no per-request refresh');
+});
+
+test('token with nbf in the future is rejected (review fix 3)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload({ nbf: now + 10000, exp: now + 20000 }));
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Token not yet valid');
+            return true;
+        }
+    );
+});
+
+test('OIDC discovery iss mismatch falls back to well-known keys (review fix 4)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://other-issuer.example.com', jwks_uri: 'https://other-issuer.example.com/keys' })
+            };
+        }
+        return { ok: true, status: 200, json: async () => jwksBody };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should verify via well-known fallback when discovery issuer mismatches');
+    assert.ok(logger.warns.some((m) => m.includes('issuer mismatch')));
+});
+
+test('non-RSA key type is rejected with a clean error (review minor)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const ecPair = crypto.generateKeyPairSync('ec', {
+        namedCurve: 'prime256v1',
+        privateKeyEncoding: { type: 'pkcs8', format: 'jwk' },
+        publicKeyEncoding: { type: 'spki', format: 'jwk' }
+    });
+
+    const jwksBody = {
+        keys: [{
+            kid: 'ec-key',
+            kty: 'EC',
+            crv: ecPair.publicKey.crv,
+            x: ecPair.publicKey.x,
+            y: ecPair.publicKey.y,
+            alg: 'ES256',
+            use: 'sig'
+        }]
+    };
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    // RSA-подписанный токен с RS256, но ключ в JWKS — EC.
+    const token = createJwt(keyPair.privateKey, makeHeader('RS256', 'ec-key'), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.equal(err.message, 'Unsupported key type: EC');
+            return true;
+        }
+    );
 });
 
 test('failed JWKS fetch is negative-cached — no retry storm within 5 minutes (review fix 2)', async () => {

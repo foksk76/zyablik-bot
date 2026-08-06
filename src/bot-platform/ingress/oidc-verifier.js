@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const MODULE_NAME = 'oidc-verifier';
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+const JWKS_FORCED_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_FETCH_TIMEOUT_MS = 15 * 1000;
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
 const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
@@ -97,6 +98,18 @@ function createOidcVerifierFactory(options = {}) {
         return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
+      // OIDC spec (RFC 8414): поле `issuer` в discovery-документе должно
+      // совпадать с запрошенным issuer. Mismatch говорит о баговом/враждебном
+      // discovery — откатываемся на дефолтный путь от доверенного
+      // (конфигурированного) issuer.
+      const discoveryIssuer = typeof discovery?.issuer === 'string'
+        ? discovery.issuer.replace(/\/+$/, '')
+        : null;
+      if (discoveryIssuer !== null && discoveryIssuer !== normalizedIssuer) {
+        logger.warn(`[${MODULE_NAME}] OIDC discovery issuer mismatch for ${discoveryUrl}: expected ${normalizedIssuer}, got ${discovery.issuer}; using ${DEFAULT_JWKS_PATH}`);
+        return { jwksUri: fallbackJwksUri(), discovered: false };
+      }
+
       const discoveredJwksUri = discovery && typeof discovery.jwks_uri === 'string'
         ? discovery.jwks_uri
         : null;
@@ -127,7 +140,7 @@ function createOidcVerifierFactory(options = {}) {
       }
 
       const info = await resolveJwksUri();
-      jwksUriInfo = { ...info, resolvedAt: now };
+      jwksUriInfo = { ...info, resolvedAt: Date.now() };
       return jwksUriInfo;
     }
 
@@ -136,7 +149,16 @@ function createOidcVerifierFactory(options = {}) {
       if (!response.ok) {
         throw new Error(`Failed to fetch JWKS from ${url}: ${response.status}`);
       }
-      return response.json();
+      return assertJwksShape(await response.json());
+    }
+
+    // 200-без-keys не должен кешироваться как успех на час (иначе findKey всегда
+    // мимо → refresh на каждый запрос). Бросаем — сработает отрицательный кеш.
+    function assertJwksShape(body) {
+      if (!body || !Array.isArray(body.keys)) {
+        throw new Error('JWKS has no keys array');
+      }
+      return body;
     }
 
     // Безусловная загрузка JWKS (минует TTL-кеш); дедупликация через общий
@@ -214,10 +236,11 @@ function createOidcVerifierFactory(options = {}) {
 
     // Поиск ключа с поддержкой ротации: при kid-miss — cache-aware getJwks(),
     // затем принудительный refresh (ротация ключей внутри 1h кеш-окна),
-    // с fallback на последний успешный кеш при сбое refresh. Refresh делается
-    // только вне отрицательного JWKS-окна — иначе каждый kid-miss во время
-    // аутсaja IdP = 2 лишних исходящих запроса (и амплификация через
-    // случайные kid от атакующего).
+    // с fallback на последний успешный кеш при сбое refresh. Refresh форсится
+    // только вне отрицательного JWKS-окна (сбой) и вне grace-периода после
+    // успешного fetch — иначе каждый kid-miss (легитимная ротация или случайные
+    // kid от атакующего) стоил бы лишнего исходящего запроса, а после истечения
+    // 1h-кеша один запрос делал бы двойной refresh (getJwks + принудительный).
     async function findKeyForKid(kid) {
       let keyJwk = findKey(kid);
       if (keyJwk) {
@@ -230,9 +253,12 @@ function createOidcVerifierFactory(options = {}) {
         return keyJwk;
       }
 
+      const now = Date.now();
       const inNegativeWindow = jwksFailedAt !== 0
-        && (Date.now() - jwksFailedAt) < JWKS_NEGATIVE_CACHE_TTL_MS;
-      if (!inNegativeWindow) {
+        && (now - jwksFailedAt) < JWKS_NEGATIVE_CACHE_TTL_MS;
+      const recentlyFetched = jwksFetchedAt !== 0
+        && (now - jwksFetchedAt) < JWKS_FORCED_REFRESH_MIN_INTERVAL_MS;
+      if (!inNegativeWindow && !recentlyFetched) {
         try {
           await refreshJwks();
         } catch {
@@ -296,6 +322,10 @@ function createOidcVerifierFactory(options = {}) {
         throw new Error(`Unsupported algorithm: ${header.alg}`);
       }
 
+      if (keyJwk.kty !== 'RSA') {
+        throw new Error(`Unsupported key type: ${keyJwk.kty}`);
+      }
+
       const key = importKey(keyJwk);
 
       const valid = crypto.verify(
@@ -317,6 +347,10 @@ function createOidcVerifierFactory(options = {}) {
 
       if (payload.iat && payload.iat > now) {
         throw new Error('Token issued in the future');
+      }
+
+      if (payload.nbf && payload.nbf > now) {
+        throw new Error('Token not yet valid');
       }
 
       if (normalizedIssuer && payload.iss !== normalizedIssuer) {
