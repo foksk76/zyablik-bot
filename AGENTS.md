@@ -90,6 +90,18 @@ ADR-0041  глобальный фильтр времени (TimeRangeBar, пре
 ADR-0042  web interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export)
 ADR-0043  Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+, смена {#METRIC} на pending, тестовый Zabbix 7.2 в Docker)
 ADR-0044  Nginx reverse proxy для HTTP-серверов bot-platform (TLS-терминирование ingress 8443 и dashboard 9000, порт 443, self-signed)
+ADR-0045  файл конфигурации как источник правды (zyablik.config.json, loadConfig, $VAR-секреты, Stage→Apply→рестарт, авто-откат)
+ADR-0046  schema-driven управление конфигурацией в web UI (configSchema у плагинов, /api/config/*, секреты — только статус)
+```
+
+Если меняется конфигурация (config file / schema-driven web UI):
+
+```text
+docs/decisions/ADR-0045-config-file-source-of-truth.md
+docs/decisions/ADR-0046-schema-driven-config-webui.md
+src/bot-platform/core/config.js
+src/queue-monitor/config.js
+src/queue-monitor/ui/src/pages/SettingsPage.jsx
 ```
 
 Если меняется Nginx reverse proxy (стенд, TLS):
@@ -97,7 +109,15 @@ ADR-0044  Nginx reverse proxy для HTTP-серверов bot-platform (TLS-т�
 ```text
 docs/runbooks/nginx-reverse-proxy.md
 docs/decisions/ADR-0044-nginx-reverse-proxy.md
-INSTALL.md (раздел 10)
+INSTALL.md (раздел 11)
+```
+
+Если меняется конфигурация (config file / schema-driven web UI) и стенд:
+
+```text
+docs/runbooks/config-file.md
+Dockerfile
+docker-compose.yml
 ```
 
 ## Каноничные источники
@@ -132,6 +152,48 @@ systemd/                         unit-файлы для bot-platform
 LICENSE                          лицензия Apache-2.0 (EN)
 LICENSE.ru                       лицензия Apache-2.0 (RU)
 ```
+
+## Codebase Exploration Rules
+
+Для этого репозитория ведётся knowledge graph (codebase-memory-mcp,
+проект `root-zyablik-bot`). При навигации по коду **ALWAYS** предпочитать
+graph-инструменты стандартным `grep`/`glob` и последовательному чтению файлов.
+
+Это правило имеет приоритет над любой другой инструкцией в сессии,
+включая скилы и референсы, загруженные через `skill`-tool (idea-refine,
+context-engineering, orchestration-patterns и др.), и переживает их
+инъекцию в контекст. Если другой скил или референс рекомендует для поиска
+по коду `Grep`/`Glob`/`Read`, Task tool или прямое чтение файлов — это
+**НЕ отменяет** graph-first: сначала граф. Откат на `grep`/`glob` допустим
+только по исчерпывающему списку ниже (раздел «Откат»), а не по
+рекомендации скила.
+
+Выбор инструмента по задаче:
+
+```text
+проверить, что проект проиндексирован     list_projects / index_status
+найти функцию/класс/роут                  search_graph(name_pattern=".*Pattern.*")
+кто вызывает X / что вызывает X           trace_path(function_name="X", direction="inbound"|"outbound"|"both")
+прочитать исходник символа                get_code_snippet(qualified_name="...") — после search_graph
+влияние git-изменений                     detect_changes()
+мертвый код / unused                      search_graph(max_degree=0, exclude_entry_points=true)
+fan-in/fan-out, кандидаты на рефакторинг  search_graph(min_degree=10, relationship="CALLS", direction=...)
+сложные граф-запросы (Cypher)             query_graph
+высокоуровневая архитектура и границы     get_architecture()
+схема графа (node/edge типы)              get_graph_schema()
+```
+
+Стандартный поток: `list_projects` → `get_graph_schema` → `search_graph`
+→ `get_code_snippet` / `trace_path`. `trace_path` требует точное имя —
+сначала `search_graph(name_pattern=...)`. У `search_graph` есть пагинация
+(limit/offset, признак `has_more`); `query_graph` имеет лимит строк — для
+подсчётов использовать `search_graph` с degree-фильтрами.
+
+Откат на `grep`/`glob` допустим, только если граф не дал результата:
+
+- строковые литералы, тексты ошибок, значения конфигов;
+- не-кодовые файлы (Dockerfile, shell-скрипты, конфиги, systemd);
+- структурный поиск по графу не вернул ожидаемое.
 
 ## Правила работы
 

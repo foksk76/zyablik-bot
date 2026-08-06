@@ -3,8 +3,14 @@ const assert = require('node:assert/strict');
 
 const { createQueueMonitor } = require('../../src/queue-monitor/index');
 
+const { envWithoutConfig } = require('../helpers/env-no-config');
+const createMonitor = (options = {}) => createQueueMonitor({
+    ...options,
+    environment: envWithoutConfig(options.environment)
+});
+
 test('createQueueMonitor returns no-op when MONITOR_ENABLED is false', async () => {
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: { MONITOR_ENABLED: 'false' }
     });
 
@@ -18,7 +24,7 @@ test('createQueueMonitor returns no-op when MONITOR_ENABLED is false', async () 
 });
 
 test('createQueueMonitor returns no-op when MONITOR_ENABLED is not set', async () => {
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: {}
     });
 
@@ -27,7 +33,7 @@ test('createQueueMonitor returns no-op when MONITOR_ENABLED is not set', async (
 
 test('createQueueMonitor throws when MONITOR_ENABLED=true but METRICS_API_KEY is empty', () => {
     assert.throws(
-        () => createQueueMonitor({
+        () => createMonitor({
             environment: { MONITOR_ENABLED: 'true' },
             reader: { ready: () => true, close: () => {} },
             httpServer: { start: async () => {}, stop: async () => {}, registerRoute: () => {} }
@@ -54,7 +60,7 @@ test('createQueueMonitor with injected dependencies', async () => {
         registerRoute: (method, path) => { registeredRoutes.push({ method, path }); }
     };
 
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: { MONITOR_ENABLED: 'true', MONITOR_PORT: '19100', METRICS_API_KEY: 'test-key' },
         reader: fakeReader,
         httpServer: fakeHttpServer
@@ -70,6 +76,47 @@ test('createQueueMonitor with injected dependencies', async () => {
 
     await monitor.start();
     await monitor.stop();
+});
+
+// ADR-0045: dashboard поднимается раньше live-бота, поэтому старт монитора НЕ
+// должен снимать pending-маркер (config.confirmed) — иначе падение boot'а после
+// ready dashboard'а теряло бы окно авто-отката (pending → lkg). Подтверждение
+// выполняется в app.js main() после старта всех сервисов.
+test('createQueueMonitor start() не подтверждает pending-конфиг', async () => {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zyablik-monitor-confirm-'));
+    const configPath = path.join(dir, 'zyablik.config.json');
+    fs.writeFileSync(`${configPath}.pending`, JSON.stringify({ hash: 'x', appliedAt: new Date().toISOString() }), 'utf8');
+
+    const fakeReader = {
+        ready: () => true,
+        close: () => {},
+        summary: () => ({ pending: 0, processing: 0, delivered: 0, failed: 0, totalAttempts: 0, total: 0 }),
+        timeseries: () => [],
+        topSource: () => [],
+        topRecipient: () => [],
+        errors: () => []
+    };
+    const fakeHttpServer = {
+        start: async () => {},
+        stop: async () => {},
+        registerRoute: () => {}
+    };
+
+    const monitor = createMonitor({
+        environment: { MONITOR_ENABLED: 'true', METRICS_API_KEY: 'test-key' },
+        configPath,
+        reader: fakeReader,
+        httpServer: fakeHttpServer
+    });
+
+    await monitor.start();
+    assert.ok(fs.existsSync(`${configPath}.pending`), 'pending-маркер не снят стартом монитора');
+    await monitor.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('createQueueMonitor shutdown closes reader', async () => {
@@ -90,7 +137,7 @@ test('createQueueMonitor shutdown closes reader', async () => {
         registerRoute: () => {}
     };
 
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: { MONITOR_ENABLED: 'true', METRICS_API_KEY: 'test-key' },
         reader: fakeReader,
         httpServer: fakeHttpServer
@@ -123,7 +170,7 @@ test('createQueueMonitor registers auth routes with rate limiter when OAuth2 ena
         getUserInfo: async () => ({ sub: 'u' })
     };
 
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: {
             MONITOR_ENABLED: 'true',
             METRICS_API_KEY: 'test-key',
@@ -159,7 +206,7 @@ test('createQueueMonitor accepts injected rateLimiter when OAuth2 enabled', asyn
     const injectedLimiter = { tryAcquireAuthRequest: () => {}, tryAcquireCallback: () => {}, releaseCallback: () => {} };
 
     // Не должно бросать — options.rateLimiter принимается и прокидывается в auth-routes.
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: {
             MONITOR_ENABLED: 'true', METRICS_API_KEY: 'k',
             IDP_ISSUER: 'https://idp.example.com', IDP_CLIENT_ID: 'cid',
@@ -183,7 +230,7 @@ test('createQueueMonitor works without OAuth2 (bearer-only, no rate limiter)', a
     const fakeReader = { ready: () => true, close: () => {},
         summary: () => ({}), timeseries: () => [], topSource: () => [], topRecipient: () => [], errors: () => [] };
 
-    const monitor = createQueueMonitor({
+    const monitor = createMonitor({
         environment: { MONITOR_ENABLED: 'true', METRICS_API_KEY: 'k' },
         reader: fakeReader, httpServer: fakeHttpServer
     });

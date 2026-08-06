@@ -59,3 +59,5 @@ ADR фиксируют не только принятое решение, но �
 | [ADR-0042](ADR-0042-web-interface-archive.md) | Принято | Web Interface — navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export) |
 | [ADR-0043](ADR-0043-zabbix-monitoring-template.md) | Принято | Zabbix Monitoring Template: agent-less LLD-шаблон 7.0+, смена `{#METRIC}` на `pending`, полный набор триггеров, тестовый Zabbix 7.2 в Docker |
 | [ADR-0044](ADR-0044-nginx-reverse-proxy.md) | Принято | Nginx reverse proxy для HTTP-серверов bot-platform: TLS-терминирование ingress (`8443`) и dashboard (`9000`), единый порт `443`, самоподписанный сертификат на локальном стенде |
+| [ADR-0045](ADR-0045-config-file-source-of-truth.md) | Принято | Файл конфигурации как источник правды: `zyablik.config.json`, трёхслойный мерж defaults→файл→env, `$VAR`-секреты, Stage→Apply→рестарт, last-known-good, bootstrap через `--generate-config` |
+| [ADR-0046](ADR-0046-schema-driven-config-webui.md) | Принято | Schema-driven управление конфигурацией в web UI: `configSchema` у плагинов, динамические формы, `/api/config/*`, маскирование секретов, импорт/экспорт JSON |

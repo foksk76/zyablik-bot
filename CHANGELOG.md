@@ -18,6 +18,10 @@
 - Web interface: navigation shell + archive (React Router hash-based, archive API, retry через queueStore, backend export) (ADR-0042)
 - Zabbix Monitoring Template: agent-less LLD-шаблон 7.0+ на `/api/metrics/*` и `/readyz`, смена `{#METRIC}` на `pending`, триггеры/графики/дашборд, тестовый Zabbix 7.2 в Docker (ADR-0043)
 
+### Added
+- Dockerfile + docker-compose для bot-platform стенда: writable volume `./config` (Stage/Apply/Rollback, ADR-0045), `ZYABLIK_CONFIG` в volume, секреты только через env/docker secrets, порты ingress `8443` и dashboard `9000`
+- `docs/runbooks/config-file.md` — runbook конфигурации: миграция с `.env` через `--generate-config`, структура файла, apply/rollback/авто-откат, восстановление, служебные файлы
+
 ### Changed
 - HTTP-серверы бота (ingress `8443`, dashboard `9000`) публикуются по HTTPS через Nginx reverse proxy на порту `443` (ADR-0044); `IDP_REDIRECT_URI` переводится на `https://` (Secure cookie)
 - `{#METRIC}` discovery: префикс `queue.` удалён — ключи совпадают с полями `/summary` (ADR-0043, breaking change)
@@ -29,6 +33,10 @@
 - `INSTALL.md` — разделы dashboard, мониторинг Zabbix, очередь, ingress
 - `docs/runbooks/nginx-reverse-proxy.md` — установка и настройка Nginx reverse proxy для HTTP-серверов бота (ingress `8443`, dashboard `9000`, TLS-терминирование, ADR-0044)
 - ADR-0044 — Nginx reverse proxy для HTTP-серверов bot-platform
+- ADR-0045 — файл конфигурации как источник правды (`zyablik.config.json`, `loadConfig`, `$VAR`-секреты, Stage→Apply→рестарт, авто-откат)
+- ADR-0046 — schema-driven управление конфигурацией в web UI (configSchema у плагинов, `/api/config/*`, секреты — только статус)
+- `docs/runbooks/config-file.md` — runbook конфигурации бота (миграция, apply/rollback, авто-откат, восстановление)
+- `INSTALL.md` — раздел 10 «Конфигурация файлом + docker compose», раздел 11 Nginx reverse proxy
 - Design tokens и компоненты задокументированы (Storybook)
 
 ### Fixed

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createBotPlatformApp, runMaxIdentityDryRun } = require('../../src/bot-platform/app');
+const { envWithoutConfig } = require('../helpers/env-no-config');
 const {
   createCore,
   createBotPlatformConfig,
@@ -62,7 +63,7 @@ test('bot platform app scaffold wires placeholder modules', () => {
 });
 
 test('bot platform app scaffold reflects webhook mode from environment', () => {
-  const app = createBotPlatformApp({ MAX_TRANSPORT_MODE: 'webhook' });
+  const app = createBotPlatformApp(envWithoutConfig({ MAX_TRANSPORT_MODE: 'webhook' }));
 
   assert.equal(app.core.config.maxTransportMode, 'webhook');
   assert.equal(app.transports.max.transportMode, 'webhook');

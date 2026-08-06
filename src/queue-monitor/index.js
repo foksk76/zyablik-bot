@@ -14,6 +14,7 @@ const { createAuthRoutes } = require('./api/auth-routes');
 const { createAuthRateLimiter } = require('./api/auth-rate-limit');
 const { createOidcClient } = require('./auth/oidc');
 const { createSessionStore } = require('./auth/session');
+const { createConfigApi } = require('./api/config');
 
 const MODULE_NAME = 'queue-monitor';
 
@@ -126,6 +127,32 @@ function createQueueMonitor(options = {}) {
     httpServer.registerRoute('POST', '/api/archive/retry/*', auth.protectRoute(archive.retry));
     httpServer.registerRoute('GET', '/api/archive/export', auth.protectRoute(archive.exportArchive));
 
+    // ADR-0046: /api/config/* — schema-driven управление конфигурацией.
+    const configApi = createConfigApi({
+        environment,
+        configPath: options.configPath,
+        plugins: options.plugins || [],
+        restart: options.configRestart || null,
+        startupWaitMs: options.configStartupWaitMs,
+        // ADR-0046 (M6): стартовый детектор откатил/карантинировал конфиг —
+        // статус передаётся из createCore, иначе баннер недостижим после рестарта.
+        recovery: options.configRecovery || null,
+        // R11-L3 (review PR #23): предупреждения loadConfig (неопознанные
+        // ключи, устаревшие $VAR) — отдаются в GET /api/config и рисуются
+        // баннером на странице настроек.
+        configWarnings: options.configWarnings || [],
+        logger
+    });
+    httpServer.registerRoute('GET', '/api/config', auth.protectRoute(configApi.getConfig));
+    httpServer.registerRoute('GET', '/api/config/schema', auth.protectRoute(configApi.getSchema));
+    httpServer.registerRoute('GET', '/api/config/status', auth.protectRoute(configApi.getStatus));
+    httpServer.registerRoute('GET', '/api/config/stage', auth.protectRoute(configApi.getStage));
+    httpServer.registerRoute('PUT', '/api/config/stage', auth.protectRoute(configApi.putStage));
+    httpServer.registerRoute('POST', '/api/config/apply', auth.protectRoute(configApi.apply));
+    httpServer.registerRoute('POST', '/api/config/rollback', auth.protectRoute(configApi.rollback));
+    httpServer.registerRoute('GET', '/api/config/export', auth.protectRoute(configApi.exportConfig));
+    httpServer.registerRoute('POST', '/api/config/import', auth.protectRoute(configApi.importConfig));
+
     // Auth routes: OAuth2 login/callback/logout/session (если auth layer включён).
     if (authRoutes) {
         httpServer.registerRoute('GET', '/api/auth/login', authRoutes.login);
@@ -137,6 +164,11 @@ function createQueueMonitor(options = {}) {
     async function start() {
         await httpServer.start();
         logger.info(`[${MODULE_NAME}] Dashboard server started on port ${config.monitorPort}`);
+        // ADR-0045: маркер НЕ снимается здесь. Dashboard поднимается раньше
+        // live-бота (app.js: startIngressAndQueue → startLiveService), а
+        // confirm() выполняется в main() ПОСЛЕ старта всех сервисов — иначе
+        // падение boot'а после ready dashboard'а теряло бы окно авто-отката
+        // (pending → lkg).
         if (authEnabled) {
             logger.info(`[${MODULE_NAME}] OAuth2 UI auth enabled (IdP: ${config.idpIssuer})`);
         }
@@ -158,7 +190,11 @@ function createQueueMonitor(options = {}) {
     return {
         start,
         stop,
-        ready
+        ready,
+        // ADR-0046 (M2): confirm по готовности процесса вызывается из main()
+        // ПОСЛЕ старта всех сервисов (включая live-бот). Снимает pending-маркер
+        // и фиксирует в-памяти состояние 'confirmed' (след apply→confirmed).
+        confirmConfig: configApi.confirm
     };
 }
 

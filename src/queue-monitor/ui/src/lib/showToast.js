@@ -14,7 +14,8 @@ function getContainer() {
 const STYLES = {
     success: 'bg-success-light border border-success/20 text-success-dark',
     error: 'bg-error-light border border-error/20 text-error-dark',
-    info: 'bg-accent border border-border text-foreground'
+    info: 'bg-accent border border-border text-foreground',
+    warning: 'bg-warning-light border border-warning/20 text-warning-dark'
 };
 
 export function showToast(message, type = 'info') {

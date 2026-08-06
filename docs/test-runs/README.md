@@ -20,6 +20,10 @@ Live-приемка выполнена. Бот получает входящие
 
 - [`task-36-nginx-reverse-proxy-run.md`](task-36-nginx-reverse-proxy-run.md) — e2e-прогон HTTPS-входа через Nginx: readyz/ingest по 443, Zabbix test send, firewall-изоляция 8443/9000 (2026-08-03).
 
+## Конфигурация (ADR-0045/0046)
+
+- [`config-apply-rollback-run.md`](config-apply-rollback-run.md) — e2e-прогон подтверждающего режима: Apply → restart → confirmed и авто-откат из lkg при неподтверждённом Apply (2026-08-03).
+
 ## Bot-platform Dry-run И Safe-test
 
 Tasks 12-14 выполнены и подтверждены. Промежуточные прогоны удалены из истории.

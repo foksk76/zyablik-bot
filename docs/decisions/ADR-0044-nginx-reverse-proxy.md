@@ -148,7 +148,7 @@ ADR-0026 не реализуется. Отклонено.
   «Reverse-proxy настроен» из ADR-0026:114;
 - Новый документ: `docs/runbooks/nginx-reverse-proxy.md` (установка, сертификат,
   конфигурация, проверка);
-- Обновлены: `INSTALL.md` (раздел 10), `docs/zabbix-media-type.md`,
+- Обновлены: `INSTALL.md` (раздел 11), `docs/zabbix-media-type.md`,
   `docs/zabbix-monitoring-template.md`, `docs/runbooks/bot-platform-stand.md`,
   `README.md`, `CHANGELOG.md`;
 - При закрытии порта `9000` firewall'ом Zabbix Monitoring template (ADR-0043)

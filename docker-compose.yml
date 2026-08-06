@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Zyablik bot-platform — docker compose для локального стенда (ADR-0044/0045).
+#
+# Конфигурация — файл zyablik.config.json в writable volume ./config
+# (источник правды, ADR-0045). Секреты НЕ передаются литералами:
+# из .env (переменные ниже) или docker secrets (см. INSTALL.md раздел 10).
+#
+# Запуск:
+#   docker compose up -d --build
+#   # первый запуск: создать конфиг-файл из .env (без перезаписи существующего)
+#   docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
+#
+# Проверка:
+#   curl http://localhost:9000/readyz
+name: zyablik-stand
+
+services:
+  zyablik:
+    build: .
+    container_name: zyablik-bot
+    restart: unless-stopped
+    # Writable host-каталог: сюда пишутся zyablik.config.json, .lkg,
+    # .pending, .staged, .bad.json (Stage/Apply/Rollback, ADR-0045).
+    volumes:
+      - ./config:/opt/zyablik-bot/config
+    ports:
+      - "8443:8443"   # HTTP-ingress (ADR-0023), за Nginx — TLS
+      - "9000:9000"   # Queue Monitor dashboard (ADR-0034)
+    env_file:
+      - .env
+    environment:
+      # Путь к конфиг-файлу внутри volume. Управляемые настройки читаются
+      # из файла; секреты — $VAR-ссылки, резолвятся из env/.env.
+      ZYABLIK_CONFIG: /opt/zyablik-bot/config/zyablik.config.json
+      # Неизменяемая база и секреты остаются в env (ADR-0045):
+      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      METRICS_API_KEY: ${METRICS_API_KEY:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      IDP_CLIENT_SECRET: ${IDP_CLIENT_SECRET:-}
+      MAX_API_URL: ${MAX_API_URL:-}
+      IDP_ISSUER: ${IDP_ISSUER:-}
+      IDP_AUDIENCE: ${IDP_AUDIENCE:-}
+      IDP_CLIENT_ID: ${IDP_CLIENT_ID:-}
+      IDP_REDIRECT_URI: ${IDP_REDIRECT_URI:-}

@@ -65,7 +65,11 @@ curl -X POST http://localhost:8000/token \
 
 ```yaml
 oauth:
-  issuer: "http://localhost:8000"
+  # HTTPS-issuer на том же origin, что и дашборд: nanoIDP проксируется через
+  # Nginx на :8444 (см. docs/runbooks/nginx-reverse-proxy.md §4.1). Вход в
+  # дашборд с http://<stand-host>:8000 ломался в Chrome (кросс-сайт → cookie IdP
+  # не сохранялась → 400 unsupported_response_type).
+  issuer: "https://<stand-host>:8444"
   audience: "bot-platform"
   clients:
     - client_id: "zabbix-bot"
@@ -88,7 +92,7 @@ NanoIDP не поддерживает произвольные custom claims. И
 
 ```bash
 # В .env bot-platform:
-IDP_ISSUER=http://localhost:8000
+IDP_ISSUER=https://<stand-host>:8444
 IDP_AUDIENCE=bot-platform
 JWT_CLAIM_NAME=entitlements
 JWT_CLAIM_VALUE=zabbix
@@ -97,7 +101,7 @@ JWT_CLAIM_VALUE=zabbix
 ### Переменные окружения bot-platform
 
 ```bash
-IDP_ISSUER=http://localhost:8000    # URL IdP
+IDP_ISSUER=https://<stand-host>:8444    # URL IdP (через Nginx, same-site вход)
 IDP_AUDIENCE=bot-platform           # Аудиенция для verification
 JWT_CLAIM_NAME=entitlements         # Имя claim для source
 JWT_CLAIM_VALUE=zabbix              # Значение claim для source

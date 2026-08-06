@@ -7,8 +7,11 @@ const {
     DEFAULT_MONITOR_PORT
 } = require('../../src/queue-monitor/config');
 
+const { envWithoutConfig } = require('../helpers/env-no-config');
+const createConfig = (env = {}) => createQueueMonitorConfig(envWithoutConfig(env));
+
 test('createQueueMonitorConfig uses safe defaults when env is empty', () => {
-    const config = createQueueMonitorConfig({});
+    const config = createConfig({});
 
     assert.equal(config.moduleName, MODULE_NAME);
     assert.equal(config.monitorEnabled, false);
@@ -22,51 +25,51 @@ test('createQueueMonitorConfig uses safe defaults when env is empty', () => {
 });
 
 test('createQueueMonitorConfig reads MONITOR_ENABLED as true', () => {
-    const config = createQueueMonitorConfig({ MONITOR_ENABLED: 'true' });
+    const config = createConfig({ MONITOR_ENABLED: 'true' });
 
     assert.equal(config.monitorEnabled, true);
 });
 
 test('createQueueMonitorConfig reads MONITOR_ENABLED case-insensitive', () => {
-    const config = createQueueMonitorConfig({ MONITOR_ENABLED: 'TRUE' });
+    const config = createConfig({ MONITOR_ENABLED: 'TRUE' });
 
     assert.equal(config.monitorEnabled, true);
 });
 
 test('createQueueMonitorConfig reads MONITOR_ENABLED false explicitly', () => {
-    const config = createQueueMonitorConfig({ MONITOR_ENABLED: 'false' });
+    const config = createConfig({ MONITOR_ENABLED: 'false' });
 
     assert.equal(config.monitorEnabled, false);
 });
 
 test('createQueueMonitorConfig reads MONITOR_PORT override', () => {
-    const config = createQueueMonitorConfig({ MONITOR_PORT: '8080' });
+    const config = createConfig({ MONITOR_PORT: '8080' });
 
     assert.equal(config.monitorPort, 8080);
 });
 
 test('createQueueMonitorConfig rejects invalid MONITOR_PORT', () => {
     assert.throws(
-        () => createQueueMonitorConfig({ MONITOR_PORT: '0' }),
+        () => createConfig({ MONITOR_PORT: '0' }),
         /Invalid MONITOR_PORT value: 0/
     );
 });
 
 test('createQueueMonitorConfig rejects MONITOR_PORT above max', () => {
     assert.throws(
-        () => createQueueMonitorConfig({ MONITOR_PORT: '70000' }),
+        () => createConfig({ MONITOR_PORT: '70000' }),
         /Invalid MONITOR_PORT value: 70000/
     );
 });
 
 test('createQueueMonitorConfig reads METRICS_API_KEY', () => {
-    const config = createQueueMonitorConfig({ METRICS_API_KEY: 'test-api-key-123' });
+    const config = createConfig({ METRICS_API_KEY: 'test-api-key-123' });
 
     assert.equal(config.metricsApiKey, 'test-api-key-123');
 });
 
 test('createQueueMonitorConfig reads IDP config', () => {
-    const config = createQueueMonitorConfig({
+    const config = createConfig({
         IDP_ISSUER: 'https://idp.example.com',
         IDP_CLIENT_ID: 'my-client',
         IDP_CLIENT_SECRET: 'secret',
@@ -80,7 +83,7 @@ test('createQueueMonitorConfig reads IDP config', () => {
 });
 
 test('createQueueMonitorConfig reads SESSION_SECRET', () => {
-    const config = createQueueMonitorConfig({ SESSION_SECRET: 'my-session-secret' });
+    const config = createConfig({ SESSION_SECRET: 'my-session-secret' });
 
     assert.equal(config.sessionSecret, 'my-session-secret');
 });
@@ -88,7 +91,7 @@ test('createQueueMonitorConfig reads SESSION_SECRET', () => {
 // --- Sprint 23 / M2: rate limit config ---
 
 test('createQueueMonitorConfig uses rate limit defaults when env is empty', () => {
-    const config = createQueueMonitorConfig({});
+    const config = createConfig({});
 
     assert.equal(config.authRateLimit, true, 'enabled by default');
     assert.equal(config.authRateLimitMax, 20);
@@ -97,7 +100,7 @@ test('createQueueMonitorConfig uses rate limit defaults when env is empty', () =
 });
 
 test('createQueueMonitorConfig reads AUTH_RATE_LIMIT overrides', () => {
-    const config = createQueueMonitorConfig({
+    const config = createConfig({
         AUTH_RATE_LIMIT: 'false',
         AUTH_RATE_LIMIT_MAX: '50',
         AUTH_RATE_LIMIT_WINDOW_MS: '120000',
@@ -112,14 +115,14 @@ test('createQueueMonitorConfig reads AUTH_RATE_LIMIT overrides', () => {
 
 test('createQueueMonitorConfig rejects invalid AUTH_RATE_LIMIT_MAX', () => {
     assert.throws(
-        () => createQueueMonitorConfig({ AUTH_RATE_LIMIT_MAX: '0' }),
+        () => createConfig({ AUTH_RATE_LIMIT_MAX: '0' }),
         /Invalid AUTH_RATE_LIMIT_MAX value: 0/
     );
 });
 
 test('createQueueMonitorConfig rejects invalid AUTH_RATE_CONCURRENCY', () => {
     assert.throws(
-        () => createQueueMonitorConfig({ AUTH_RATE_CONCURRENCY: 'abc' }),
+        () => createConfig({ AUTH_RATE_CONCURRENCY: 'abc' }),
         /Invalid AUTH_RATE_CONCURRENCY value: abc/
     );
 });
@@ -127,34 +130,34 @@ test('createQueueMonitorConfig rejects invalid AUTH_RATE_CONCURRENCY', () => {
 // --- Sprint 23 / L3 (Task 6): IDP_REQUIRE_DISCOVERY ---
 
 test('createQueueMonitorConfig defaults IDP_REQUIRE_DISCOVERY to false', () => {
-    const config = createQueueMonitorConfig({});
+    const config = createConfig({});
     assert.equal(config.idpRequireDiscovery, false, 'fallback preserved by default');
 });
 
 test('createQueueMonitorConfig reads IDP_REQUIRE_DISCOVERY=true', () => {
-    const config = createQueueMonitorConfig({ IDP_REQUIRE_DISCOVERY: 'true' });
+    const config = createConfig({ IDP_REQUIRE_DISCOVERY: 'true' });
     assert.equal(config.idpRequireDiscovery, true);
 });
 
 // --- IDP_RELAX_SSRF: ослабить SSRF-проверку для MVP стенда ---
 
 test('createQueueMonitorConfig defaults IDP_RELAX_SSRF to null (auto-detect)', () => {
-    const config = createQueueMonitorConfig({});
+    const config = createConfig({});
     assert.equal(config.idpRelaxSsrf, null, 'null = auto-detect from issuer scheme');
 });
 
 test('createQueueMonitorConfig reads IDP_RELAX_SSRF=true', () => {
-    const config = createQueueMonitorConfig({ IDP_RELAX_SSRF: 'true' });
+    const config = createConfig({ IDP_RELAX_SSRF: 'true' });
     assert.equal(config.idpRelaxSsrf, true);
 });
 
 test('createQueueMonitorConfig reads IDP_RELAX_SSRF=false (explicit opt-out)', () => {
-    const config = createQueueMonitorConfig({ IDP_RELAX_SSRF: 'false' });
+    const config = createConfig({ IDP_RELAX_SSRF: 'false' });
     assert.equal(config.idpRelaxSsrf, false);
 });
 
 test('createQueueMonitorConfig trims whitespace from values', () => {
-    const config = createQueueMonitorConfig({
+    const config = createConfig({
         METRICS_API_KEY: '  test-key  ',
         MONITOR_PORT: '  8080  '
     });
@@ -164,13 +167,13 @@ test('createQueueMonitorConfig trims whitespace from values', () => {
 });
 
 test('createQueueMonitorConfig handles non-string env gracefully', () => {
-    const config = createQueueMonitorConfig({ MONITOR_PORT: 8080 });
+    const config = createConfig({ MONITOR_PORT: 8080 });
 
     assert.equal(config.monitorPort, DEFAULT_MONITOR_PORT);
 });
 
 test('createQueueMonitorConfig handles undefined env', () => {
-    const config = createQueueMonitorConfig();
+    const config = createConfig();
 
     assert.equal(config.monitorEnabled, false);
     assert.equal(config.monitorPort, DEFAULT_MONITOR_PORT);

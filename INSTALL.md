@@ -22,6 +22,13 @@ JWT-токен с claim source (например, entitlements: ["zabbix"])
 
 Токены и реальные идентификаторы не хранить в репозитории.
 
+> Конфигурация бота — файл `zyablik.config.json` как источник правды для
+> управляемых настроек (ADR-0045), управление через web UI «Настройки»
+> (ADR-0046). В `.env` остаются bootstrap (`ZYABLIK_CONFIG`), секреты
+> (`$VAR`-ссылки в файле) и неизменяемая база (`MAX_API_URL`,
+> IdP-регистрация). Быстрый старт: раздел 10; полный runbook —
+> `docs/runbooks/config-file.md`.
+
 ## 1. Подготовить рабочую копию
 
 ```bash
@@ -317,7 +324,63 @@ node src/bot-platform/app.js
 2. Ставить сообщения в очередь
 3. Отправлять сообщения через MAX Bot API с retry
 
-## 10. HTTPS через Nginx reverse proxy (опционально)
+## 10. Конфигурация файлом + docker compose (ADR-0045/0046)
+
+Управляемые настройки бота задаются файлом `zyablik.config.json` (источник
+правды), а не env-переменными. В `.env` остаются bootstrap
+(`ZYABLIK_CONFIG`), секреты (`MAX_BOT_TOKEN`, `METRICS_API_KEY`,
+`SESSION_SECRET`, `IDP_CLIENT_SECRET` — в файле они только `$VAR`-ссылками)
+и неизменяемая база (`MAX_API_URL`, IdP-регистрация).
+
+### 10.1 Первый запуск: --generate-config
+
+Из существующего `.env`-стенда создаётся первый конфиг-файл:
+
+```bash
+# Просмотр без записи:
+node src/bot-platform/app.js --generate-config --dry-run
+
+# Запись ./config/zyablik.config.json (не перезаписывает существующий):
+node src/bot-platform/app.js --generate-config
+```
+
+### 10.2 Структура файла
+
+```json
+{
+  "version": 1,
+  "bot": { "logLevel": "info", "maxTransportMode": "long_polling",
+           "maxBotToken": "$MAX_BOT_TOKEN" },
+  "queue": { "enabled": false },
+  "ingress": { "enabled": false },
+  "monitor": { "enabled": true, "port": 9000,
+               "metricsApiKey": "$METRICS_API_KEY",
+               "sessionSecret": "$SESSION_SECRET" },
+  "plugins": {}
+}
+```
+
+Секреты — только `$VAR`-ссылки формата `^$[A-Z0-9_]+$`. Схема и версия —
+в `docs/runbooks/config-file.md`.
+
+### 10.3 Управление через web UI
+
+Dashboard → **Настройки**: просмотр effective-конфига (секреты — только
+статус «задан/не задан»), форма из merged-схемы, staged → diff → Apply
+(рестарт) → `pending/confirmed/rolled_back`, Rollback, Export/Import.
+
+### 10.4 Запуск в docker (стенд, ADR-0044)
+
+```bash
+docker compose up -d --build
+docker compose run --rm zyablik node src/bot-platform/app.js --generate-config
+```
+
+`./config` монтируется writable volume; Stage/Apply/Rollback пишут
+`.lkg`/`.pending`/`.staged` рядом с активным конфигом. Dashboard —
+`http://localhost:9000/`, ingress — `http://localhost:8443`.
+
+## 11. HTTPS через Nginx reverse proxy (опционально)
 
 HTTP-серверы bot-platform (ingress `8443`, dashboard `9000`) по умолчанию
 работают на plain HTTP. TLS-терминирование выполняется внешним reverse proxy
@@ -329,7 +392,13 @@ HTTP-серверы bot-platform (ingress `8443`, dashboard `9000`) по умо�
 ```text
 POST /ingest → https://<stand-host>/ingest → http://127.0.0.1:8443
 dashboard   → https://<stand-host>/        → http://127.0.0.1:9000
+IdP (NanoIDP) → https://<stand-host>:8444  → http://127.0.0.1:8000
 ```
+
+IdP проксируется через Nginx на тот же origin (`:8444`), чтобы вход в дашборд
+был same-site: переход `https://<stand-host>` → `http://<stand-host>:8000`
+кросс-сайтовый и в реальном Chrome ломает session-cookie IdP (POST `/authorize`
+отвечает `400 unsupported_response_type`).
 
 Изменения в настройке после включения Nginx:
 
@@ -337,6 +406,15 @@ dashboard   → https://<stand-host>/        → http://127.0.0.1:9000
 # bot-platform: OAuth2 redirect должен идти через публичный HTTPS-адрес.
 # Secure-флаг session cookie зависит от https:// в этом значении.
 export IDP_REDIRECT_URI=https://<stand-host>/api/auth/callback
+
+# IdP должен отдаваться на https://<stand-host>:8444 (тот же origin):
+export IDP_ISSUER=https://<stand-host>:8444
+export IDP_RELAX_SSRF=true     # приватный IP стенда (ADR-0037)
+
+# Бот ходит и к MAX API, и к IdP по HTTPS: бандл из русского корневого CA
+# (MAX API) + self-signed сертификат стенда. Файлы в LF (не CRLF), иначе
+# Node не прочитает бандл (PEM "bad end line").
+export NODE_EXTRA_CA_CERTS=/etc/nginx/ssl/zyablik-ca-bundle.crt
 ```
 
 ```text

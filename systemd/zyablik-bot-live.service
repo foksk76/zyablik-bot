@@ -10,6 +10,9 @@ EnvironmentFile=-/root/zyablik-bot/.env
 ExecStart=/root/.nvm/versions/node/v24.16.0/bin/node /root/zyablik-bot/src/bot-platform/app.js --live
 Restart=always
 RestartSec=5
+# ADR-0045: fail loudly — не бесконечный цикл рестартов.
+StartLimitIntervalSec=120
+StartLimitBurst=5
 NoNewPrivileges=true
 
 [Install]

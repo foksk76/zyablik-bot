@@ -12,9 +12,22 @@ const { createMaxInboundUpdatesClient, createMaxOutboundClient } = require('../t
 
 const moduleName = 'live-service';
 const DEFAULT_HTTP_TIMEOUT_MS = 90000;
+// M1 (review): лимит ожидания первого успешного long-polling цикла (firstTick).
+// firstTick резолвится только после успешного poll; при устойчивом сетевом
+// сбое (неверный token/URL) он не резолвится вовсе. Без лимита start()
+// висел бесконечно: main() не доходил до confirm(), процесс оставался жив
+// (зомби), boots не рос, авто-откат к lkg не срабатывал. 60s > StartupWait
+// (30s), поэтому на следующем boot'е после таймаута pending устаревает и
+// конфиг откатывается к lkg.
+const DEFAULT_FIRST_TICK_TIMEOUT_MS = 60_000;
 
 function createLiveBotPlatformService(environment = process.env, options = {}) {
-  const runtimeConfig = createLiveRuntimeConfig(environment);
+  // H1 (review): runtimeConfig может быть передан из main() (результат
+  // loadConfig() — defaults → файл → .env) как options.runtimeConfig или
+  // options.config (effective flat-конфиг). Без них — env-based обратная
+  // совместимость.
+  const runtimeConfig = options.runtimeConfig
+    || createLiveRuntimeConfig(environment, { config: options.config });
 
   if (runtimeConfig.mode === 'webhook') {
     throw runtimeConfig.error;
@@ -83,12 +96,39 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
     inboundClient,
     outboundClient,
     service,
-    start() {
+    async start() {
       logger.info('live MAX Identity Bot service starting', {
         mode: 'long_polling',
         networkEnabled: true
       });
       service.start();
+      // M6 (review): дождаться первого реального long-polling цикла, а не
+      // возвращаться сразу после синхронного start(). Так confirm() по
+      // готовности в main() срабатывает после фактического старта сети.
+      //
+      // M1 (review): firstTick резолвится только после успешного poll. При
+      // устойчивом сетевом сбое он не резолвится вовсе — прежний бесконечный
+      // await держал процесс зомби (main() не доходил до confirm(), boots не
+      // росли, авто-откат к lkg не срабатывал). Ограничиваем ожидание
+      // таймаутом: останавливаем сервис (loop + coordinated shutdown) и
+      // бросаем ошибку — main() вернёт exit != 0, systemd-рестарт поднимет
+      // счётчик boots, и следующий boot откатит конфиг к lkg.
+      try {
+        await waitForFirstTick(service, resolveFirstTickTimeoutMs(options.firstTickTimeoutMs));
+      } catch (error) {
+        if (error && error.code === 'LIVE_FIRST_TICK_TIMEOUT') {
+          logger.error('live MAX Identity Bot service did not start within timeout', {
+            error: error.message,
+            polls: service.state.polls,
+            updates: service.state.updates
+          });
+          // Остановить loop и поднятые сервисы (ingress/worker/queue-store),
+          // иначе они держат event loop и процесс не завершится с ненулевым
+          // кодом (зомби сохранится, авто-откат не сработает).
+          await stopLiveService(liveService, logger);
+        }
+        throw error;
+      }
       logger.info('live MAX Identity Bot service started', {
         mode: 'long_polling',
         networkEnabled: true,
@@ -125,6 +165,54 @@ function createLiveBotPlatformService(environment = process.env, options = {}) {
   };
 
   return liveService;
+}
+
+function resolveFirstTickTimeoutMs(value) {
+  if (Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  return DEFAULT_FIRST_TICK_TIMEOUT_MS;
+}
+
+function waitForFirstTick(service, timeoutMs) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return service.firstTick;
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const error = new Error(`Live MAX Identity Bot service did not start within ${timeoutMs}ms (no successful long-polling cycle)`);
+      error.code = 'LIVE_FIRST_TICK_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+    // unref: таймаут не должен сам удерживать event loop после штатного старта.
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
+    service.firstTick.then(
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+async function stopLiveService(liveService, logger) {
+  // liveService.stop() сам выполняет coordinated shutdown
+  // (shutdownHandle.stop() внутри — ingress/worker/queue-store, ADR-0033).
+  try {
+    await liveService.stop();
+  } catch (error) {
+    logger.error('failed to stop live service after failed start', {
+      error: error && error.message ? error.message : 'unknown error'
+    });
+  }
 }
 
 function createLiveLogger(logger, runtimeConfig) {
@@ -385,6 +473,7 @@ function createLiveServiceShutdownHandlers(liveService, io = { stdout: process.s
 module.exports = {
   moduleName,
   DEFAULT_HTTP_TIMEOUT_MS,
+  DEFAULT_FIRST_TICK_TIMEOUT_MS,
   createLiveBotPlatformService,
   createLiveServiceShutdownHandlers,
   createNativeFetchHttpClient,

@@ -402,3 +402,81 @@ test('live service wires identityHandler through to command registry for /id', a
 
   liveService.stop();
 });
+
+test('live service start() rejects with firstTick timeout and stops the loop (M1 review, zombie prevention)', async () => {
+  const entries = [];
+  const liveService = createLiveBotPlatformService({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    MAX_API_URL: 'https://synthetic.example',
+    MAX_BOT_TOKEN: 'synthetic-secret-token'
+  }, {
+    httpClient: {
+      get() {
+        throw new Error('synthetic network failure');
+      },
+      post() {
+        throw new Error('outbound should not be called');
+      }
+    },
+    logger: createCaptureLogger(entries),
+    // defaultSleep (setTimeout) — макротаск, чтобы фаза таймеров event loop
+    // выполнялась и unref'd firstTick-таймер (50ms) смог сработать.
+    intervalMs: 1,
+    firstTickTimeoutMs: 50,
+    installSignalHandlers: false
+  });
+
+  await assert.rejects(
+    () => liveService.start(),
+    (error) => {
+      assert.equal(error.code, 'LIVE_FIRST_TICK_TIMEOUT');
+      assert.match(error.message, /did not start within 50ms/);
+      return true;
+    }
+  );
+
+  // M1: после таймаута сервис остановлен — новые poll не выполняются,
+  // процесс не висит зомби (главная проблема: бесконечный await firstTick).
+  const pollsAfterReject = liveService.state.polls;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(liveService.state.polls, pollsAfterReject, 'loop должен быть остановлен после firstTick-таймаута');
+  assert.ok(entries.some((entry) => (
+    entry.level === 'error' && entry.message === 'live MAX Identity Bot service did not start within timeout'
+  )));
+});
+
+test('live service start() resolves once firstTick succeeds within the timeout', async () => {
+  const liveService = createLiveBotPlatformService({
+    MAX_TRANSPORT_MODE: 'long_polling',
+    MAX_API_URL: 'https://synthetic.example',
+    MAX_BOT_TOKEN: 'synthetic-bot-token'
+  }, {
+    httpClient: {
+      get() {
+        return {
+          statusCode: 200,
+          body: {
+            updates: [],
+            marker: 1
+          }
+        };
+      },
+      post() {
+        throw new Error('outbound should not be called');
+      }
+    },
+    logger: createCaptureLogger([]),
+    sleep: async () => {},
+    maxCycles: 1,
+    firstTickTimeoutMs: 500,
+    installSignalHandlers: false
+  });
+
+  await liveService.start();
+
+  assert.equal(liveService.state.polls, 1);
+  assert.equal(liveService.state.updates, 0);
+
+  await liveService.loopPromise;
+  liveService.stop();
+});

@@ -58,6 +58,26 @@ function createLongPollingService(options = {}) {
   let cycles = 0;
   let loopPromise = null;
 
+  // M6 (review): firstTick разрешается после успешного первого poll —
+  // не до сетевого round-trip. createLiveBotPlatformService.start() ждёт
+  // его, чтобы confirm() по готовности срабатывал после реального
+  // подтверждения связности (а не сразу после синхронного старта).
+  // L1 (review R4): ранее notifyFirstTick() вызывался в начале tick(), до
+  // await pollUpdates() — бот с неверным token/URL confirm-нулся бы до
+  // первой сетевой попытки. Теперь — только после возврата валидных updates.
+  let resolveFirstTick = null;
+  const firstTick = new Promise((resolve) => {
+    resolveFirstTick = resolve;
+  });
+
+  function notifyFirstTick() {
+    if (resolveFirstTick) {
+      const resolve = resolveFirstTick;
+      resolveFirstTick = null;
+      resolve();
+    }
+  }
+
   async function tick() {
     if (stopped || running) {
       logger.warn('long polling tick skipped', {
@@ -78,6 +98,13 @@ function createLongPollingService(options = {}) {
       }
 
       state.polls += 1;
+
+      // L1 (review R4): firstTick — после успешного poll (сеть жива,
+      // данные получены). При сбое pollUpdates бросает до сюда —
+      // firstTick НЕ resolвится, loop повторяет; если poll всегда падает
+      // (неверный token), confirm не вызывается и pending-маркер
+      // остаётся для авто-отката.
+      notifyFirstTick();
 
       // ADR-0033: per-update try/catch. Одно сбойное update не должно блокировать
       // ack marker для всего batch — иначе ядовитое сообщение зацикливало бы
@@ -179,6 +206,7 @@ function createLongPollingService(options = {}) {
     networkEnabled: false,
     intervalMs,
     state,
+    firstTick,
     get loopPromise() {
       return loopPromise;
     },

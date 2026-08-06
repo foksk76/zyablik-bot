@@ -122,6 +122,8 @@ Live-сценарий с реальным входящим сообщением 
 - по ADR-0042 расширить scope на web interface (navigation shell + archive: React Router hash-based, archive API, retry через queueStore, backend export);
 - по ADR-0043 опубликовать agent-less Zabbix monitoring template 7.0+ (LLD-шаблон на `/api/metrics/*` и `/readyz`, ключи `{#METRIC}` = поля `/summary`, полный набор триггеров, дашборд «Обзор очереди», тестовый Zabbix 7.2 в Docker);
 - по ADR-0044 развернуть Nginx reverse proxy на локальном стенде: TLS-терминирование для ingress (`8443`) и dashboard (`9000`), единый порт `443`, самоподписанный сертификат, `IDP_REDIRECT_URI` на `https://`;
+- по ADR-0045 ввести файл конфигурации `zyablik.config.json` как источник правды для управляемых настроек (`loadConfig`, `$VAR`-секреты, Stage→Apply→рестарт, версия/миграция, авто-откат к lkg); в `.env` остаются bootstrap, секреты и неизменяемая база;
+- по ADR-0046 ввести schema-driven управление конфигурацией в web UI (configSchema у плагинов, `/api/config/*`, секреты — только просмотр статуса);
 - не реализовывать автоматическую повторную отправку, маршрутизацию на боте или управление Zabbix из МАХ без отдельного ADR.
 
 ## Основные артефакты
@@ -163,6 +165,16 @@ src/bot-platform/app.js                — Wiring: ingress + queue в одном
 
 Конфигурация (переменные окружения):
 
+> С Sprint 37-41 управляемые настройки перенесены в файл конфигурации
+> `zyablik.config.json` (источник правды, ADR-0045): разделы `bot.*`,
+> `queue.*`, `ingress.*`, `monitor.*`, `plugins.<name>.*`. Секреты в файле —
+> только `$VAR`-ссылки. В `.env` остаются bootstrap (`ZYABLIK_CONFIG`),
+> секреты и неизменяемая база (`MAX_API_URL`, IdP-регистрация). Полный
+> маппинг env→файл, `--generate-config` и сценарии — в
+> `docs/runbooks/config-file.md`, управление через web UI «Настройки»
+> (ADR-0046, `/api/config/*`). Ниже — исторический вид переменных,
+> которые больше не управляются через env (значения из файла).
+
 ```text
 QUEUE_ENABLED=false         — включение очереди (по умолчанию false)
 QUEUE_MAX_ATTEMPTS=5        — максимальное количество попыток доставки
@@ -192,6 +204,26 @@ SESSION_SECRET=             — секрет для подписи session cooki
 
 UI dashboard использует session auth после OAuth2 логина (ADR-0035).
 `METRICS_API_KEY` нужен только для внешних систем (Zabbix, Prometheus, curl).
+
+Конфигурация подтверждена на живом стенде (Sprint 41):
+
+```text
+- Стенд стартует из zyablik.config.json (секреты — $VAR-ссылки, без управляемых env)
+- Stage → Apply → рестарт → confirmed (свежий pending-маркер в окне StartupWait не откатывает конфиг)
+- Неподтверждённый Apply (краш до ready) → авто-откат к lkg + audit config.rollback
+- Ручной rollback (POST /api/config/rollback) восстанавливает lkg без рестарта
+- Export/import: секреты остаются $VAR-ссылками; литералы режектятся (400)
+- UI-флоу Dashboard (#/settings): stage → apply → restart → confirmed → rollback
+- Apply через UI/import сохраняет секретные $VAR-поля активного конфига (mergePreservedSecrets)
+- Policy-тесты секретов (tests/policy/config-secrets.test.js); npm test 861 pass / 0 fail
+- Прогон: docs/test-runs/config-apply-rollback-run.md
+```
+
+Статус этапа «Конфигурация файлом» (ADR-0045/0046): **завершён**.
+Критерии приёмки этапа — `docs/project-acceptance.md` (§ «Приёмка этапа
+„Конфигурация файлом"»), прогон на стенде —
+`docs/test-runs/config-apply-rollback-run.md`, follow-up ревью PR #23
+(Low, не блокеры) — `tasks/sprints/sprint-42.md`.
 
 Реализовано и подтверждено:
 
