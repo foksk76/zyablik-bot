@@ -931,3 +931,144 @@ test('OIDC discovery — jwks_uri on foreign origin is ignored (SSRF guard)', as
     assert.equal(fetchedForeign, false, 'should never fetch jwks_uri from foreign origin');
     assert.ok(logger.warns.some((m) => m.includes('foreign origin')));
 });
+
+test('OIDC discovery — relative jwks_uri is resolved against issuer origin (review fix 3)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksAtRelativePath = createJwksResponse('rel-kid');
+
+    let requestedUrl = null;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: '/oauth2/default/v1/keys' })
+            };
+        }
+        requestedUrl = u;
+        return { ok: true, status: 200, json: async () => jwksAtRelativePath };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader('RS256', 'rel-kid'), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should verify using key from relative jwks_uri');
+    assert.equal(requestedUrl, 'https://idp.example.com/oauth2/default/v1/keys', 'relative jwks_uri should be resolved to absolute same-origin URL');
+});
+
+test('JWKS fetch failure on discovered jwks_uri falls back to /.well-known/jwks.json (review fix 1)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksAtWellKnown = createJwksResponse();
+
+    let customFetched = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        if (u.includes('/oauth2/default/v1/keys')) {
+            customFetched++;
+            return { ok: false, status: 404, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => jwksAtWellKnown };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should verify via well-known fallback when discovered jwks_uri 404s');
+    assert.equal(customFetched, 1);
+    assert.ok(logger.warns.some((m) => m.includes('retrying')));
+});
+
+test('JWKS fetch failure on discovered jwks_uri with dead fallback still throws (review fix 1)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        return { ok: false, status: 500, json: async () => ({}) };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+
+    await assert.rejects(
+        () => verifier.verifyAccessToken(token),
+        (err) => {
+            assert.ok(err.message.includes('Failed to fetch JWKS'));
+            return true;
+        }
+    );
+});
+
+test('failed OIDC discovery is negative-cached — re-resolved on next refresh (review fix 2)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let discoveryCount = 0;
+    let jwksCount = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            discoveryCount++;
+            return { ok: false, status: 500, json: async () => ({}) };
+        }
+        jwksCount++;
+        return { ok: true, status: 200, json: async () => createJwksResponse('kid-' + jwksCount) };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: discovery fails (500) → fallback jwks (kid-1)
+        await verifier.verifyAccessToken(tokenFor('kid-1'));
+        assert.equal(discoveryCount, 1);
+        assert.equal(jwksCount, 1);
+
+        // t0 + 5min + 1s: negative TTL прошёл, но jwks-кэш (1ч) ещё валиден —
+        // с известным kid пере-верификация не требует re-discovery.
+        currentTime += JWKS_NEGATIVE_CACHE_TTL_MS + 1;
+        await verifier.verifyAccessToken(tokenFor('kid-1'));
+        assert.equal(discoveryCount, 1, 'no re-discovery while jwks cache is valid');
+
+        // t0 + 1ч + 5мин + 1с: jwks-кэш протух → getJwksUri → negative-кэш
+        // discovery тоже протух → discovery пере-резолвится (не залипает на час).
+        currentTime += JWKS_CACHE_TTL_MS;
+        await verifier.verifyAccessToken(tokenFor('kid-2'));
+        assert.equal(discoveryCount, 2, 'failed discovery should be re-resolved on next refresh');
+        assert.equal(jwksCount, 2);
+    } finally {
+        dateMock.mock.restore();
+    }
+});

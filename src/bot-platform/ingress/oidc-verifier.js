@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 
 const MODULE_NAME = 'oidc-verifier';
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+const JWKS_NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 const DISCOVERY_PATH = '/.well-known/openid-configuration';
 const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
 
@@ -21,21 +22,29 @@ function createOidcVerifierFactory(options = {}) {
 
     let jwks = null;
     let jwksFetchedAt = 0;
-    let jwksUri = null;
-    let jwksUriResolvedAt = 0;
+    let jwksUriInfo = null;
 
-    function isSameOrigin(candidateUrl) {
+    // Резолвит jwks_uri против issuer-origin (в т.ч. относительные URL),
+    // возвращает абсолютный URL только если protocol+host совпадают с issuer.
+    function resolveJwksUriAgainstIssuer(candidateUrl) {
+      let resolved;
       try {
-        const candidate = new URL(candidateUrl);
-        const base = new URL(issuerBaseUrl);
-        return (
-          (candidate.protocol === 'https:' || candidate.protocol === 'http:') &&
-          candidate.protocol === base.protocol &&
-          candidate.host === base.host
-        );
+        resolved = new URL(candidateUrl, issuerBaseUrl);
       } catch {
-        return false;
+        return null;
       }
+      if (resolved.protocol !== 'https:' && resolved.protocol !== 'http:') {
+        return null;
+      }
+      const base = new URL(issuerBaseUrl);
+      if (resolved.protocol !== base.protocol || resolved.host !== base.host) {
+        return null;
+      }
+      return resolved.href;
+    }
+
+    function fallbackJwksUri() {
+      return issuerBaseUrl + DEFAULT_JWKS_PATH;
     }
 
     async function resolveJwksUri() {
@@ -46,12 +55,12 @@ function createOidcVerifierFactory(options = {}) {
         response = await fetchFn(discoveryUrl);
       } catch (err) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery failed for ${discoveryUrl}: ${err.message}; using ${DEFAULT_JWKS_PATH}`);
-        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+        return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
       if (!response.ok) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery returned ${response.status} for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
-        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+        return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
       let discovery;
@@ -59,7 +68,7 @@ function createOidcVerifierFactory(options = {}) {
         discovery = await response.json();
       } catch (err) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery body is not JSON for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
-        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+        return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
       const discoveredJwksUri = discovery && typeof discovery.jwks_uri === 'string'
@@ -68,26 +77,40 @@ function createOidcVerifierFactory(options = {}) {
 
       if (!discoveredJwksUri) {
         logger.warn(`[${MODULE_NAME}] OIDC discovery for ${discoveryUrl} has no jwks_uri; using ${DEFAULT_JWKS_PATH}`);
-        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+        return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
-      if (!isSameOrigin(discoveredJwksUri)) {
+      const resolvedJwksUri = resolveJwksUriAgainstIssuer(discoveredJwksUri);
+      if (!resolvedJwksUri) {
         logger.warn(`[${MODULE_NAME}] Ignoring jwks_uri on foreign origin: ${discoveredJwksUri}; using ${DEFAULT_JWKS_PATH}`);
-        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+        return { jwksUri: fallbackJwksUri(), discovered: false };
       }
 
-      return discoveredJwksUri;
+      return { jwksUri: resolvedJwksUri, discovered: true };
     }
 
+    // Кешируется только успешный discovery (1 час); сбойный — на короткий
+    // отрицательный TTL, чтобы транзиентно недоступный IdP не застревал на час.
     async function getJwksUri() {
-      if (jwksUri && (Date.now() - jwksUriResolvedAt) < JWKS_CACHE_TTL_MS) {
-        return jwksUri;
+      const now = Date.now();
+      if (jwksUriInfo) {
+        const ttl = jwksUriInfo.discovered ? JWKS_CACHE_TTL_MS : JWKS_NEGATIVE_CACHE_TTL_MS;
+        if (now - jwksUriInfo.resolvedAt < ttl) {
+          return jwksUriInfo;
+        }
       }
 
-      const resolved = await resolveJwksUri();
-      jwksUri = resolved;
-      jwksUriResolvedAt = Date.now();
-      return resolved;
+      const info = await resolveJwksUri();
+      jwksUriInfo = { ...info, resolvedAt: now };
+      return jwksUriInfo;
+    }
+
+    async function fetchJwks(url) {
+      const response = await fetchFn(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch JWKS from ${url}: ${response.status}`);
+      }
+      return response.json();
     }
 
     async function getJwks() {
@@ -95,14 +118,21 @@ function createOidcVerifierFactory(options = {}) {
         return jwks;
       }
 
-      const url = await getJwksUri();
-      const response = await fetchFn(url);
+      const { jwksUri, discovered } = await getJwksUri();
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch JWKS from ${url}: ${response.status}`);
+      try {
+        jwks = await fetchJwks(jwksUri);
+      } catch (err) {
+        if (!discovered) {
+          throw err;
+        }
+        // Протухший/неверный jwks_uri из discovery — один retry на дефолтный путь.
+        const fallbackUrl = fallbackJwksUri();
+        logger.warn(`[${MODULE_NAME}] JWKS fetch failed for ${jwksUri}: ${err.message}; retrying ${fallbackUrl}`);
+        jwks = await fetchJwks(fallbackUrl);
+        jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
       }
 
-      jwks = await response.json();
       jwksFetchedAt = Date.now();
       return jwks;
     }

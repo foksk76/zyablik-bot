@@ -46,10 +46,15 @@ ADR-0024 принимает `@okta/jwt-verifier` как исключение и�
 OIDC discovery: `GET {issuer}/.well-known/openid-configuration`, читает
 `jwks_uri` и фетчит ключи оттуда (решает Okta `/oauth2/default/v1/keys`
 и Keycloak `/protocol/openid-connect/certs`). Если discovery недоступен,
-возвращает не-JSON, не содержит `jwks_uri` или `jwks_uri` на чужом
-origin (SSRF-guard) — используется fallback
-`{issuer}/.well-known/jwks.json` (NanoIDP). Discovery и JWKS кешируются
-на 1 час независимо.
+возвращает не-JSON, не содержит `jwks_uri` или `jwks_uri` резолвится
+на чужой origin (SSRF-guard) — используется fallback
+`{issuer}/.well-known/jwks.json` (NanoIDP). Относительный `jwks_uri`
+резолвится через `new URL(jwks_uri, issuer)` и принимается только при
+совпадении protocol+host с issuer. Успешный discovery кешируется на 1 час,
+сбойный — на короткий отрицательный TTL (5 минут), чтобы транзиентно
+недоступный IdP не застревал на час. Если JWKS-fetch по `jwks_uri` из
+discovery падает (протухший адрес) — один retry на дефолтный путь
+`{issuer}/.well-known/jwks.json`. JWKS кешируются на 1 час независимо.
 
 В `app.js` `createIssuerVerifierFactory(issuer, logger)` теперь возвращает
 hand-rolled verifier для **любого** непустого issuer (ранее — только для
@@ -71,7 +76,9 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 ```
 
 - **JWKS fetching**: OIDC discovery (`/.well-known/openid-configuration` → `jwks_uri`)
-  с fallback на `/.well-known/jwks.json`, in-memory cache (TTL 1 час)
+  с fallback на `/.well-known/jwks.json`; успешный discovery кеш 1 час, отрицательный
+  кеш сбойного discovery 5 минут; JWKS-кеш TTL 1 час; retry на дефолтный путь при сбое
+  fetch по discovered `jwks_uri`
 - **Algorithm allowlist**: только RSA-family (`RS256`, `RS384`, `RS512`)
 - **Claim validation**: `exp`, `iat`, `iss`, `aud`
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
@@ -83,7 +90,7 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 |---|---|
 | Algorithm confusion | Allowlist: только RS256/RS384/RS512. HS*, ES*, PS* отклоняются |
 | Key confusion | JWKS endpoint резолвится из OIDC discovery (jwks_uri) или привязан к `issuer` /.well-known/jwks.json. RSA-only, HMAC не поддерживается |
-| SSRF (jwks_uri) | `jwks_uri` из discovery принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback |
+| SSRF (jwks_uri) | `jwks_uri` из discovery резолвится через `new URL(jwks_uri, issuer)` и принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback |
 | Expiry | `exp` и `iat` проверяются |
 | Issuer | `iss` проверяется against configured `issuer` |
 | Audience | `aud` проверяется если `expectedAudience` задан |
