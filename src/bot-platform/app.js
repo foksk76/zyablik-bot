@@ -27,11 +27,15 @@ const {
   createLiveServiceShutdownHandlers
 } = require('./runtime');
 
+// ADR-0038: ingress layer IdP-agnostic — всегда hand-rolled oidc-verifier,
+// который использует стандартный /.well-known/jwks.json. @okta/jwt-verifier
+// (ADR-0024) хардкодит issuer + '/v1/keys' (Okta-specific) и не подходит
+// для произвольных OIDC-провайдеров (NanoIDP отдаёт keys на /.well-known/jwks.json).
 function createIssuerVerifierFactory(issuer) {
-  if (issuer && issuer.startsWith('http://')) {
-    return createOidcVerifierFactory();
+  if (!issuer) {
+    return null;
   }
-  return null;
+  return createOidcVerifierFactory();
 }
 
 function createBotPlatformApp(environment = process.env, options = {}) {
@@ -565,6 +569,7 @@ function isGenerateConfigCommand(argv) {
 
 module.exports = {
   createBotPlatformApp,
+  createIssuerVerifierFactory,
   runBotPlatformLongPollingOnce,
   startBotPlatformService,
   startLiveBotPlatformService,

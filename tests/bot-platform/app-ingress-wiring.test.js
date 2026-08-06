@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createBotPlatformApp } = require('../../src/bot-platform/app');
+const { createBotPlatformApp, createIssuerVerifierFactory } = require('../../src/bot-platform/app');
 
 const { envWithoutConfig } = require('../helpers/env-no-config');
 const createApp = (env = {}) => createBotPlatformApp(envWithoutConfig(env));
@@ -58,4 +58,27 @@ test('app preserves backward compatibility with empty env', () => {
   assert.equal(app.core.config.maxTransportMode, 'long_polling');
   assert.equal(app.pipeline.transportMode, 'long_polling');
   assert.equal(app.pipeline.dryRun, 'available');
+});
+
+test('createIssuerVerifierFactory returns null for empty issuer', () => {
+  assert.equal(createIssuerVerifierFactory(''), null);
+  assert.equal(createIssuerVerifierFactory(undefined), null);
+});
+
+test('createIssuerVerifierFactory uses hand-rolled oidc-verifier for https issuer (ADR-0038)', () => {
+  // Регрессия: раньше для https-issuer возвращался null, и jwt-source-auth
+  // падал на @okta/jwt-verifier c жёстко зашитым issuer + '/v1/keys' (Okta-specific).
+  // NanoIDP отдаёт ключи на /.well-known/jwks.json, поэтому Okta-verifier не мог
+  // разрешить kid → все /ingest отвечали 401.
+  const factory = createIssuerVerifierFactory('https://idp.example.com');
+  assert.equal(typeof factory, 'function');
+  const verifier = factory({ issuer: 'https://idp.example.com', audience: 'aud' });
+  assert.equal(typeof verifier.verifyAccessToken, 'function');
+});
+
+test('createIssuerVerifierFactory uses hand-rolled oidc-verifier for http issuer', () => {
+  const factory = createIssuerVerifierFactory('http://idp.example.com:8000');
+  assert.equal(typeof factory, 'function');
+  const verifier = factory({ issuer: 'http://idp.example.com:8000', audience: 'aud' });
+  assert.equal(typeof verifier.verifyAccessToken, 'function');
 });
