@@ -5,6 +5,8 @@ const crypto = require('node:crypto');
 
 const MODULE_NAME = 'oidc-verifier';
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+const DISCOVERY_PATH = '/.well-known/openid-configuration';
+const DEFAULT_JWKS_PATH = '/.well-known/jwks.json';
 
 function createOidcVerifierFactory(options = {}) {
   const logger = options.logger || console;
@@ -15,15 +17,85 @@ function createOidcVerifierFactory(options = {}) {
       logger.warn(`[${MODULE_NAME}] Using insecure HTTP issuer: ${issuer}`);
     }
 
+    const issuerBaseUrl = issuer.replace(/\/+$/, '');
+
     let jwks = null;
     let jwksFetchedAt = 0;
+    let jwksUri = null;
+    let jwksUriResolvedAt = 0;
+
+    function isSameOrigin(candidateUrl) {
+      try {
+        const candidate = new URL(candidateUrl);
+        const base = new URL(issuerBaseUrl);
+        return (
+          (candidate.protocol === 'https:' || candidate.protocol === 'http:') &&
+          candidate.protocol === base.protocol &&
+          candidate.host === base.host
+        );
+      } catch {
+        return false;
+      }
+    }
+
+    async function resolveJwksUri() {
+      const discoveryUrl = issuerBaseUrl + DISCOVERY_PATH;
+
+      let response;
+      try {
+        response = await fetchFn(discoveryUrl);
+      } catch (err) {
+        logger.warn(`[${MODULE_NAME}] OIDC discovery failed for ${discoveryUrl}: ${err.message}; using ${DEFAULT_JWKS_PATH}`);
+        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+      }
+
+      if (!response.ok) {
+        logger.warn(`[${MODULE_NAME}] OIDC discovery returned ${response.status} for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
+        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+      }
+
+      let discovery;
+      try {
+        discovery = await response.json();
+      } catch (err) {
+        logger.warn(`[${MODULE_NAME}] OIDC discovery body is not JSON for ${discoveryUrl}; using ${DEFAULT_JWKS_PATH}`);
+        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+      }
+
+      const discoveredJwksUri = discovery && typeof discovery.jwks_uri === 'string'
+        ? discovery.jwks_uri
+        : null;
+
+      if (!discoveredJwksUri) {
+        logger.warn(`[${MODULE_NAME}] OIDC discovery for ${discoveryUrl} has no jwks_uri; using ${DEFAULT_JWKS_PATH}`);
+        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+      }
+
+      if (!isSameOrigin(discoveredJwksUri)) {
+        logger.warn(`[${MODULE_NAME}] Ignoring jwks_uri on foreign origin: ${discoveredJwksUri}; using ${DEFAULT_JWKS_PATH}`);
+        return issuerBaseUrl + DEFAULT_JWKS_PATH;
+      }
+
+      return discoveredJwksUri;
+    }
+
+    async function getJwksUri() {
+      if (jwksUri && (Date.now() - jwksUriResolvedAt) < JWKS_CACHE_TTL_MS) {
+        return jwksUri;
+      }
+
+      const resolved = await resolveJwksUri();
+      jwksUri = resolved;
+      jwksUriResolvedAt = Date.now();
+      return resolved;
+    }
 
     async function getJwks() {
       if (jwks && (Date.now() - jwksFetchedAt) < JWKS_CACHE_TTL_MS) {
         return jwks;
       }
 
-      const url = issuer.replace(/\/+$/, '') + '/.well-known/jwks.json';
+      const url = await getJwksUri();
       const response = await fetchFn(url);
 
       if (!response.ok) {

@@ -153,7 +153,7 @@ src/bot-platform/queue/worker.js       — Queue worker с retry + backoff (ADR-
 src/bot-platform/ingress/              — Ingress pipeline:
   ├── jwt-source-auth.js               — JWT-аутентификация (ADR-0024)
   ├── http-server.js                   — HTTP-сервер POST /ingest (ADR-0023)
-  ├── oidc-verifier.js                 — OIDC-верификатор для HTTP-issuer
+  ├── oidc-verifier.js                 — Hand-rolled OIDC-верификатор (ADR-0038): OIDC discovery → jwks_uri с fallback на /.well-known/jwks.json
   ├── normalizers/                     — Per-source нормализаторы
   │   ├── ingest.js                    — Generic ingest normalizer
   │   ├── zabbix.js                    — Zabbix normalizer (legacy, не используется)

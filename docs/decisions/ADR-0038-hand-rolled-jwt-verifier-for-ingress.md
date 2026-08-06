@@ -40,6 +40,23 @@ ADR-0024 принимает `@okta/jwt-verifier` как исключение и�
 - `@okta/jwt-verifier` привязан к Okta-специфичным API;
 - hand-rolled верификатор — ~135 строк stdlib, легко audit-уется.
 
+### OIDC discovery (изменение 2026-08)
+
+С 2026-08 `oidc-verifier.js` при получении ключей сначала выполняет
+OIDC discovery: `GET {issuer}/.well-known/openid-configuration`, читает
+`jwks_uri` и фетчит ключи оттуда (решает Okta `/oauth2/default/v1/keys`
+и Keycloak `/protocol/openid-connect/certs`). Если discovery недоступен,
+возвращает не-JSON, не содержит `jwks_uri` или `jwks_uri` на чужом
+origin (SSRF-guard) — используется fallback
+`{issuer}/.well-known/jwks.json` (NanoIDP). Discovery и JWKS кешируются
+на 1 час независимо.
+
+В `app.js` `createIssuerVerifierFactory(issuer, logger)` теперь возвращает
+hand-rolled verifier для **любого** непустого issuer (ранее — только для
+`http://`, для `https://` возвращался `null` и `jwt-source-auth.js` падал
+на `@okta/jwt-verifier` с жёстко зашитым `issuer + '/v1/keys'`, что ломало
+NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
+
 ## Решение
 
 Зафиксировать `oidc-verifier.js` как deliberately hand-rolled
@@ -53,7 +70,8 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
   createVerifier.verifyAccessToken(token) → { claims }
 ```
 
-- **JWKS fetching**: `/.well-known/jwks.json` с in-memory cache (TTL 1 час)
+- **JWKS fetching**: OIDC discovery (`/.well-known/openid-configuration` → `jwks_uri`)
+  с fallback на `/.well-known/jwks.json`, in-memory cache (TTL 1 час)
 - **Algorithm allowlist**: только RSA-family (`RS256`, `RS384`, `RS512`)
 - **Claim validation**: `exp`, `iat`, `iss`, `aud`
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
@@ -64,7 +82,8 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience })
 | Аспект | Реализация |
 |---|---|
 | Algorithm confusion | Allowlist: только RS256/RS384/RS512. HS*, ES*, PS* отклоняются |
-| Key confusion | JWKS endpoint привязан к `issuer`. RSA-only, HMAC не поддерживается |
+| Key confusion | JWKS endpoint резолвится из OIDC discovery (jwks_uri) или привязан к `issuer` /.well-known/jwks.json. RSA-only, HMAC не поддерживается |
+| SSRF (jwks_uri) | `jwks_uri` из discovery принимается только same-origin с issuer (protocol + host), иначе игнорируется и используется fallback |
 | Expiry | `exp` и `iat` проверяются |
 | Issuer | `iss` проверяется against configured `issuer` |
 | Audience | `aud` проверяется если `expectedAudience` задан |
@@ -120,7 +139,12 @@ queue-monitor auth — отдельный слой (ADR-0034), отдельны�
 ### Не затронуто
 
 - root `package.json` — без изменений;
-- `@okta/jwt-verifier` — продолжает использоваться в `jwt-source-auth.js`;
+- `@okta/jwt-verifier` — остаётся в `package.json` (ADR-0024) как
+  default-fallback в `jwt-source-auth.js` при отсутствии `verifierFactory`
+  (direct/standalone использование `createJwtSourceAuth`). Wired-путь
+  `app.js` всегда инжектит hand-rolled verifier через
+  `createIssuerVerifierFactory`, поэтому в проде `@okta/jwt-verifier`
+  не вызывается;
 - ADR-0015 policy-test — без изменений.
 
 ## Ссылки

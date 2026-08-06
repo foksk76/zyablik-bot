@@ -83,18 +83,56 @@ function createJwksResponse(kid = 'test-kid-1', jwk = null) {
     };
 }
 
-function createMockFetch(jwksBody, status = 200) {
+function createMockFetch(jwksBody, status = 200, { discoveryStatus = 200, discoveryBody = null } = {}) {
     let callCount = 0;
+    let discoveryCallCount = 0;
+    let jwksCallCount = 0;
     return {
         fetch: async (url) => {
             callCount++;
+            const u = String(url);
+            if (u.includes('/.well-known/openid-configuration')) {
+                discoveryCallCount++;
+                const ok = discoveryStatus >= 200 && discoveryStatus < 300;
+                const body = discoveryBody || {
+                    issuer: u.replace('/.well-known/openid-configuration', ''),
+                    jwks_uri: u.replace('/.well-known/openid-configuration', '/.well-known/jwks.json')
+                };
+                return { ok, status: discoveryStatus, json: async () => body };
+            }
+            jwksCallCount++;
             return {
                 ok: status >= 200 && status < 300,
                 status,
                 json: async () => jwksBody
             };
         },
-        getCallCount: () => callCount
+        getCallCount: () => callCount,
+        getDiscoveryCallCount: () => discoveryCallCount,
+        getJwksCallCount: () => jwksCallCount
+    };
+}
+
+function createRotatingJwksFetch(jwksBodies) {
+    let jwksCount = 0;
+    return {
+        fetch: async (url) => {
+            const u = String(url);
+            if (u.includes('/.well-known/openid-configuration')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        issuer: 'https://idp.example.com',
+                        jwks_uri: 'https://idp.example.com/.well-known/jwks.json'
+                    })
+                };
+            }
+            const body = jwksBodies[Math.min(jwksCount, jwksBodies.length - 1)];
+            jwksCount++;
+            return { ok: true, status: 200, json: async () => body };
+        },
+        getJwksCallCount: () => jwksCount
     };
 }
 
@@ -210,10 +248,10 @@ test('JWKS cache hit — second call does not re-fetch', async () => {
     const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
 
     await verifier.verifyAccessToken(token);
-    assert.equal(getCallCount(), 1, 'should fetch JWKS on first call');
+    assert.equal(getCallCount(), 2, 'should fetch OIDC discovery + JWKS on first call');
 
     await verifier.verifyAccessToken(token);
-    assert.equal(getCallCount(), 1, 'should not re-fetch JWKS on second call (cache hit)');
+    assert.equal(getCallCount(), 2, 'should not re-fetch on second call (cache hit)');
 });
 
 test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async () => {
@@ -226,12 +264,7 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
     };
     const jwksBodyV2 = createJwksResponse('new-kid');
 
-    let fetchCount = 0;
-    const mockFetch = async (url) => {
-        fetchCount++;
-        const body = fetchCount === 1 ? jwksBodyV1 : jwksBodyV2;
-        return { ok: true, status: 200, json: async () => body };
-    };
+    const { fetch: mockFetch, getJwksCallCount } = createRotatingJwksFetch([jwksBodyV1, jwksBodyV2]);
 
     const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
     const verifier = factory({ issuer: 'https://idp.example.com' });
@@ -240,7 +273,7 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
     const tokenV1 = createJwt(keyPair.privateKey, makeHeader('RS256', 'rotated-kid'), makePayload());
     const result1 = await verifier.verifyAccessToken(tokenV1);
     assert.ok(result1.claims);
-    assert.equal(fetchCount, 1, 'should fetch JWKS on first call');
+    assert.equal(getJwksCallCount(), 1, 'should fetch JWKS on first call');
 
     // Force cache expiry so next call re-fetches
     // TODO: import JWKS_CACHE_TTL_MS from oidc-verifier.js if module exports it
@@ -257,7 +290,7 @@ test('JWKS cache miss — kid found after re-fetch (happy path refresh)', async 
         const tokenV2 = createJwt(keyPair.privateKey, makeHeader('RS256', 'new-kid'), makePayload({ exp: Math.floor(currentTime / 1000) + 3600, iat: Math.floor(currentTime / 1000) }));
         const result2 = await verifier.verifyAccessToken(tokenV2);
         assert.ok(result2.claims);
-        assert.equal(fetchCount, 2, 'should re-fetch when kid not found and cache expired');
+        assert.equal(getJwksCallCount(), 2, 'should re-fetch when kid not found and cache expired');
     } finally {
         dateMock.mock.restore();
     }
@@ -512,6 +545,10 @@ test('JWKS cache expired — re-fetch happens', async () => {
 
     let fetchCount = 0;
     const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return { ok: true, status: 200, json: async () => ({ jwks_uri: 'https://idp.example.com/.well-known/jwks.json' }) };
+        }
         fetchCount++;
         const body = fetchCount === 1 ? jwksBodyV1 : jwksBodyV2;
         return { ok: true, status: 200, json: async () => body };
@@ -780,4 +817,117 @@ test('default fetchFn (globalThis.fetch) is used when options.fetchFn is omitted
     } finally {
         globalThis.fetch = originalFetch;
     }
+});
+
+// ---------------------------------------------------------------------------
+// OIDC discovery (ADR-0038 review fix 1: вариант B)
+// ---------------------------------------------------------------------------
+
+test('OIDC discovery — jwks_uri from openid-configuration is used (Okta-style path)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksAtCustomPath = createJwksResponse('okta-kid');
+    const jwksAtWellKnown = {
+        keys: [{ kid: 'well-known-kid', kty: publicKeyJwk.kty, n: publicKeyJwk.n, e: publicKeyJwk.e, alg: 'RS256', use: 'sig' }]
+    };
+
+    let wellKnownFetched = false;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        if (u.includes('/oauth2/default/v1/keys')) {
+            return { ok: true, status: 200, json: async () => jwksAtCustomPath };
+        }
+        wellKnownFetched = true;
+        return { ok: true, status: 200, json: async () => jwksAtWellKnown };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader('RS256', 'okta-kid'), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should verify using key from jwks_uri discovered via OIDC metadata');
+    assert.equal(wellKnownFetched, false, 'should not fall back to well-known when jwks_uri resolves');
+});
+
+test('OIDC discovery failure (404) falls back to /.well-known/jwks.json', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    const { fetch: mockFetch, getDiscoveryCallCount, getJwksCallCount } = createMockFetch(jwksBody, 200, { discoveryStatus: 404 });
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims);
+    assert.equal(getDiscoveryCallCount(), 1);
+    assert.equal(getJwksCallCount(), 1);
+    assert.ok(logger.warns.length > 0, 'should log discovery fallback warning');
+});
+
+test('OIDC discovery without jwks_uri falls back to /.well-known/jwks.json', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    const { fetch: mockFetch, getDiscoveryCallCount, getJwksCallCount } = createMockFetch(
+        jwksBody,
+        200,
+        { discoveryBody: { issuer: 'https://idp.example.com' } }
+    );
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims);
+    assert.equal(getDiscoveryCallCount(), 1);
+    assert.equal(getJwksCallCount(), 1);
+});
+
+test('OIDC discovery — jwks_uri on foreign origin is ignored (SSRF guard)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const jwksBody = createJwksResponse();
+
+    let fetchedForeign = false;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://evil.example.com/keys' })
+            };
+        }
+        if (u.includes('evil.example.com')) {
+            fetchedForeign = true;
+            return { ok: true, status: 200, json: async () => ({ keys: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => jwksBody };
+    };
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const token = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(token);
+
+    assert.ok(result.claims, 'should fall back to well-known key when discovered jwks_uri is foreign');
+    assert.equal(fetchedForeign, false, 'should never fetch jwks_uri from foreign origin');
+    assert.ok(logger.warns.some((m) => m.includes('foreign origin')));
 });
