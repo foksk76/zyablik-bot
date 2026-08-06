@@ -42,6 +42,15 @@ function createOidcVerifierFactory(options = {}) {
       if (parsedIssuer.protocol !== 'https:' && parsedIssuer.protocol !== 'http:') {
         throw new Error('unsupported scheme');
       }
+      // Query/fragment в issuer — тихий слом auth: `#frag` срезает путь при
+      // сборке discovery-URL (`issuerBaseUrl + DISCOVERY_PATH`), а `?x=1`
+      // делает невозможным совпадение с `payload.iss` токена. Отклоняем как
+      // ошибку конфигурации (OIDC issuer — это origin с опциональным путём,
+      // RFC 8414 не допускает query/fragment). Холостые `?`/`#` WHATWG-URL
+      // нормализует в пустую строку и не считает их частью issuer.
+      if (parsedIssuer.search || parsedIssuer.hash) {
+        throw new Error('query or fragment not allowed');
+      }
     } catch {
       throw new Error(`Invalid issuer URL: ${issuer}`);
     }
@@ -301,7 +310,13 @@ function createOidcVerifierFactory(options = {}) {
             keyObjectCache.clear();
             jwksFetchedAt = Date.now();
             jwksFailedAt = 0;
-            jwksUriInfo = { jwksUri: fallbackUrl, discovered: false, resolvedAt: Date.now() };
+            // Discovery сам был валиден (сломался только jwks_uri): сохраняем
+            // discovered:true, чтобы jwksUriInfo держал 1h-кеш (JWKS_CACHE_TTL_MS),
+            // а не короткий 5-мин отрицательный — иначе рабочий discovery
+            // пере-пробовался бы каждые 5 минут без причины. Fallback-URL
+            // остаётся активным до истечения TTL, после чего discovery
+            // пере-резолвится и восстановленный jwks_uri снова будет использован.
+            jwksUriInfo = { jwksUri: fallbackUrl, discovered: true, resolvedAt: Date.now() };
             return fresh;
           } catch (fallbackErr) {
             jwksFailedAt = Date.now();
@@ -454,24 +469,46 @@ function createOidcVerifierFactory(options = {}) {
       return { header, payload, signature, signingInput: parts[0] + '.' + parts[1] };
     }
 
+    // RFC 7519: NumericDate — это JSON-число (секунды с Unix epoch). Не-числовой
+    // claim (например `exp: "abc"` или `iat: null`) в сравнении с `now` дал бы
+    // NaN → сравнение всегда false → проверка молча пропускалась бы. Валидируем
+    // тип детерминированно: любой non-number (строка, null, объект, NaN) —
+    // стабильная ошибка `Invalid token {claim} claim`.
+    function assertNumericDate(value, claim) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new Error(`Invalid token ${claim} claim`);
+      }
+      return value;
+    }
+
     // Temporal-claim-валидация (exp/iat/nbf) выполняется ДО сетевых fetch и
     // RSA-verify: значения приходят из самого токена и не раскрывают конфиг,
     // поэтому expired/garbage-токен не должен на холодном старте дёргать
     // discovery + JWKS (анти-амплификация). exp допускает skew в безопасную
     // сторону (токен, протухший в пределах clockSkewToleranceSec, ещё
     // принимается) — при расхождении часов IdP и ingress строгий exp резал бы
-    // легитимные токены раньше времени.
+    // легитимные токены раньше времени. Claims опциональны (RFC 7519): токен
+    // без exp/iat/nbf проходит, но присутствующий claim обязан быть числом.
     function validateTemporalClaims(payload, now) {
-      if (payload.exp && payload.exp < now - skewToleranceSec) {
-        throw new Error('Token expired');
+      if (payload.exp !== undefined) {
+        const exp = assertNumericDate(payload.exp, 'exp');
+        if (exp < now - skewToleranceSec) {
+          throw new Error('Token expired');
+        }
       }
 
-      if (payload.iat && payload.iat > now + skewToleranceSec) {
-        throw new Error('Token issued in the future');
+      if (payload.iat !== undefined) {
+        const iat = assertNumericDate(payload.iat, 'iat');
+        if (iat > now + skewToleranceSec) {
+          throw new Error('Token issued in the future');
+        }
       }
 
-      if (payload.nbf && payload.nbf > now + skewToleranceSec) {
-        throw new Error('Token not yet valid');
+      if (payload.nbf !== undefined) {
+        const nbf = assertNumericDate(payload.nbf, 'nbf');
+        if (nbf > now + skewToleranceSec) {
+          throw new Error('Token not yet valid');
+        }
       }
     }
 

@@ -2182,3 +2182,161 @@ test('non-object header/payload yield stable errors, not raw TypeError (review r
         }
     );
 });
+
+// ---------------------------------------------------------------------------
+// Review round 11 (PR#25): issuer query/fragment, numeric temporal claims,
+// fallback-success keeps discovery authoritative
+// ---------------------------------------------------------------------------
+
+test('createVerifier rejects issuer with query or fragment (review round 11)', () => {
+    const logger = createMockLogger();
+    const factory = createOidcVerifierFactory({ logger });
+
+    // Query в issuer: `issuerBaseUrl + DISCOVERY_PATH` дал бы битый URL, а
+    // `payload.iss` из токена никогда не совпал бы с конфигом с query —
+    // тихий 401 на все токены (тот же класс, что трейлинг-слэш).
+    assert.throws(
+        () => factory({ issuer: 'https://idp.example.com?tenant=prod' }),
+        (err) => {
+            assert.ok(err.message.includes('Invalid issuer URL'));
+            assert.ok(err.message.includes('idp.example.com?tenant=prod'));
+            return true;
+        }
+    );
+
+    // Fragment в issuer: `issuerBaseUrl + DISCOVERY_PATH` с `#frag` срезает путь.
+    assert.throws(
+        () => factory({ issuer: 'https://idp.example.com#frag' }),
+        (err) => {
+            assert.ok(err.message.includes('Invalid issuer URL'));
+            assert.ok(err.message.includes('idp.example.com#frag'));
+            return true;
+        }
+    );
+
+    // Трейлинг-слэш по-прежнему допустим (нормализуется).
+    assert.doesNotThrow(() => factory({ issuer: 'https://idp.example.com/' }));
+});
+
+test('non-numeric temporal claims are rejected deterministically (review round 11)', async () => {
+    ensureKeyPair();
+    const jwksBody = createJwksResponse();
+    const { fetch: mockFetch } = createMockFetch(jwksBody);
+    const logger = createMockLogger();
+
+    const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+    const verifier = factory({ issuer: 'https://idp.example.com' });
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // exp как строка: раньше `"abc" < now` давал NaN → false → проверка молча
+    // пропускалась, и токен проходил как «без exp». Теперь — детерминированный отказ.
+    const stringExp = createJwt(keyPair.privateKey, makeHeader(), makePayload({ exp: String(now + 3600) }));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(stringExp),
+        (err) => {
+            assert.equal(err.message, 'Invalid token exp claim');
+            return true;
+        }
+    );
+
+    // iat как строка.
+    const stringIat = createJwt(keyPair.privateKey, makeHeader(), makePayload({ iat: String(now) }));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(stringIat),
+        (err) => {
+            assert.equal(err.message, 'Invalid token iat claim');
+            return true;
+        }
+    );
+
+    // nbf как строка.
+    const stringNbf = createJwt(keyPair.privateKey, makeHeader(), makePayload({ nbf: String(now) }));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(stringNbf),
+        (err) => {
+            assert.equal(err.message, 'Invalid token nbf claim');
+            return true;
+        }
+    );
+
+    // exp = null — тоже non-number.
+    const nullExp = createJwt(keyPair.privateKey, makeHeader(), makePayload({ exp: null }));
+    await assert.rejects(
+        () => verifier.verifyAccessToken(nullExp),
+        (err) => {
+            assert.equal(err.message, 'Invalid token exp claim');
+            return true;
+        }
+    );
+
+    // Sanity-check: корректный числовой токен по-прежнему проходит.
+    const ok = createJwt(keyPair.privateKey, makeHeader(), makePayload());
+    const result = await verifier.verifyAccessToken(ok);
+    assert.ok(result.claims);
+});
+
+test('fallback success keeps discovery authoritative — no 5-min re-probe (review round 11)', async () => {
+    ensureKeyPair();
+    const logger = createMockLogger();
+    const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
+    let currentTime = Date.now();
+    const dateMock = mock.method(Date, 'now', () => currentTime);
+
+    let discoveryCount = 0;
+    let customJwksFetched = 0;
+    let fallbackJwksCount = 0;
+    const mockFetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/.well-known/openid-configuration')) {
+            discoveryCount++;
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ issuer: 'https://idp.example.com', jwks_uri: 'https://idp.example.com/oauth2/default/v1/keys' })
+            };
+        }
+        if (u.includes('/oauth2/default/v1/keys')) {
+            customJwksFetched++;
+            return { ok: false, status: 500, json: async () => ({}) };
+        }
+        fallbackJwksCount++;
+        return { ok: true, status: 200, json: async () => createJwksResponse('fb-kid-' + fallbackJwksCount) };
+    };
+
+    try {
+        const factory = createOidcVerifierFactory({ fetchFn: mockFetch, logger });
+        const verifier = factory({ issuer: 'https://idp.example.com' });
+        const ts = () => Math.floor(currentTime / 1000);
+        const tokenFor = (kid) => createJwt(keyPair.privateKey, makeHeader('RS256', kid), makePayload({ exp: ts() + 86400, iat: ts() }));
+
+        // t0: discovery валиден, но discovered jwks_uri 500-ит → fallback спасает.
+        // jwksUriInfo должен остаться discovered:true (1h TTL), а не упасть в
+        // 5-мин отрицательный кеш.
+        const result1 = await verifier.verifyAccessToken(tokenFor('fb-kid-1'));
+        assert.ok(result1.claims);
+        assert.equal(discoveryCount, 1);
+        assert.equal(customJwksFetched, 1);
+        assert.equal(fallbackJwksCount, 1);
+
+        // t0 + 5мин + 1с: kid-miss форсит refresh (grace прошёл) → getJwksUri
+        // возвращает кешированный fallback с discovered:true — discovery НЕ
+        // пере-пробуется на 5-мин отметке (с discovered:false был бы re-probe).
+        currentTime += 5 * 60 * 1000 + 1000;
+        const result2 = await verifier.verifyAccessToken(tokenFor('fb-kid-2'));
+        assert.ok(result2.claims);
+        assert.equal(discoveryCount, 1, 'healthy discovery must not be re-probed at the 5-minute mark');
+        assert.equal(fallbackJwksCount, 2);
+
+        // t0 + 1ч + 5мин + 1с: 1h-кеш jwksUriInfo протух → discovery пере-резолвится,
+        // и восстановленный discovered jwks_uri снова будет испробован.
+        currentTime += JWKS_CACHE_TTL_MS;
+        const result3 = await verifier.verifyAccessToken(tokenFor('fb-kid-3'));
+        assert.ok(result3.claims);
+        assert.equal(discoveryCount, 2, 'discovery is re-resolved after the 1h jwksUriInfo TTL');
+        assert.equal(customJwksFetched, 2, 'discovered jwks_uri is tried again after re-discovery');
+        assert.equal(fallbackJwksCount, 3);
+    } finally {
+        dateMock.mock.restore();
+    }
+});

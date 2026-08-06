@@ -38,7 +38,7 @@ ADR-0024 принимает `@okta/jwt-verifier` как исключение и�
 - ingress layer не зависит от IdP-провайдера (ADR-0022: multi-source);
 - JWT от внешних источников могут использовать разные JWKS-endpoints;
 - `@okta/jwt-verifier` привязан к Okta-специфичным API;
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~560 строк с
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~600 строк с
   OIDC discovery, кешами и ограничениями сети), легко audit-уется.
 
 ### OIDC discovery (изменение 2026-08)
@@ -93,6 +93,13 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   на час после восстановления IdP: после истечения TTL discovery пере-пробуется.
   Короткий отрицательный TTL остаётся для транзиентных сбоев (5xx, сетевые
   ошибки, таймауты).
+- Если JWKS-fetch по discovered `jwks_uri` падает, а один retry на дефолтный
+  путь `{issuer}/.well-known/jwks.json` спасает (fallback-success),
+  `jwksUriInfo` сохраняет `discovered:true` — discovery сам был валиден
+  (сломался только `jwks_uri`), и его 1h-кеш не деградирует до 5-минутного
+  re-probing-а без причины. Fallback-URL остаётся активным до истечения
+  1h-кеша, после чего discovery пере-резолвится и восстановленный
+  discovered `jwks_uri` снова будет использован.
 - kid-miss форсит refresh JWKS только вне отрицательного окна (5 минут
   после сбойного fetch) и вне grace-периода после успешного fetch
   (5 минут) — иначе kid-miss после протухания 1h-кеша давал бы 2 лишних
@@ -115,6 +122,15 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   и для базового URL, и для сравнения `iss`; `payload.iss` в токене
   нормализуется так же — иначе `https://idp.../` в конфиге или в токене
   давал рабочий JWKS, но тихий 401 на все токены.
+- `issuer` с query/fragment отклоняется при создании verifier-а
+  (`Invalid issuer URL`, как и не-URL значение): WHATWG-`new URL()`
+  нормализует холостой `?`/`#` в пустую строку, но `#frag` срезал бы путь
+  при сборке discovery-URL (`issuerBaseUrl + DISCOVERY_PATH`), а `?x=1`
+  делал бы невозможным совпадение с `payload.iss` токена — оба случая
+  давали бы тихий 401 на все токены (тот же класс, что трейлинг-слэш).
+  OIDC issuer — это origin с опциональным путём (RFC 8414); query/fragment
+  в нём не допускаются, поэтому конфиг-ошибка ловится fail-fast, а не
+  в проде на каждом токене.
 - `iat`/`nbf`/`exp` допускают рассинхрон часов (опция
   `clockSkewToleranceSec`, дефолт 30 с): строгая проверка «из будущего»
   резала бы легитимные токены при расхождении часов IdP и ingress на 1–2 с,
@@ -126,6 +142,11 @@ NanoIDP и любые не-Okta IdP → `POST /ingest` отвечал 401).
   проходит. Осознанный выбор в пользу интероперабельности — ужесточение
   (обязательный `exp`) отвергнуто как breaking для IdP, выпускающих
   токены без `exp`.
+- Присутствующие temporal-claims обязаны быть числами (RFC 7519
+  NumericDate): не-числовое значение (`exp: "abc"`, `iat: null`, `nbf: "…"`)
+  в сравнении с `now` давало бы NaN → false → проверка молча пропускалась
+  бы. Теперь non-number даёт стабильную ошибку `Invalid token {claim} claim`
+  (детерминированная валидация, до сетевых fetch).
 - Allowlist алгоритмов проверяется по заголовку токена **до** сетевых fetch
   (детерминированная проверка, не требующая JWKS): мусорный `alg` не дёргает
   discovery + JWKS на холодном старте (анти-амплификация) и даёт чистый
@@ -188,7 +209,8 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
   refresh пропускается внутри отрицательного окна сбойного fetch (5 минут) и
   внутри grace-периода после успешного fetch (5 минут, `JWKS_FORCED_REFRESH_MIN_INTERVAL_MS`)
 - **Issuer validation**: `issuer` проверяется через `new URL()` (схема http/https),
-  не-URL значение отклоняется с понятной ошибкой; трейлинг-слэш нормализуется один раз
+  не-URL значение, query или fragment отклоняются с понятной ошибкой
+  (`Invalid issuer URL`); трейлинг-слэш нормализуется один раз
   (и для base URL, и для сравнения `iss`); `payload.iss` нормализуется так же; поле
   `issuer` discovery-документа (RFC 8414) сверяется с конфигурированным issuer
   (mismatch → warn + fallback на дефолтный путь)
@@ -200,6 +222,9 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
 - **Claim validation**: temporal-claims (`exp`, `iat`, `nbf`) — до сетевых fetch
   и RSA-verify (анти-амплификация, допуск на рассинхрон часов
   `clockSkewToleranceSec`, дефолт 30 с, включая `exp` в безопасную сторону);
+  присутствующие claims обязаны быть числами (NumericDate, RFC 7519) —
+  non-number даёт стабильную ошибку `Invalid token {claim} claim`, а не
+  молчаливый пропуск из-за NaN-сравнения;
   `iss`/`aud` — после проверки подписи (нет «оракула» конфигурации до verify)
 - **Key import**: `crypto.createPublicKey({ key: jwk, format: 'jwk' })`; JWKS-тело
   валидируется (обязательный массив `keys`) до кеширования; `KeyObject` кешируется
@@ -225,7 +250,7 @@ createOidcVerifierFactory(options) → createVerifier({ issuer, audience, clockS
 
 - `@okta/jwt-verifier` привязан к Okta SDK API;
 - ingress layer работает с произвольными OIDC-провайдерами (не только Okta);
-- hand-rolled верификатор — один модуль на stdlib (сейчас ~560 строк);
+- hand-rolled верификатор — один модуль на stdlib (сейчас ~600 строк);
 - оба модуля решают разные задачи в разных слоях.
 
 ### Связь с queue-monitor/auth/oidc.js
@@ -250,7 +275,7 @@ queue-monitor auth — отдельный слой (ADR-0034), отдельны�
 
 ### Вынести в отдельный пакет
 
-Минус: один модуль (сейчас ~560 строк), один потребитель (`app.js`;
+Минус: один модуль (сейчас ~600 строк), один потребитель (`app.js`;
 `queue-monitor/auth/oidc.js` — отдельный модуль, зеркалирующий паттерн,
 а не импортирующий `oidc-verifier.js`).
 Вынос в пакет = overengineering. Отклонено.
