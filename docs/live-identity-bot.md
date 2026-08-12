@@ -82,10 +82,10 @@ HTTP 200
 
 ## Рабочая задача
 
-Live-реализация ведется отдельной задачей:
+Live-реализация велась отдельной задачей (до реорганизации — Task 18, сейчас — спринты):
 
 ```text
-tasks/sprints/ -> Task 18.9-18.10
+tasks/sprints/sprint-02.md, sprint-04.md, sprint-07.md -> live inbound + acceptance
 docs/runbooks/live-identity-bot.md -> operational runbook
 ```
 
@@ -95,13 +95,13 @@ docs/runbooks/live-identity-bot.md -> operational runbook
 - отправки ответа;
 - read/ack, если этот признак должен поддерживаться.
 
-Pre-code source gate закрыт в Task 18.1:
+Pre-code source gate закрыт (см. sprint-02.md):
 
 ```text
 docs/identity-plugin/max-api-source.md
 ```
 
-Документ подтверждает официальный источник MAX Bot API. Task 18.2 выбрал первый live transport mode:
+Документ подтверждает официальный источник MAX Bot API. Первый live transport mode выбран в sprint-02.md:
 
 ```text
 MAX_TRANSPORT_MODE=long_polling

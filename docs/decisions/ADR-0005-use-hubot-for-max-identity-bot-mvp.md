@@ -2,7 +2,11 @@
 
 ## Статус
 
-Принято.
+Заменён [ADR-0049](ADR-0049-supersede-hubot-with-custom-bot-platform.md).
+
+Hubot-based MVP не был реализован. Основной путь реализации — кастомная
+bot-platform `src/bot-platform/` (ADR-0012–0048). Node-RED остаётся
+fallback-прототипом только для короткой проверки identity-сценария.
 
 ## Дата
 

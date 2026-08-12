@@ -1,6 +1,6 @@
 # Live MAX Identity Bot runbook
 
-Документ описывает запуск live MAX Identity Bot в операторской среде или LXC после Task 18.7.
+Документ описывает запуск live MAX Identity Bot в операторской среде или LXC после live-приёмки identity-сценария (спринты 02–07).
 
 ## Назначение
 

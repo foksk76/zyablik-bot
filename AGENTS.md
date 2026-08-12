@@ -92,6 +92,9 @@ ADR-0043  Zabbix Monitoring Template (agent-less LLD-шаблон 7.0+, смен
 ADR-0044  Nginx reverse proxy для HTTP-серверов bot-platform (TLS-терминирование ingress 8443 и dashboard 9000, порт 443, self-signed)
 ADR-0045  файл конфигурации как источник правды (zyablik.config.json, loadConfig, $VAR-секреты, Stage→Apply→рестарт, авто-откат)
 ADR-0046  schema-driven управление конфигурацией в web UI (configSchema у плагинов, /api/config/*, секреты — только статус)
+ADR-0047  dev-маркеры и чистая сборка (/* DEV-ONLY */ + scripts/clean-build.js + npm run build:clean, гейт на dist/clean)
+ADR-0048  автоматизированный жизненный цикл разработки (идея → ветка → код → чистая сборка → ревью → merge → доставка)
+ADR-0049  замена Hubot кастомной bot-platform (заменяет ADR-0005)
 ```
 
 Если меняется конфигурация (config file / schema-driven web UI):
@@ -118,6 +121,17 @@ INSTALL.md (раздел 11)
 docs/runbooks/config-file.md
 Dockerfile
 docker-compose.yml
+```
+
+Если меняется dev lifecycle (dev-маркеры, чистая сборка, доставка):
+
+```text
+docs/decisions/ADR-0047-dev-markers-and-clean-build.md
+docs/decisions/ADR-0048-automated-dev-lifecycle.md
+docs/ideas/automated-dev-lifecycle.md
+scripts/clean-build.js
+tests/clean-build.test.js
+DEVELOPMENT.md
 ```
 
 ## Каноничные источники
@@ -205,6 +219,27 @@ fan-in/fan-out, кандидаты на рефакторинг  search_graph(min
 - Любое изменение поведения `src/zabbix-media-type/max-webhook.js` отражать в `docs/zabbix-media-type.md`.
 - ADR создавать только в `docs/decisions/`.
 - Задачи вести только в `tasks/sprints/`.
+- Изоляция задачи (ADR-0048): одна задача — одна ветка → PR в `main`; правки в `main` напрямую не делаются.
+- Dev-следы (отладочные логи, заглушки, исследовательский код) в `src/bot-platform`
+  строго маркировать блочно `/* DEV-ONLY: <ссылка> */ ... /* END DEV-ONLY */`
+  (однострочные — `// DEV-ONLY: <ссылка>`). Ссылка: `ADR-NNNN` (резолвится в
+  `docs/decisions/ADR-NNNN-*.md`) или `tasks/sprints/sprint-NN.md` — обязана
+  указывать на существующий файл, это валидирует `scripts/clean-build.js` (ADR-0047).
+- Ссылки на не-поставляемую документацию в комментариях `src/` (`ADR-NNNN`,
+  `tasks/sprints/sprint-NN.md`, прочее из `docs/`/`tasks/`) оформлять маркером
+  `// DOC-REF: <ссылка>` (слой 2, ADR-0047): такой комментарий объясняет продукт
+  через документ, которого нет в релизе, и вырезается чистой сборкой. Применяется
+  к `src/bot-platform` и `src/queue-monitor`. Немаркированная ссылка на документ
+  в комментарии — ошибка гейта чистой сборки.
+- User-facing строки (`description` в `config-schema.js`, `ui/package.json`) не
+  должны содержать номеров ADR (слой 1, ADR-0047): ссылки выносятся в
+  `DOC-REF`-комментарий, текст остаётся продуктовым.
+- Перед PR прогнать `npm run build:clean` и `npm test`: чистая версия `dist/clean/`
+  должна оставаться без `DEV-ONLY`, а `npm test` — покрывать её (ADR-0047).
+  До реализации `scripts/clean-build.js` (задача `tasks/sprints/sprint-43.md`)
+  команда `build:clean` не существует — правило вступает в силу вместе с ней.
+- Ревью человеком — по чек-листу (бизнес-логика, цели спринта, чистота концепции),
+  а не по синтаксису: синтаксис и dev-мусор проверены автоматикой (ADR-0048).
 
 ## Проверка
 

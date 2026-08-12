@@ -28,7 +28,10 @@ docs/test-runs/final-acceptance-run.md
 
 ## Bot-platform
 
-По ADR-0005 выбран Hubot-based MVP MAX Identity Bot. Node-RED оставлен только как fallback-прототип.
+По ADR-0005 для MVP MAX Identity Bot рассматривался Hubot, но Hubot-путь не был
+реализован: по [ADR-0049](decisions/ADR-0049-supersede-hubot-with-custom-bot-platform.md)
+основным путём реализации стала кастомная bot-platform `src/bot-platform/`.
+Node-RED оставлен только как fallback-прототип.
 
 Bot-platform отделена от Zabbix Webhook и используется для identity-сценария и команд:
 
@@ -41,11 +44,11 @@ bot_started -> welcome message
 
 По ADR-0018 pipeline ветвится: если текст начинается с `/`, обрабатывается через command registry; иначе — «Unknown command». По ADR-0019 outbound client поддерживает `kind: 'text'` ответы. По ADR-0020 `bot_added` и ADR-0021 `bot_started` события обрабатываются pipeline и отправляют приветствие.
 
-Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в Task 18.
+Live-сценарий с реальным входящим сообщением МАХ и реальным ответом через MAX Bot API вынесен в отдельную задачу (до реорганизации — Task 18, сейчас — спринты 02–07).
 
 Ключевые границы:
 
-- основной путь реализации — Hubot-based MVP;
+- основной путь реализации — кастомная bot-platform (ADR-0012–0048, Hubot не используется, см. ADR-0049);
 - Node-RED используется только как fallback-прототип;
 - транспорт МАХ отделяется от identity plugin;
 - WSL используется как developer sandbox;
@@ -97,7 +100,7 @@ Live-сценарий с реальным входящим сообщением 
 - для документации и ADR применять подход `documentation-and-adrs`;
 - хранить архитектурные решения в `docs/decisions/`;
 - хранить project-level критерии в `docs/project-acceptance.md`;
-- по ADR-0005 использовать Hubot как основной вариант MVP `MAX Identity Bot`, а Node-RED только как fallback-прототип;
+- по ADR-0005/ADR-0049 реализация MVP MAX Identity Bot идёт на кастомной bot-platform, а не на Hubot; Node-RED — только fallback-прототип;
 - по ADR-0010 требовать live evidence для приемки MAX Identity Bot;
 - по ADR-0022 расширить scope на multi-source ingress + журналы;
 - по ADR-0023 принять входящие HTTP в bot-platform (stdlib only);

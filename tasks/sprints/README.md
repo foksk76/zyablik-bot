@@ -49,6 +49,7 @@ Identity Plugin Live MAX Identity Bot реализуется через спри
 - `sprint-40.md` — SettingsPage UI (ADR-0046): динамические формы из merged-схемы
 - `sprint-41.md` — Конфигурация (ADR-0045/0046): интеграция, стенд и документация
 - `sprint-42.md` — Конфигурация: follow-up ревью PR #23 (M1–M2, L1–L3)
+- `sprint-43.md` — ADR-0047/0048: dev-маркеры и чистая сборка (реализация механики)
 
 ## Status
 
@@ -89,6 +90,7 @@ Sprint 39: Pending (ADR-0046: configSchema, merged-схема, /api/config/*)
 Sprint 40: Pending (ADR-0046: SettingsPage UI — динамические формы из merged-схемы)
 Sprint 41: Pending (ADR-0045/0046: интеграция, стенд и документация)
 Sprint 42: Pending (Конфигурация: follow-up ревью PR #23 — M1–M2, L1–L3)
+Sprint 43: Pending (ADR-0047/0048: dev-маркеры и чистая сборка — реализация механики)
 ```
 
 Детальная информация в `tasks/sprints/sprint-42.md`.

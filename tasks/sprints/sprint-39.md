@@ -7,9 +7,9 @@ export/import), auth (Bearer + session), single-flight и rate limit.
 
 **ADR:** [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
 [ADR-0045](../../docs/decisions/ADR-0045-config-file-source-of-truth.md)
-[ADR-0039](../../docs/decisions/ADR-0039-rate-limit-auth-dashboard.md)
-[ADR-0035](../../docs/decisions/ADR-0035-session-auth.md)
-[ADR-0042](../../docs/decisions/ADR-0042-web-navigation-archive.md) (HTTP-паттерны)
+[ADR-0039](../../docs/decisions/ADR-0039-auth-rate-limiting-for-dashboard.md)
+[ADR-0035](../../docs/decisions/ADR-0035-session-auth-for-dashboard-metrics.md)
+[ADR-0042](../../docs/decisions/ADR-0042-web-interface-archive.md) (HTTP-паттерны)
 **Idea:** [docs/ideas/config-file-and-schema-driven-settings.md](../../docs/ideas/config-file-and-schema-driven-settings.md)
 
 **Контекст:** ядро и применение готовы (Sprint 37-38). Здесь — API для

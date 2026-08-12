@@ -4,7 +4,7 @@
 
 ## Scope
 
-Проверен live MAX Identity Bot runtime после Task 18.8.
+Проверен live MAX Identity Bot runtime (спринты 02–07, live identity bot).
 
 ## Coverage
 

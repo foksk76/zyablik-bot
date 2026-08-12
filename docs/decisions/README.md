@@ -19,7 +19,7 @@ ADR фиксируют не только принятое решение, но �
 | [ADR-0002](ADR-0002-use-external-agent-skills.md) | Принято | Использовать внешний `agent-skills` без submodule |
 | [ADR-0003](ADR-0003-project-acceptance-and-run-methods.md) | Принято | Выделить критерии завершения проекта и методы прогонов |
 | [ADR-0004](ADR-0004-use-node-policy-tests-and-github-actions.md) | Принято | Использовать Node.js policy tests и GitHub Actions вместо bash-проверки |
-| [ADR-0005](ADR-0005-use-hubot-for-max-identity-bot-mvp.md) | Принято | Выбрать платформу MVP MAX Identity Bot |
+| [ADR-0005](ADR-0005-use-hubot-for-max-identity-bot-mvp.md) | Заменён ([ADR-0049](ADR-0049-supersede-hubot-with-custom-bot-platform.md)) | Выбрать платформу MVP MAX Identity Bot |
 | [ADR-0006](ADR-0006-use-lxc-integration-stand-for-mvp-callback-path.md) | Принято | Использовать LXC integration stand для callback-path прогона MVP |
 | [ADR-0007](ADR-0007-use-long-polling-by-default-for-bot-platform-development.md) | Принято | Использовать long polling по умолчанию для разработки и тестирования bot-platform |
 | [ADR-0008](ADR-0008-use-outbound-only-lxc-for-safe-test-bot-development.md) | Принято | Использовать outbound-only LXC для safe test bot development |
@@ -61,3 +61,6 @@ ADR фиксируют не только принятое решение, но �
 | [ADR-0044](ADR-0044-nginx-reverse-proxy.md) | Принято | Nginx reverse proxy для HTTP-серверов bot-platform: TLS-терминирование ingress (`8443`) и dashboard (`9000`), единый порт `443`, самоподписанный сертификат на локальном стенде |
 | [ADR-0045](ADR-0045-config-file-source-of-truth.md) | Принято | Файл конфигурации как источник правды: `zyablik.config.json`, трёхслойный мерж defaults→файл→env, `$VAR`-секреты, Stage→Apply→рестарт, last-known-good, bootstrap через `--generate-config` |
 | [ADR-0046](ADR-0046-schema-driven-config-webui.md) | Принято | Schema-driven управление конфигурацией в web UI: `configSchema` у плагинов, динамические формы, `/api/config/*`, маскирование секретов, импорт/экспорт JSON |
+| [ADR-0047](ADR-0047-dev-markers-and-clean-build.md) | Принято | Dev-маркеры и чистая сборка: `/* DEV-ONLY: <ADR|задача> */` + `scripts/clean-build.js` + `npm run build:clean`, policy-тест на чистый артефакт, гейт CI на результат чистой сборки (без `DEV-ONLY` в `dist/clean/`) |
+| [ADR-0048](ADR-0048-automated-dev-lifecycle.md) | Принято | Автоматизированный жизненный цикл разработки: идея → ветка → код со скилами и dev-маркерами → чистая сборка → ревью человеком по чек-листу → merge → полу-авто доставка, дихотомия «репо = полная история / прод = чистый код» |
+| [ADR-0049](ADR-0049-supersede-hubot-with-custom-bot-platform.md) | Принято | Заменить Hubot кастомной bot-platform: признать Hubot-путь (ADR-0005) нереализованным, основным путём считать `src/bot-platform/` |

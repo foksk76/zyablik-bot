@@ -7,9 +7,9 @@ staged + diff перед Apply, кнопки Apply/Rollback/Export/Import, banne
 авто-отката по `GET /api/config/status`. Storybook-компоненты (ADR-0036).
 
 **ADR:** [ADR-0046](../../docs/decisions/ADR-0046-schema-driven-config-webui.md)
-[ADR-0036](../../docs/decisions/ADR-0036-design-system.md)
-[ADR-0040](../../docs/decisions/ADR-0040-queue-monitor-ui-improvements.md)
-[ADR-0042](../../docs/decisions/ADR-0042-web-navigation-archive.md)
+[ADR-0036](../../docs/decisions/ADR-0036-design-system-for-queue-monitor-ui.md)
+[ADR-0040](../../docs/decisions/ADR-0040-ui-improvements-for-queue-monitor.md)
+[ADR-0042](../../docs/decisions/ADR-0042-web-interface-archive.md)
 **Idea:** [docs/ideas/config-file-and-schema-driven-settings.md](../../docs/ideas/config-file-and-schema-driven-settings.md)
 
 **Контекст:** API готов (Sprint 39). Существующая SettingsPage —

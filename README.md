@@ -113,7 +113,8 @@ Queue Monitor Dashboard (ADR-0034)
 
 Ключевые архитектурные решения зафиксированы в ADR (`docs/decisions/`):
 
-- ADR-0005: Hubot-based MVP MAX Identity Bot
+- ADR-0005: Hubot-based MVP MAX Identity Bot (заменён ADR-0049)
+- ADR-0049: замена Hubot кастомной bot-platform
 - ADR-0012: convention-based plugin loader
 - ADR-0015: нулевые внешние зависимости
 - ADR-0017: внутренний контракт событий
